@@ -65,11 +65,65 @@ jobs:
         uv run python tests/test_runner.py unit --verbose
         uv run python tests/test_runner.py integration --verbose
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+
+    - name: Build playground UI
+      run: |
+        cd web
+        npm ci
+        npm run build
+        cd ..
+        echo "✅ Playground UI built successfully"
+        ls -la playground/
+
     - name: Build package
       run: uv build
 
     - name: Check package
       run: uv run twine check dist/*
+
+    - name: Smoke test - Install and test playground
+      run: |
+        # Install the built package in a temporary venv
+        python -m venv /tmp/test-env
+        /tmp/test-env/bin/pip install dist/*.whl
+
+        # Start playground in background
+        /tmp/test-env/bin/dakora init
+        /tmp/test-env/bin/dakora playground --no-browser --port 3333 &
+        PLAYGROUND_PID=$!
+
+        # Wait for server to start
+        echo "Waiting for playground to start..."
+        for i in {1..30}; do
+          if curl -s http://localhost:3333/api/health > /dev/null; then
+            echo "✅ Playground is responding!"
+            break
+          fi
+          if [ $i -eq 30 ]; then
+            echo "❌ Playground failed to start"
+            kill $PLAYGROUND_PID 2>/dev/null || true
+            exit 1
+          fi
+          sleep 1
+        done
+
+        # Test API endpoints
+        echo "Testing API endpoints..."
+        curl -f http://localhost:3333/api/health || exit 1
+        curl -f http://localhost:3333/api/templates || exit 1
+
+        # Check if UI is served (should have index.html)
+        curl -s http://localhost:3333/ | grep -q "Dakora Playground" || exit 1
+
+        # Cleanup
+        kill $PLAYGROUND_PID
+        echo "✅ Smoke test passed!"
 
     - name: Create git tag
       run: |

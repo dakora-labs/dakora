@@ -57,8 +57,11 @@ htmlcov/
 # Build artifacts for playground
 web/dist/
 web/node_modules/
-playground/dist/
-playground/node_modules/
+
+# Built playground UI (auto-built from web/ source on first run)
+# Keep the directory structure but ignore built files
+playground/*
+!playground/.gitkeep
 
 # Development scripts (keep in repo but users might create their own)
 dev_*.py

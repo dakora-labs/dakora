@@ -26,6 +26,11 @@ A Python library for managing and rendering prompt templates with type-safe inpu
 pip install dakora
 ```
 
+**For the interactive playground**:
+- PyPI releases include a pre-built UI - just run `dakora playground`
+- For development installs (git clone), Node.js 18+ is required
+- The UI builds automatically from source on first run if not present
+
 Or for development:
 
 ```bash
