@@ -80,6 +80,12 @@ def _build_ui():
     web_dir = package_root / "web"
     playground_dir = package_root / "playground"
 
+    # Check if playground is already built (e.g., from PyPI package)
+    if (playground_dir / "index.html").exists() and not web_dir.exists():
+        typer.echo("✅ Using pre-built UI from package")
+        return True
+
+    # For development installs, check if we need to build
     if not web_dir.exists():
         typer.echo("❌ Web UI source not found. This may be a development installation issue.", err=True)
         return False
