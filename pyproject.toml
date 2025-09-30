@@ -1,6 +1,6 @@
 [project]
 name = "dakora"
-version = "1.0.0"
+version = "1.0.1"
 description = "A Python library for managing and rendering prompt templates with type-safe inputs, versioning, and optional logging"
 readme = "README.md"
 authors = [
