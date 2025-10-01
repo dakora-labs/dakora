@@ -11,4 +11,6 @@ RUN pip install --no-cache-dir . && \
 
 EXPOSE 8000
 
-CMD dakora playground --demo --host 0.0.0.0 --port 8000 --no-build --no-browser
+ENV PORT=8000
+
+CMD dakora playground --demo --host 0.0.0.0 --port ${PORT} --no-browser
