@@ -169,7 +169,8 @@ def playground(
     prompt_dir: str = typer.Option(None, help="Prompt directory (overrides config)"),
     dev: bool = typer.Option(False, "--dev", help="Development mode with auto-reload"),
     no_build: bool = typer.Option(False, "--no-build", help="Skip building the UI"),
-    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser automatically")
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser automatically"),
+    demo: bool = typer.Option(False, "--demo", help="Demo mode with session isolation and terminal UI")
 ):
     """Launch the interactive playground web interface.
 
@@ -187,7 +188,10 @@ def playground(
                 typer.echo("⚠️  UI build failed, starting with fallback interface", err=True)
 
         # Create the server
-        if prompt_dir:
+        if demo:
+            typer.echo("🎮 Starting in DEMO mode - session isolation enabled")
+            playground_server = create_playground(host=host, port=port, demo_mode=True)
+        elif prompt_dir:
             playground_server = create_playground(prompt_dir=prompt_dir, host=host, port=port)
         else:
             playground_server = create_playground(config_path=config, host=host, port=port)
@@ -200,6 +204,8 @@ def playground(
         # Start the server
         if dev:
             typer.echo("🚀 Starting playground in development mode...")
+        elif demo:
+            typer.echo("🎮 Starting Dakora Playground in demo mode...")
         else:
             typer.echo("🎯 Starting Dakora Playground...")
 
@@ -209,8 +215,11 @@ def playground(
         playground_server.run(debug=dev)
 
     except FileNotFoundError as e:
-        typer.echo(f"❌ Config file not found: {e}", err=True)
-        typer.echo("💡 Run 'dakora init' to create a new project", err=True)
+        if demo:
+            typer.echo(f"❌ Unexpected error in demo mode: {e}", err=True)
+        else:
+            typer.echo(f"❌ Config file not found: {e}", err=True)
+            typer.echo("💡 Run 'dakora init' to create a new project", err=True)
         raise typer.Exit(1)
     except KeyboardInterrupt:
         typer.echo("\n👋 Stopping playground server...")

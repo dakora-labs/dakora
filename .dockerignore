@@ -1,0 +1,17 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.coverage
+htmlcov
+dist
+build
+node_modules
+.DS_Store
+dakora.db
+prompts/
+web/node_modules
+web/dist

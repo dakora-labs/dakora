@@ -8,11 +8,15 @@ editing, and testing prompt templates in real-time.
 from __future__ import annotations
 import json
 import yaml
+import uuid
+import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Cookie
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -553,8 +557,377 @@ Focus on providing value and actionable insights.""",
         )
 
 
+class DemoPlaygroundServer(PlaygroundServer):
+    def __init__(self, host: str = "localhost", port: int = 3000):
+        self.host = host
+        self.port = port
+        self.sessions: Dict[str, Vault] = {}
+        self.session_dirs: Dict[str, Path] = {}
+        self.app = self._create_demo_app()
+
+    def _create_session_vault(self, session_id: str) -> Vault:
+        session_dir = Path(tempfile.gettempdir()) / "dakora-demo" / session_id
+        prompt_dir = session_dir / "prompts"
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+
+        config_file = session_dir / "dakora.yaml"
+        config = {
+            "registry": "local",
+            "prompt_dir": str(prompt_dir),
+            "logging": {"enabled": False}
+        }
+        config_file.write_text(yaml.safe_dump(config, sort_keys=False))
+
+        vault = Vault(config_path=str(config_file))
+
+        for example in self._get_example_templates():
+            yaml_content = {
+                "id": example.id,
+                "version": example.version,
+                "description": example.description,
+                "template": example.template,
+                "inputs": {
+                    name: {
+                        "type": input_spec.type,
+                        "required": input_spec.required,
+                        "default": input_spec.default
+                    }
+                    for name, input_spec in example.inputs.items()
+                },
+                "metadata": example.metadata
+            }
+            file_path = prompt_dir / f"{example.id}.yaml"
+            file_path.write_text(yaml.safe_dump(yaml_content, sort_keys=False))
+
+        vault.invalidate_cache()
+        self.sessions[session_id] = vault
+        self.session_dirs[session_id] = session_dir
+        return vault
+
+    def _get_or_create_session(self, session_id: Optional[str]) -> tuple[str, Vault]:
+        if not session_id or session_id not in self.sessions:
+            session_id = str(uuid.uuid4())
+            vault = self._create_session_vault(session_id)
+        else:
+            vault = self.sessions[session_id]
+        return session_id, vault
+
+    def _create_demo_app(self) -> FastAPI:
+        app = FastAPI(
+            title="Dakora Playground - Demo Mode",
+            description="Interactive playground with session isolation",
+            version="0.1.0"
+        )
+
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+        @app.middleware("http")
+        async def session_middleware(request: Request, call_next):
+            session_id = request.cookies.get("dakora_session_id")
+            session_id, vault = self._get_or_create_session(session_id)
+            request.state.session_id = session_id
+            request.state.vault = vault
+            response = await call_next(request)
+            response.set_cookie("dakora_session_id", session_id, httponly=True, max_age=3600)
+            return response
+
+        @app.get("/api/templates", response_model=List[str])
+        async def list_templates(request: Request):
+            try:
+                return list(request.state.vault.list())
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.get("/api/templates/{template_id}", response_model=TemplateResponse)
+        async def get_template(template_id: str, request: Request):
+            try:
+                template = request.state.vault.get(template_id)
+                spec = template.spec
+                return TemplateResponse(
+                    id=spec.id,
+                    version=spec.version,
+                    description=spec.description,
+                    template=spec.template,
+                    inputs={name: {
+                        "type": input_spec.type,
+                        "required": input_spec.required,
+                        "default": input_spec.default
+                    } for name, input_spec in spec.inputs.items()},
+                    metadata=spec.metadata
+                )
+            except TemplateNotFound:
+                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/api/templates", response_model=TemplateResponse)
+        async def create_template(req: CreateTemplateRequest, request: Request):
+            try:
+                if not req.id or req.id.strip() == "":
+                    raise HTTPException(status_code=422, detail="Template ID cannot be empty")
+
+                try:
+                    request.state.vault.get(req.id)
+                    raise HTTPException(status_code=400, detail=f"Template '{req.id}' already exists")
+                except TemplateNotFound:
+                    pass
+
+                inputs_dict = {}
+                for input_name, input_data in req.inputs.items():
+                    inputs_dict[input_name] = InputSpec(
+                        type=input_data.get("type", "string"),
+                        required=input_data.get("required", True),
+                        default=input_data.get("default")
+                    )
+
+                spec = TemplateSpec(
+                    id=req.id,
+                    version=req.version,
+                    description=req.description,
+                    template=req.template,
+                    inputs=inputs_dict,
+                    metadata=req.metadata
+                )
+
+                prompt_dir = Path(request.state.vault.config["prompt_dir"])
+                file_path = prompt_dir / f"{spec.id}.yaml"
+
+                yaml_content = {
+                    "id": spec.id,
+                    "version": spec.version,
+                    "description": spec.description,
+                    "template": spec.template,
+                    "inputs": {
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default
+                        }
+                        for name, input_spec in spec.inputs.items()
+                    },
+                    "metadata": spec.metadata
+                }
+
+                file_path.write_text(yaml.safe_dump(yaml_content, sort_keys=False))
+                request.state.vault.invalidate_cache()
+
+                return TemplateResponse(
+                    id=spec.id,
+                    version=spec.version,
+                    description=spec.description,
+                    template=spec.template,
+                    inputs={name: {
+                        "type": input_spec.type,
+                        "required": input_spec.required,
+                        "default": input_spec.default
+                    } for name, input_spec in spec.inputs.items()},
+                    metadata=spec.metadata
+                )
+
+            except HTTPException:
+                raise
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.put("/api/templates/{template_id}", response_model=TemplateResponse)
+        async def update_template(template_id: str, req: UpdateTemplateRequest, request: Request):
+            try:
+                try:
+                    current_template = request.state.vault.get(template_id)
+                    current_spec = current_template.spec
+                except TemplateNotFound:
+                    raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+
+                updated_version = req.version if req.version is not None else current_spec.version
+                updated_description = req.description if req.description is not None else current_spec.description
+                updated_template = req.template if req.template is not None else current_spec.template
+
+                updated_inputs_dict = {}
+                if req.inputs is not None:
+                    for input_name, input_data in req.inputs.items():
+                        updated_inputs_dict[input_name] = InputSpec(
+                            type=input_data.get("type", "string"),
+                            required=input_data.get("required", True),
+                            default=input_data.get("default")
+                        )
+                else:
+                    updated_inputs_dict = current_spec.inputs
+
+                updated_metadata = req.metadata if req.metadata is not None else current_spec.metadata
+
+                updated_spec = TemplateSpec(
+                    id=current_spec.id,
+                    version=updated_version,
+                    description=updated_description,
+                    template=updated_template,
+                    inputs=updated_inputs_dict,
+                    metadata=updated_metadata
+                )
+
+                prompt_dir = Path(request.state.vault.config["prompt_dir"])
+                file_path = prompt_dir / f"{updated_spec.id}.yaml"
+
+                yaml_content = {
+                    "id": updated_spec.id,
+                    "version": updated_spec.version,
+                    "description": updated_spec.description,
+                    "template": updated_spec.template,
+                    "inputs": {
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default
+                        }
+                        for name, input_spec in updated_spec.inputs.items()
+                    },
+                    "metadata": updated_spec.metadata
+                }
+
+                file_path.write_text(yaml.safe_dump(yaml_content, sort_keys=False))
+                request.state.vault.invalidate_cache()
+
+                return TemplateResponse(
+                    id=updated_spec.id,
+                    version=updated_spec.version,
+                    description=updated_spec.description,
+                    template=updated_spec.template,
+                    inputs={name: {
+                        "type": input_spec.type,
+                        "required": input_spec.required,
+                        "default": input_spec.default
+                    } for name, input_spec in updated_spec.inputs.items()},
+                    metadata=updated_spec.metadata
+                )
+
+            except HTTPException:
+                raise
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/api/templates/{template_id}/render", response_model=RenderResponse)
+        async def render_template(template_id: str, req: RenderRequest, request: Request):
+            try:
+                template = request.state.vault.get(template_id)
+                rendered = template.render(**req.inputs)
+                inputs_used = template.spec.coerce_inputs(req.inputs)
+
+                return RenderResponse(
+                    rendered=rendered,
+                    inputs_used=inputs_used
+                )
+            except TemplateNotFound:
+                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+            except RenderError as e:
+                raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.get("/api/examples", response_model=List[TemplateResponse])
+        async def get_example_templates():
+            examples = self._get_example_templates()
+            return [
+                TemplateResponse(
+                    id=spec.id,
+                    version=spec.version,
+                    description=spec.description,
+                    template=spec.template,
+                    inputs={name: {
+                        "type": input_spec.type,
+                        "required": input_spec.required,
+                        "default": input_spec.default
+                    } for name, input_spec in spec.inputs.items()},
+                    metadata=spec.metadata
+                )
+                for spec in examples
+            ]
+
+        @app.get("/api/health")
+        async def health_check(request: Request):
+            try:
+                template_count = len(list(request.state.vault.list()))
+                return {
+                    "status": "healthy",
+                    "demo_mode": True,
+                    "session_id": request.state.session_id,
+                    "templates_loaded": template_count,
+                }
+            except Exception as e:
+                raise HTTPException(status_code=503, detail=f"Unhealthy: {str(e)}")
+
+        playground_dir = Path(__file__).parent.parent / "playground"
+
+        if (playground_dir / "index.html").exists():
+            app.mount("/", StaticFiles(directory=str(playground_dir), html=True), name="playground")
+        else:
+            @app.get("/", response_class=HTMLResponse)
+            async def playground_ui():
+                return """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Dakora Playground - Demo Mode</title>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <style>
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            margin: 0; padding: 20px; background: #f5f5f5;
+                        }
+                        .container { max-width: 1200px; margin: 0 auto; }
+                        .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+                        .content { background: white; padding: 20px; border-radius: 8px; }
+                        .api-info { background: #e3f2fd; padding: 15px; border-radius: 4px; margin-top: 20px; }
+                        .demo-badge { background: #4caf50; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; }
+                        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>Dakora Playground <span class="demo-badge">DEMO MODE</span></h1>
+                            <p>Interactive playground with session isolation - your data is private!</p>
+                        </div>
+                        <div class="content">
+                            <h2>API Endpoints</h2>
+                            <ul>
+                                <li><code>GET /api/templates</code> - List all templates</li>
+                                <li><code>GET /api/templates/{id}</code> - Get template details</li>
+                                <li><code>POST /api/templates/{id}/render</code> - Render template</li>
+                                <li><code>GET /api/examples</code> - Get example templates</li>
+                                <li><code>GET /api/health</code> - Health check</li>
+                            </ul>
+
+                            <div class="api-info">
+                                <strong>API Testing</strong><br>
+                                Try these endpoints: <a href="/api/templates">/api/templates</a> |
+                                <a href="/api/examples">/api/examples</a> |
+                                <a href="/api/health">/api/health</a>
+                            </div>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """
+
+        return app
+
+
 def create_playground(config_path: str = None, prompt_dir: str = None,
-                     host: str = "localhost", port: int = 3000) -> PlaygroundServer:
+                     host: str = "localhost", port: int = 3000, demo_mode: bool = False) -> PlaygroundServer:
     """Create a playground server instance."""
+    if demo_mode:
+        return DemoPlaygroundServer(host=host, port=port)
     vault = Vault(config_path=config_path, prompt_dir=prompt_dir)
     return PlaygroundServer(vault, host=host, port=port)
