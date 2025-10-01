@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir . && \
     npm install && \
     npm run build && \
     cd .. && \
-    rm -rf web/node_modules
+    rm -rf web
 
 EXPOSE 8000
 
