@@ -2,11 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY . .
+COPY pyproject.toml README.md ./
+COPY dakora ./dakora
+COPY playground ./playground
 
-RUN pip install --no-cache-dir uv && \
-    uv sync --no-dev
+RUN pip install --no-cache-dir . && \
+    rm -rf /root/.cache
 
 EXPOSE 8000
 
-CMD ["uv", "run", "python", "-m", "dakora.cli", "playground", "--demo", "--host", "0.0.0.0", "--port", "8000", "--no-build", "--no-browser"]
+CMD dakora playground --demo --host 0.0.0.0 --port 8000 --no-build --no-browser

@@ -923,6 +923,21 @@ class DemoPlaygroundServer(PlaygroundServer):
 
         return app
 
+    def run(self, debug: bool = False):
+        """Start the playground server in demo mode."""
+        print(f"🎯 Starting Dakora Playground (Demo Mode) at http://{self.host}:{self.port}")
+        print(f"🎮 Session isolation enabled - each user gets a private workspace")
+        print(f"📁 Temporary sessions stored in /tmp/dakora-demo/")
+        print("")
+
+        uvicorn.run(
+            self.app,
+            host=self.host,
+            port=self.port,
+            reload=debug,
+            log_level="info" if debug else "warning"
+        )
+
 
 def create_playground(config_path: str = None, prompt_dir: str = None,
                      host: str = "localhost", port: int = 3000, demo_mode: bool = False) -> PlaygroundServer:
