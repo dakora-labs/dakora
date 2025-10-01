@@ -10,18 +10,20 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
-COPY dakora ./dakora
-COPY playground ./playground
+# Copy web source and build UI first
 COPY web ./web
-
-# Install Python dependencies and build web UI
-RUN pip install --no-cache-dir . && \
-    rm -rf /root/.cache && \
-    cd web && \
+RUN cd web && \
     npm install && \
     npm run build && \
-    cd .. && \
+    cd ..
+
+# Now copy Python source (build output is already in playground/)
+COPY pyproject.toml README.md ./
+COPY dakora ./dakora
+
+# Install Python dependencies and clean up
+RUN pip install --no-cache-dir . && \
+    rm -rf /root/.cache && \
     rm -rf web
 
 EXPOSE 8000
