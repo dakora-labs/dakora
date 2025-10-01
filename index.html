@@ -11,57 +11,17 @@
 
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
     <style>
+        /* Reset & Base Styles */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        /* Star CTA */
-        .star-cta {
-            margin: 2.25rem auto 1.5rem;
-            max-width: 840px;
-            text-align: center;
-            background: rgba(255, 255, 255, 0.10);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 16px;
-            padding: 2rem 2.25rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.18);
-            animation: fadeInUp 0.6s ease 0.1s both;
-        }
-        .star-cta h3 {
-            color: white;
-            font-size: 1.8rem;
-            line-height: 1.2;
-            margin: 0 0 0.5rem 0;
-        }
-        .star-cta p {
-            color: rgba(255,255,255,0.92);
-            margin: 0 0 1.25rem 0;
-            font-size: 1.05rem;
-        }
-        .star-cta-actions {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.75rem;
-            flex-wrap: wrap;
-        }
-        .btn.btn-ghost {
-            background: transparent;
-            color: white;
-            border: 2px solid rgba(255,255,255,0.8);
-        }
-        .btn.btn-ghost:hover {
-            background: white;
-            color: #667eea;
-        }
-        .btn-lg { padding: 0.9rem 1.4rem; font-size: 1.05rem; border-radius: 10px; }
-        .btn-outline-light { background: transparent; color: white; border: 2px solid rgba(255,255,255,0.85); }
-        .btn-outline-light:hover { background: white; color: #667eea; }
-        @media (max-width: 768px) {
-            .star-cta { padding: 1.25rem; }
-            .star-cta h3 { font-size: 1.25rem; }
+
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
@@ -70,14 +30,18 @@
             color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            overflow-x: hidden;
         }
 
+        /* Container - Mobile First */
         .container {
+            width: 100%;
             max-width: 1200px;
             margin: 0 auto;
-            padding: 0 20px;
+            padding: 0 1rem;
         }
 
+        /* Header */
         .header {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
@@ -96,14 +60,14 @@
         }
 
         .logo {
-            font-size: 1.8rem;
+            font-size: 1.5rem;
             font-weight: 800;
             color: #667eea;
             text-decoration: none;
         }
 
         .nav-links {
-            display: flex;
+            display: none;
             list-style: none;
             gap: 2rem;
         }
@@ -120,7 +84,6 @@
         }
 
         .mobile-menu-toggle {
-            display: none;
             background: none;
             border: none;
             font-size: 1.5rem;
@@ -128,6 +91,7 @@
             cursor: pointer;
         }
 
+        /* Mobile Navigation */
         .mobile-nav {
             display: none;
             position: fixed;
@@ -171,38 +135,25 @@
             cursor: pointer;
         }
 
+        /* Hero Section - Mobile First */
         .hero {
-            padding: 8rem 0 6rem;
+            padding: 6rem 0 3rem;
             text-align: center;
             color: white;
             position: relative;
-            overflow: hidden;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>') repeat;
-            opacity: 0.3;
-            animation: float 20s ease-in-out infinite;
         }
 
         .hero-badge {
             display: inline-block;
             background: rgba(255, 255, 255, 0.15);
             color: white;
-            padding: 0.5rem 1rem;
+            padding: 0.4rem 0.8rem;
             border-radius: 50px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 600;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            animation: fadeInUp 1s ease;
         }
 
         .hero-badge i {
@@ -211,10 +162,9 @@
         }
 
         .hero h1 {
-            font-size: 4rem;
+            font-size: 2.5rem;
             font-weight: 900;
             margin-bottom: 1rem;
-            animation: fadeInUp 1s ease 0.1s both;
             background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -222,165 +172,64 @@
         }
 
         .hero-subtitle {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
             opacity: 0.95;
             font-weight: 600;
-            animation: fadeInUp 1s ease 0.2s both;
+            line-height: 1.4;
         }
 
         .hero-description {
-            font-size: 1.1rem;
-            margin-bottom: 2rem;
-            opacity: 0.85;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-            animation: fadeInUp 1s ease 0.3s both;
-        }
-
-        .hero-stats {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-top: 3rem;
-            flex-wrap: wrap;
-            animation: fadeInUp 1s ease 0.6s both;
-        }
-
-        .stat-item {
-            text-align: center;
-            min-width: 140px;
-        }
-
-        .stat-item strong {
-            display: block;
-            font-size: 1.1rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .stat-item span {
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
-        }
-
-        .hero-badge {
-            animation: fadeInUp 1s ease, pulse 3s ease-in-out infinite 2s;
-        }
-
-        /* Enhanced code examples */
-        .code-example {
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-            border: 1px solid #4a5568;
-        }
-
-        .code-example:hover {
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
-            transform: translateY(-2px);
-        }
-
-        .cta-section {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-align: center;
-        }
-
-        .final-cta h2 {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-            color: white;
-        }
-
-        .final-cta > p {
-            font-size: 1.2rem;
-            opacity: 0.9;
-            margin-bottom: 3rem;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .cta-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 2rem;
-            margin-top: 2rem;
-        }
-
-        .cta-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 16px;
-            padding: 2rem;
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-
-        .cta-card:hover {
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.15);
-        }
-
-        .cta-card i {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-            color: #4ade80;
-        }
-
-        .cta-card h3 {
-            font-size: 1.4rem;
-            margin-bottom: 1rem;
-            color: white;
-        }
-
-        .cta-card p {
+            font-size: 0.95rem;
             margin-bottom: 1.5rem;
-            opacity: 0.9;
+            opacity: 0.85;
+            padding: 0 1rem;
+            line-height: 1.5;
         }
 
-        .cta-card .btn {
-            background: white;
-            color: #667eea;
-            border: none;
+        /* Install Command - Mobile First */
+        .install-command {
+            background: #1a202c;
+            color: #4ade80;
+            padding: 1rem;
+            border-radius: 12px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            text-align: center;
+            font-size: 0.85rem;
+            margin: 1.5rem 0;
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+            white-space: nowrap;
         }
 
-        .cta-card .btn:hover {
-            background: #f8f9fa;
-            transform: translateY(-2px);
+        .install-command i {
+            margin-right: 0.5rem;
+            font-size: 1rem;
         }
 
+        /* Buttons - Mobile First */
         .cta-buttons {
             display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            animation: fadeInUp 1s ease 0.5s both;
+            flex-direction: column;
+            gap: 0.75rem;
             margin: 2rem 0;
         }
 
         .btn {
-            padding: 1rem 2rem;
+            padding: 0.9rem 1.5rem;
             border: none;
             border-radius: 8px;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
             text-decoration: none;
             cursor: pointer;
             transition: all 0.3s ease;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 0.5rem;
+            width: 100%;
         }
 
         .btn-primary {
@@ -391,10 +240,6 @@
         .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-        }
-
-        .btn:active {
-            transform: translateY(0);
         }
 
         .btn-secondary {
@@ -408,8 +253,32 @@
             color: #667eea;
         }
 
+        /* Hero Stats - Mobile First */
+        .hero-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-item strong {
+            display: block;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-item span {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+
+        /* Sections */
         .section {
-            padding: 4rem 0;
+            padding: 3rem 0;
             background: white;
         }
 
@@ -418,22 +287,23 @@
         }
 
         .section h2 {
-            font-size: 2.5rem;
+            font-size: 1.8rem;
             text-align: center;
-            margin-bottom: 3rem;
+            margin-bottom: 2rem;
             color: #333;
         }
 
+        /* Features Grid - Mobile First */
         .features {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
             margin-top: 2rem;
         }
 
         .feature {
             background: white;
-            padding: 2rem;
+            padding: 1.5rem;
             border-radius: 12px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s ease;
@@ -444,119 +314,122 @@
             box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
         }
 
-        .feature {
-            animation: fadeInUp 0.6s ease forwards;
-            opacity: 0;
-            transform: translateY(30px);
-        }
-
-        .feature:nth-child(1) { animation-delay: 0.1s; }
-        .feature:nth-child(2) { animation-delay: 0.2s; }
-        .feature:nth-child(3) { animation-delay: 0.3s; }
-        .feature:nth-child(4) { animation-delay: 0.4s; }
-        .feature:nth-child(5) { animation-delay: 0.5s; }
-        .feature:nth-child(6) { animation-delay: 0.6s; }
-        .feature:nth-child(7) { animation-delay: 0.7s; }
-        .feature:nth-child(8) { animation-delay: 0.8s; }
-
         .feature i {
-            font-size: 3rem;
+            font-size: 2.5rem;
             color: #667eea;
             margin-bottom: 1rem;
         }
 
         .feature h3 {
-            font-size: 1.3rem;
-            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            margin-bottom: 0.75rem;
             color: #333;
         }
 
+        .feature p {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: #666;
+        }
+
+        /* Code Examples - Mobile First */
         .code-example {
             background: #2d3748;
             color: #e2e8f0;
-            padding: 2rem;
+            padding: 1rem;
             border-radius: 12px;
-            margin: 2rem 0;
-            overflow-x: auto;
+            margin: 1.5rem 0;
             position: relative;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            font-size: 0.75rem;
+            max-width: 100%;
         }
 
         .code-example::before {
             content: attr(data-lang);
             position: absolute;
-            top: 1rem;
-            right: 1rem;
+            top: 0.75rem;
+            right: 0.75rem;
             background: #667eea;
             color: white;
-            padding: 0.25rem 0.75rem;
+            padding: 0.2rem 0.5rem;
             border-radius: 4px;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             font-weight: 600;
+            z-index: 1;
         }
 
-        .install-command {
-            background: #1a202c;
-            color: #4ade80;
-            padding: 1.25rem;
-            border-radius: 12px;
-            font-family: 'Monaco', monospace;
-            text-align: center;
-            font-size: 1.1rem;
-            margin: 2rem 0;
-            border: 1px solid rgba(74, 222, 128, 0.2);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            animation: fadeInUp 1s ease 0.4s both;
-            position: relative;
+        .code-example pre {
+            margin: 0;
+            padding: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            white-space: pre;
+            max-width: 100%;
+        }
+
+        .code-example code {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            display: block;
+            white-space: pre;
+            padding-right: 3rem; /* Add padding to prevent text from going under language badge */
+        }
+
+        /* Examples Section */
+        #examples h3 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        #examples p {
+            color: #666;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        #examples > .container > div {
+            display: grid;
+            gap: 2rem;
+            margin-top: 2rem;
+            max-width: 100%;
             overflow: hidden;
         }
 
-        .install-command::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(74, 222, 128, 0.1), transparent);
-            transition: left 0.5s ease;
+        #examples .code-example {
+            max-width: calc(100vw - 2rem);
         }
 
-        .install-command:hover::before {
-            left: 100%;
-        }
-
-        .install-command i {
-            margin-right: 0.75rem;
-            font-size: 1.2rem;
-        }
-
+        /* Playground Section */
         .playground-section {
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
         }
 
         .playground-demo {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4rem;
+            grid-template-columns: 1fr;
+            gap: 2rem;
             align-items: center;
-            margin: 3rem 0;
+            margin: 2rem 0;
         }
 
         .playground-screenshot {
             width: 100%;
             border-radius: 12px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-
-        .playground-screenshot:hover {
-            transform: translateY(-10px) scale(1.02);
         }
 
         .playground-features {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
+            gap: 1rem;
         }
 
         .playground-feature {
@@ -572,94 +445,23 @@
         .playground-feature i {
             font-size: 1.5rem;
             color: #667eea;
-            margin-top: 0.25rem;
-            min-width: 24px;
+            flex-shrink: 0;
         }
 
         .playground-feature h4 {
             margin: 0 0 0.5rem 0;
             color: #333;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
         }
 
         .playground-feature p {
             margin: 0;
             color: #666;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             line-height: 1.4;
         }
 
-        .playground-cta {
-            text-align: center;
-            background: white;
-            padding: 3rem 2rem;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            margin-top: 4rem;
-        }
-
-        .playground-cta h3 {
-            color: #333;
-            font-size: 1.8rem;
-            margin-bottom: 1rem;
-        }
-
-        .playground-cta code {
-            background: #f1f5f9;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-family: 'Monaco', monospace;
-        }
-
-        .playground-command {
-            background: #1a202c;
-            color: #4ade80;
-            padding: 1rem;
-            border-radius: 8px;
-            font-family: 'Monaco', monospace;
-            text-align: center;
-            font-size: 1rem;
-            border: 1px solid rgba(74, 222, 128, 0.2);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .playground-command pre {
-            margin: 0;
-        }
-
-        .playground-command code {
-            background: none;
-            color: inherit;
-            padding: 0;
-            font-size: inherit;
-        }
-
-        .section.github-section {
-            text-align: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .github-stats {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-top: 2rem;
-            flex-wrap: wrap;
-        }
-
-        .stat {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 1.5rem;
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-        }
-
-        .stat h3 {
-            font-size: 2rem;
-            font-weight: 800;
-        }
-
+        /* Footer */
         .footer {
             background: #1a202c;
             color: white;
@@ -669,8 +471,8 @@
 
         .footer-links {
             display: flex;
-            justify-content: center;
-            gap: 2rem;
+            flex-direction: column;
+            gap: 1rem;
             margin-bottom: 2rem;
         }
 
@@ -684,91 +486,147 @@
             color: white;
         }
 
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
+        /* Tablet Styles */
+        @media (min-width: 768px) {
+            .container {
+                padding: 0 2rem;
             }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
 
-        @media (max-width: 768px) {
+            .logo {
+                font-size: 1.8rem;
+            }
+
             .hero {
-                padding: 6rem 0 4rem;
+                padding: 8rem 0 5rem;
             }
 
             .hero h1 {
-                font-size: 2.5rem;
+                font-size: 3.5rem;
             }
 
             .hero-subtitle {
-                font-size: 1.2rem;
+                font-size: 1.3rem;
             }
 
             .hero-description {
+                font-size: 1.1rem;
+                max-width: 600px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .install-command {
                 font-size: 1rem;
-            }
-
-            .hero-stats {
-                flex-direction: column;
-                gap: 1rem;
-            }
-
-            .nav-links {
-                display: none;
-            }
-
-            .mobile-menu-toggle {
-                display: block;
-            }
-
-            .features {
-                grid-template-columns: 1fr;
-            }
-
-            .github-stats {
-                flex-direction: column;
-                align-items: center;
+                padding: 1.25rem;
+                max-width: 600px;
+                margin: 2rem auto;
             }
 
             .cta-buttons {
-                flex-direction: column;
-                align-items: center;
+                flex-direction: row;
+                justify-content: center;
+                flex-wrap: wrap;
             }
 
             .btn {
-                width: 100%;
-                max-width: 300px;
+                width: auto;
+                padding: 1rem 2rem;
+            }
+
+            .hero-stats {
+                flex-direction: row;
                 justify-content: center;
+                gap: 2rem;
+                flex-wrap: wrap;
+            }
+
+            .stat-item {
+                min-width: 140px;
+            }
+
+            .features {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 2rem;
+            }
+
+            .code-example {
+                padding: 1.5rem;
+                font-size: 0.85rem;
+            }
+
+            .code-example code {
+                font-size: 0.85rem;
             }
 
             .playground-demo {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 1fr;
+                gap: 3rem;
+            }
+
+            .footer-links {
+                flex-direction: row;
+                justify-content: center;
                 gap: 2rem;
-                text-align: center;
+            }
+        }
+
+        /* Desktop Styles */
+        @media (min-width: 1024px) {
+            .mobile-menu-toggle {
+                display: none;
             }
 
-            .playground-screenshot {
-                order: -1;
+            .nav-links {
+                display: flex;
             }
 
-            .playground-cta {
-                padding: 2rem 1rem;
+            .hero h1 {
+                font-size: 4rem;
             }
 
-            .final-cta h2 {
-                font-size: 2rem;
+            .hero-subtitle {
+                font-size: 1.5rem;
             }
 
-            .final-cta > p {
-                font-size: 1.1rem;
+            .section {
+                padding: 4rem 0;
             }
 
-            .cta-grid {
-                grid-template-columns: 1fr;
+            .section h2 {
+                font-size: 2.5rem;
+                margin-bottom: 3rem;
+            }
+
+            .features {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .feature h3 {
+                font-size: 1.3rem;
+            }
+
+            .code-example {
+                padding: 2rem;
+                font-size: 0.9rem;
+            }
+
+            .code-example code {
+                font-size: 0.9rem;
+            }
+
+            #examples h3 {
+                font-size: 1.4rem;
+            }
+
+            #examples p {
+                font-size: 1rem;
+            }
+        }
+
+        /* Wide Desktop */
+        @media (min-width: 1280px) {
+            .features {
+                grid-template-columns: repeat(4, 1fr);
             }
         }
     </style>
@@ -810,7 +668,7 @@
             </div>
             <h1>Dakora</h1>
             <p class="hero-subtitle">The modern prompt management platform for Python developers</p>
-            <p class="hero-description">Manage, version, and hot‑reload prompts with type‑safe inputs, interactive playground, and zero‑deploy updates.</p>
+            <p class="hero-description">Manage, version, and hot-reload prompts with type-safe inputs, interactive playground, and zero-deploy updates.</p>
 
             <div class="install-command">
                 <i class="fas fa-terminal"></i> pip install dakora
@@ -818,7 +676,7 @@
 
             <div class="cta-buttons">
                 <a href="https://github.com/bogdan-pistol/dakora" class="btn btn-primary">
-                    <i class="fab fa-github"></i> ⭐ Star on GitHub
+                    <i class="fab fa-github"></i> Star on GitHub
                 </a>
                 <a href="#playground" class="btn btn-secondary">
                     <i class="fas fa-play"></i> Try Playground
@@ -848,8 +706,8 @@
     <section id="playground" class="section playground-section">
         <div class="container">
             <h2>🎯 Interactive Playground</h2>
-            <p style="text-align: center; font-size: 1.2rem; margin-bottom: 3rem; color: #666; max-width: 800px; margin-left: auto; margin-right: auto;">
-                Experience the power of Dakora with our modern web playground. Edit, test, and preview templates in real-time with a Jupyter-like interface.
+            <p style="text-align: center; font-size: 1rem; margin-bottom: 2rem; color: #666;">
+                Experience the power of Dakora with our modern web playground. Edit, test, and preview templates in real-time.
             </p>
 
             <div class="playground-demo">
@@ -857,36 +715,33 @@
                 <div class="playground-features">
                     <div class="playground-feature">
                         <i class="fas fa-edit"></i>
-                        <h4>Live Template Editing</h4>
-                        <p>Real-time syntax highlighting and validation as you type</p>
+                        <div>
+                            <h4>Live Template Editing</h4>
+                            <p>Real-time syntax highlighting and validation</p>
+                        </div>
                     </div>
                     <div class="playground-feature">
                         <i class="fas fa-flask"></i>
-                        <h4>Interactive Testing</h4>
-                        <p>Test templates instantly with custom inputs and see live results</p>
+                        <div>
+                            <h4>Interactive Testing</h4>
+                            <p>Test templates instantly with custom inputs</p>
+                        </div>
                     </div>
                     <div class="playground-feature">
                         <i class="fas fa-mobile-alt"></i>
-                        <h4>Mobile Responsive</h4>
-                        <p>Works perfectly on desktop, tablet, and mobile devices</p>
+                        <div>
+                            <h4>Mobile Responsive</h4>
+                            <p>Works perfectly on all devices</p>
+                        </div>
                     </div>
                     <div class="playground-feature">
                         <i class="fas fa-palette"></i>
-                        <h4>Modern UI</h4>
-                        <p>Built with shadcn/ui components for a beautiful experience</p>
+                        <div>
+                            <h4>Modern UI</h4>
+                            <p>Built with shadcn/ui components</p>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="playground-cta">
-                <h3>Ready to try it yourself?</h3>
-                <div class="playground-command" style="margin: 1rem 0;">
-<pre><code>dakora playground</code></pre>
-                </div>
-                <p style="color: #666; margin-bottom: 1.5rem;">Automatically builds and launches at <code>http://localhost:3000</code></p>
-                <a href="#quickstart" class="btn btn-primary" style="background: #667eea; color: white;">
-                    <i class="fas fa-rocket"></i> Get Started Now
-                </a>
             </div>
         </div>
     </section>
@@ -898,42 +753,42 @@
                 <div class="feature">
                     <i class="fas fa-shield-alt"></i>
                     <h3>Type-Safe Templates</h3>
-                    <p>Define inputs with strict typing: string, number, boolean, array, and object types with validation and coercion.</p>
+                    <p>Define inputs with strict typing: string, number, boolean, array, and object types with validation.</p>
                 </div>
                 <div class="feature">
                     <i class="fas fa-folder-open"></i>
                     <h3>File-Based Management</h3>
-                    <p>Organize templates in YAML files with clear structure, making them easy to version control and collaborate on.</p>
+                    <p>Organize templates in YAML files with clear structure for easy version control.</p>
                 </div>
                 <div class="feature">
                     <i class="fas fa-sync-alt"></i>
                     <h3>Hot Reload</h3>
-                    <p>Automatic template reloading during development with built-in file watching for rapid iteration.</p>
+                    <p>Automatic template reloading during development with built-in file watching.</p>
                 </div>
                 <div class="feature">
                     <i class="fas fa-code"></i>
                     <h3>Jinja2 Templating</h3>
-                    <p>Full Jinja2 support with custom filters like 'yaml' and 'default' for powerful template composition.</p>
+                    <p>Full Jinja2 support with custom filters for powerful template composition.</p>
                 </div>
                 <div class="feature">
                     <i class="fas fa-tags"></i>
                     <h3>Semantic Versioning</h3>
-                    <p>Built-in version management with semantic versioning support and easy version bumping via CLI.</p>
+                    <p>Built-in version management with semantic versioning support.</p>
                 </div>
                 <div class="feature">
                     <i class="fas fa-database"></i>
                     <h3>Execution Logging</h3>
-                    <p>Optional SQLite logging of template executions for debugging and analytics with zero configuration.</p>
+                    <p>Optional SQLite logging of template executions for debugging.</p>
                 </div>
                 <div class="feature">
                     <i class="fas fa-terminal"></i>
                     <h3>CLI Interface</h3>
-                    <p>Complete command-line interface for template management, listing, version control, and development workflow.</p>
+                    <p>Complete command-line interface for template management.</p>
                 </div>
                 <div class="feature">
                     <i class="fas fa-lock"></i>
                     <h3>Thread-Safe Caching</h3>
-                    <p>Production-ready with thread-safe template caching using RLock for high-performance concurrent access.</p>
+                    <p>Production-ready with thread-safe template caching using RLock.</p>
                 </div>
             </div>
         </div>
@@ -942,21 +797,17 @@
     <section id="quickstart" class="section">
         <div class="container">
             <h2>Quick Start</h2>
-            <p style="text-align: center; font-size: 1.2rem; margin-bottom: 3rem; color: #666;">
-                Get up and running with Dakora in minutes
-            </p>
-
-            <div style="display: grid; gap: 3rem; max-width: 800px; margin: 0 auto;">
-                <div>
-                    <h3 style="color: #667eea; margin-bottom: 1rem;"><span style="background: #667eea; color: white; border-radius: 50%; padding: 0.5rem; font-size: 1rem; margin-right: 1rem;">1</span>Initialize Project</h3>
+            <div style="max-width: 800px; margin: 0 auto;">
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="color: #667eea; margin-bottom: 1rem;">1. Initialize Project</h3>
                     <div class="code-example" data-lang="bash">
 <pre><code>dakora init</code></pre>
                     </div>
                     <p style="color: #666;">Creates configuration file and example templates</p>
                 </div>
 
-                <div>
-                    <h3 style="color: #667eea; margin-bottom: 1rem;"><span style="background: #667eea; color: white; border-radius: 50%; padding: 0.5rem; font-size: 1rem; margin-right: 1rem;">2</span>Create Template</h3>
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="color: #667eea; margin-bottom: 1rem;">2. Create Template</h3>
                     <div class="code-example" data-lang="yaml">
 <pre><code>id: greeting
 version: 1.0.0
@@ -964,29 +815,22 @@ description: A personalized greeting template
 template: |
   Hello {{ name }}!
   {% if age %}You are {{ age }} years old.{% endif %}
-  {{ message | default("Have a great day!") }}
 inputs:
   name:
     type: string
     required: true
   age:
     type: number
-    required: false
-  message:
-    type: string
     required: false</code></pre>
                     </div>
                 </div>
 
                 <div>
-                    <h3 style="color: #667eea; margin-bottom: 1rem;"><span style="background: #667eea; color: white; border-radius: 50%; padding: 0.5rem; font-size: 1rem; margin-right: 1rem;">3</span>Use in Python</h3>
+                    <h3 style="color: #667eea; margin-bottom: 1rem;">3. Use in Python</h3>
                     <div class="code-example" data-lang="python">
 <pre><code>from dakora import Vault
 
-# Initialize vault
 vault = Vault("dakora.yaml")
-
-# Get and render template
 template = vault.get("greeting")
 result = template.render(name="Alice", age=25)
 print(result)</code></pre>
@@ -999,13 +843,10 @@ print(result)</code></pre>
     <section id="examples" class="section">
         <div class="container">
             <h2>Real-World Examples</h2>
-
-            <div style="display: grid; gap: 3rem; margin-top: 2rem;">
+            <div>
                 <div>
-                    <h3 style="color: #333; margin-bottom: 1rem;">FastAPI + OpenAI Integration</h3>
-                    <p style="color: #666; margin-bottom: 1rem;">
-                        Perfect for building LLM-powered APIs with structured prompts and type validation.
-                    </p>
+                    <h3>FastAPI + OpenAI Integration</h3>
+                    <p>Perfect for building LLM-powered APIs with structured prompts and type validation.</p>
                     <div class="code-example" data-lang="python">
 <pre><code>from fastapi import FastAPI
 from dakora import Vault
@@ -1016,14 +857,25 @@ vault = Vault("dakora.yaml")
 client = OpenAI()
 
 @app.post("/chat")
-async def chat_endpoint(message: str, template_id: str):
+async def chat_endpoint(
+    message: str,
+    template_id: str
+):
     template = vault.get(template_id)
 
-    result = template.run(
-        lambda prompt: client.chat.completions.create(
+    # Define completion function
+    def get_completion(prompt):
+        response = client.chat.completions.create(
             model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        ).choices[0].message.content,
+            messages=[{
+                "role": "user",
+                "content": prompt
+            }]
+        )
+        return response.choices[0].message.content
+
+    result = template.run(
+        get_completion,
         message=message
     )
 
@@ -1032,29 +884,32 @@ async def chat_endpoint(message: str, template_id: str):
                 </div>
 
                 <div>
-                    <h3 style="color: #333; margin-bottom: 1rem;">Development Workflow</h3>
-                    <p style="color: #666; margin-bottom: 1rem;">
-                        Hot-reload templates during development for rapid iteration and testing.
-                    </p>
+                    <h3>Development Workflow</h3>
+                    <p>Hot-reload templates during development for rapid iteration and testing.</p>
                     <div class="code-example" data-lang="python">
 <pre><code>from dakora import Vault
 from dakora.watcher import Watcher
 
 vault = Vault("dakora.yaml")
-watcher = Watcher("./prompts", on_change=vault.invalidate_cache)
+
+# Setup file watcher
+watcher = Watcher(
+    "./prompts",
+    on_change=vault.invalidate_cache
+)
 watcher.start()
 
-# Templates reload automatically when files change
+# Templates reload automatically
 template = vault.get("my_template")
-result = template.render(input_text="Hello world")</code></pre>
+result = template.render(
+    input_text="Hello world"
+)</code></pre>
                     </div>
                 </div>
 
                 <div>
-                    <h3 style="color: #333; margin-bottom: 1rem;">CLI Workflow</h3>
-                    <p style="color: #666; margin-bottom: 1rem;">
-                        Manage templates, versions, and development workflow from the command line.
-                    </p>
+                    <h3>CLI Workflow</h3>
+                    <p>Manage templates, versions, and development workflow from the command line.</p>
                     <div class="code-example" data-lang="bash">
 <pre><code># List all templates
 dakora list
@@ -1062,10 +917,10 @@ dakora list
 # Get template content
 dakora get summarizer
 
-# Bump version (patch, minor, major)
+# Bump version
 dakora bump summarizer --minor
 
-# Watch for changes during development
+# Watch for changes
 dakora watch</code></pre>
                     </div>
                 </div>
@@ -1073,84 +928,19 @@ dakora watch</code></pre>
         </div>
     </section>
 
-    <section id="contribute" class="github-section section">
+    <section id="contribute" class="section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
         <div class="container">
-            <h2>Join the Community</h2>
-            <p style="font-size: 1.2rem; margin-bottom: 2rem; opacity: 0.9;">
+            <h2 style="color: white;">Join the Community</h2>
+            <p style="text-align: center; font-size: 1.1rem; margin-bottom: 2rem;">
                 Help make Dakora better for everyone
             </p>
-
-            <div class="github-stats">
-                <div class="stat">
-                    <h3>⭐</h3>
-                    <p>Star on GitHub</p>
-                </div>
-                <div class="stat">
-                    <h3>🍴</h3>
-                    <p>Fork & Contribute</p>
-                </div>
-                <div class="stat">
-                    <h3>🐛</h3>
-                    <p>Report Issues</p>
-                </div>
-                <div class="stat">
-                    <h3>💡</h3>
-                    <p>Share Ideas</p>
-                </div>
-            </div>
-
-            <div style="margin-top: 3rem;">
-                <a href="https://github.com/bogdan-pistol/dakora" class="btn" style="margin: 0.5rem; background: #4a5568; color: white; border: 2px solid #4a5568;">
-                    <i class="fab fa-github"></i> ⭐ Star on GitHub
+            <div style="text-align: center; margin-top: 2rem;">
+                <a href="https://github.com/bogdan-pistol/dakora" class="btn" style="background: white; color: #667eea; margin: 0.5rem;">
+                    <i class="fab fa-github"></i> Star on GitHub
                 </a>
                 <a href="https://github.com/bogdan-pistol/dakora/fork" class="btn btn-secondary" style="margin: 0.5rem;">
                     <i class="fas fa-code-branch"></i> Fork Repository
                 </a>
-            </div>
-
-            <div style="margin-top: 2rem; font-size: 1.1rem;">
-                <p style="color: white;"><strong>💻 Looking for contributors:</strong></p>
-                <ul style="list-style: none; padding: 0; margin-top: 1rem;">
-                    <li style="color: white; margin-bottom: 0.5rem; opacity: 0.95;">🔧 Core library improvements</li>
-                    <li style="color: white; margin-bottom: 0.5rem; opacity: 0.95;">📚 Documentation and examples</li>
-                    <li style="color: white; margin-bottom: 0.5rem; opacity: 0.95;">🧪 Testing and quality assurance</li>
-                    <li style="color: white; margin-bottom: 0.5rem; opacity: 0.95;">🎨 CLI UX enhancements</li>
-                    <li style="color: white; margin-bottom: 0.5rem; opacity: 0.95;">🔌 Registry backends (S3, HTTP, etc.)</li>
-                </ul>
-            </div>
-        </div>
-    </section>
-
-    <section class="cta-section section">
-        <div class="container">
-            <div class="final-cta">
-                <h2>Ready to Transform Your Prompt Management?</h2>
-                <p>Join developers who've already made the switch to structured, type-safe prompt templates</p>
-
-                <div class="cta-grid">
-                    <div class="cta-card">
-                        <i class="fas fa-download"></i>
-                        <h3>Install Now</h3>
-                        <div class="code-example" data-lang="bash" style="margin: 1rem 0; font-size: 0.9rem;">
-<pre><code>pip install dakora</code></pre>
-                        </div>
-                        <a href="#quickstart" class="btn btn-primary">Get Started</a>
-                    </div>
-
-                    <div class="cta-card">
-                        <i class="fab fa-github"></i>
-                        <h3>Star & Follow</h3>
-                        <p>Help us reach 1000+ stars and get updates on new features</p>
-                        <a href="https://github.com/bogdan-pistol/dakora" class="btn btn-primary">⭐ Star on GitHub</a>
-                    </div>
-
-                    <div class="cta-card">
-                        <i class="fas fa-play-circle"></i>
-                        <h3>Try Playground</h3>
-                        <p>Experience the interactive web interface - no installation required</p>
-                        <a href="#playground" class="btn btn-primary">View Demo</a>
-                    </div>
-                </div>
             </div>
         </div>
     </section>
@@ -1164,9 +954,6 @@ dakora watch</code></pre>
                 <a href="https://pypi.org/project/dakora/">PyPI</a>
             </div>
             <p>&copy; 2024 Dakora. Released under the Apache-2.0 License.</p>
-            <p style="margin-top: 1rem; color: #666;">
-                Built with ❤️ for the Python community
-            </p>
         </div>
     </footer>
 
@@ -1192,32 +979,6 @@ dakora watch</code></pre>
                     });
                 }
             });
-        });
-
-        // Close mobile menu when clicking outside
-        document.addEventListener('click', function(e) {
-            const mobileNav = document.getElementById('mobileNav');
-            const menuToggle = document.querySelector('.mobile-menu-toggle');
-            if (mobileNav.classList.contains('active') &&
-                !mobileNav.contains(e.target) &&
-                !menuToggle.contains(e.target)) {
-                toggleMobileMenu();
-            }
-        });
-
-        // Add scroll effect to header
-        let lastScroll = 0;
-        window.addEventListener('scroll', () => {
-            const currentScroll = window.pageYOffset;
-            const header = document.querySelector('.header');
-
-            if (currentScroll > 100) {
-                header.style.boxShadow = '0 2px 20px rgba(0, 0, 0, 0.15)';
-            } else {
-                header.style.boxShadow = '0 2px 20px rgba(0, 0, 0, 0.1)';
-            }
-
-            lastScroll = currentScroll;
         });
     </script>
 </body>
