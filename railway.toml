@@ -3,6 +3,5 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "uv run python -m dakora.cli playground --demo --host 0.0.0.0 --port 8000 --no-build --no-browser"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
