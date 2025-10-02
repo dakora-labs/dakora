@@ -8,9 +8,14 @@
 
 A Python library for managing and rendering prompt templates with type-safe inputs, versioning, and an interactive web playground.
 
+## 🚀 Try it Now - No Installation Required!
+
+**[playground.dakora.io](https://playground.dakora.io/)** - Experience Dakora's interactive playground directly in your browser. Edit templates, test inputs, and see instant results with the exact same interface that ships with the Python package.
+
 ## Features
 
-- 🎯 **Interactive Web Playground** - Modern React UI for template development (like Jupyter)
+- 🌐 **[Live Web Playground](https://playground.dakora.io/)** - Try online without installing anything!
+- 🎯 **Local Playground** - Same modern React UI included with pip install
 - 🎨 **Type-safe prompt templates** with validation and coercion
 - 📁 **File-based template management** with YAML definitions
 - 🔄 **Hot-reload support** for development
@@ -98,7 +103,11 @@ print(result)
 
 ### 4. Interactive Playground 🎯
 
-Launch the web-based playground (like Jupyter Notebook):
+#### Try Online - No Installation Required!
+Visit **[playground.dakora.io](https://playground.dakora.io/)** to experience the playground instantly in your browser with example templates.
+
+#### Or Run Locally
+Launch the same web-based playground locally (included with pip install):
 
 ```bash
 dakora playground
@@ -107,24 +116,26 @@ dakora playground
 ![Playground Demo](docs/assets/playground-demo.gif)
 
 This **automatically**:
-- 🔨 Builds the modern React UI
+- 🔨 Builds the modern React UI (first run only)
 - 🚀 Starts the server at `http://localhost:3000`
 - 🌐 Opens your browser to the playground
 
 **Features:**
-- ✨ Modern, responsive interface built with shadcn/ui
+- ✨ **Identical experience** online and locally
 - 📱 Mobile-friendly design that works on all screen sizes
 - 🎨 Real-time template editing and preview
 - 🧪 Test templates with different inputs
 - 📊 Example templates for inspiration
+- 💻 Modern UI built with shadcn/ui components
 
 ![Playground Interface](docs/assets/playground-interface.png)
 
-**Options:**
+**Local Options:**
 ```bash
 dakora playground --port 8080      # Custom port
 dakora playground --no-browser     # Don't open browser
 dakora playground --no-build       # Skip UI build
+dakora playground --demo           # Run in demo mode (like the web version)
 ```
 
 ### 5. CLI Usage
