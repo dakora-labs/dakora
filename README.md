@@ -1,5 +1,9 @@
 # Dakora
 
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="Dakora Logo" width="200">
+</p>
+
 [![CI](https://github.com/bogdan-pistol/dakora/workflows/CI/badge.svg)](https://github.com/bogdan-pistol/dakora/actions)
 [![codecov](https://codecov.io/gh/bogdan-pistol/dakora/branch/main/graph/badge.svg)](https://codecov.io/gh/bogdan-pistol/dakora)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
