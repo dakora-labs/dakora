@@ -1,6 +1,6 @@
-# Microsoft Agent Framework + Dakora Integration Examples
+# Dakora: Prompt Management for AI Agents (Microsoft Agent Framework Integration)
 
-This example demonstrates how to use **Dakora** - a powerful prompt template management system - with the Microsoft Agent Framework to build production-ready AI agents.
+This example demonstrates how to use **Dakora** - a powerful prompt template management system - to build production-ready AI agents with the Microsoft Agent Framework.
 
 **Why Dakora?** Traditional AI applications hardcode prompts directly in source code, making them difficult to version, test, and iterate. Dakora solves this by treating prompts as first-class citizens with:
 
