@@ -2,6 +2,87 @@
 
 This directory contains practical examples showing how to use Dakora in real applications.
 
+## Examples Overview
+
+| Example | Description | Framework/Library |
+|---------|-------------|-------------------|
+| [FastAPI + OpenAI](#fastapi--openai-example) | REST API with OpenAI Responses API | FastAPI, OpenAI |
+| [Microsoft Agent Framework](#microsoft-agent-framework-integration) | Multi-agent systems with prompt management | Microsoft Agent Framework |
+
+---
+
+## Microsoft Agent Framework Integration
+
+**NEW!** A comprehensive example showing integration with Microsoft's new Agent Framework (2025 release).
+
+### 🎯 What You'll Learn
+
+- Creating AI agents with Dakora-managed prompts
+- Building multi-agent orchestration systems with specialized agents
+- Intelligent task routing based on user requests
+- Agent-to-agent collaboration workflows
+- Dynamic prompt template management
+
+### Example Location
+
+**All files are in:** [`microsoft-agent-framework/`](microsoft-agent-framework/)
+
+This folder contains:
+
+- **Two complete examples**:
+  - `simple_agent_example.py` - Basic getting-started example
+  - `multi_agent_example.py` - Advanced multi-agent orchestration
+- **Setup automation**: `setup.ps1` (Windows) and `setup.sh` (Linux/Mac)
+- **Comprehensive documentation**: Full README with architecture patterns
+- **9 sample templates**: Auto-generated on first run
+- **Environment configuration**: `.env.example` template and helper utilities
+
+### 🚀 Quick Start
+
+```bash
+cd microsoft-agent-framework
+
+# Windows
+.\setup.ps1
+
+# Linux/Mac
+chmod +x setup.sh
+./setup.sh
+
+# Run simple getting-started example
+python simple_agent_example.py
+
+# Or run advanced multi-agent orchestrator
+python multi_agent_example.py
+```
+
+### 🌟 Highlights
+
+The example includes:
+
+1. **Two example files**:
+   - `simple_agent_example.py` - Simple getting-started example
+   - `multi_agent_example.py` - Advanced multi-agent orchestration with routing
+2. **Complete demo scenarios**:
+   - Single-agent routing with specialized agents (Coder, Researcher, Writer, Summarizer)
+   - Multi-agent workflow with agent collaboration
+   - Interactive mode for testing
+3. **Auto-generated templates** - 9 sample templates created automatically
+4. **Production-ready patterns** - DakoraAgentManager class for clean architecture
+5. **Setup automation** - Scripts for Windows and Linux/Mac with virtual environment support
+
+**Why combine these two?**
+
+- Microsoft Agent Framework = Powerful agent orchestration
+- Dakora = Type-safe, versioned prompt management
+- Together = Robust, maintainable AI agent systems
+
+### 📖 Documentation
+
+See [`microsoft-agent-framework/README.md`](microsoft-agent-framework/README.md) for complete documentation.
+
+---
+
 ## FastAPI + OpenAI Example
 
 A complete FastAPI application demonstrating Dakora integration with OpenAI's latest Responses API and GPT-5.

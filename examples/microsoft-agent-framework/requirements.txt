@@ -1,0 +1,16 @@
+# Microsoft Agent Framework Integration
+# Dependencies for microsoft_agent_framework.py example
+
+# Core dependencies
+dakora>=0.1.0
+
+# Microsoft Agent Framework (2025 release - currently in beta)
+# Note: agent-framework is in beta, but agent-framework-azure is at 0.0.0
+agent-framework>=1.0.0b1
+agent-framework-azure>=0.0.0
+
+# Azure authentication
+azure-identity>=1.15.0
+
+# Optional: For OpenAI backend instead of Azure
+# openai>=1.0.0
