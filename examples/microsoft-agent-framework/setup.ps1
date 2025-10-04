@@ -86,6 +86,20 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "   Or set AZURE_OPENAI_API_KEY environment variable`n"
 }
 
+# Initialize Dakora
+Write-Host "Initializing Dakora..." -ForegroundColor Yellow
+if (-not (Test-Path "dakora.yaml")) {
+    dakora init
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✓ Dakora initialized`n" -ForegroundColor Green
+    } else {
+        Write-Host "⚠️  Could not initialize Dakora automatically" -ForegroundColor Yellow
+        Write-Host "   The examples will still work (they auto-create templates)`n" -ForegroundColor Gray
+    }
+} else {
+    Write-Host "✓ Dakora already initialized`n" -ForegroundColor Green
+}
+
 # Check environment variables
 Write-Host "Checking environment configuration..." -ForegroundColor Yellow
 
@@ -146,7 +160,10 @@ Write-Host "   python simple_agent_example.py`n" -ForegroundColor Gray
 Write-Host "4. Or run the multi-agent example:" -ForegroundColor White
 Write-Host "   python multi_agent_example.py`n" -ForegroundColor Gray
 
-Write-Host "5. When done, deactivate the virtual environment:" -ForegroundColor White
+Write-Host "5. Explore and edit templates with Dakora Playground:" -ForegroundColor White
+Write-Host "   dakora playground`n" -ForegroundColor Gray
+
+Write-Host "6. When done, deactivate the virtual environment:" -ForegroundColor White
 Write-Host "   deactivate`n" -ForegroundColor Gray
 
 Write-Host "💡 Tip: The virtual environment keeps dependencies isolated from your system Python." -ForegroundColor Cyan

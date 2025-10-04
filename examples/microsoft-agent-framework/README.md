@@ -1,6 +1,14 @@
 # Microsoft Agent Framework + Dakora Integration Examples
 
-This example demonstrates how to integrate **Dakora** (prompt template management) with the **Microsoft Agent Framework** (the new official agent framework from Microsoft, released in 2025).
+This example demonstrates how to use **Dakora** - a powerful prompt template management system - with the Microsoft Agent Framework to build production-ready AI agents.
+
+**Why Dakora?** Traditional AI applications hardcode prompts directly in source code, making them difficult to version, test, and iterate. Dakora solves this by treating prompts as first-class citizens with:
+
+- 🎯 **Type-safe templates** with input validation
+- 📦 **Version control** for A/B testing and safe rollback
+- 🔄 **Hot-reload** for instant updates without redeployment
+- 🎨 **Visual playground** for testing templates interactively
+- 📝 **Centralized management** across your entire agent system
 
 ## Quick Start
 
@@ -22,7 +30,38 @@ python simple_agent_example.py
 
 # 5. Try multi-agent example
 python multi_agent_example.py
+
+# 6. 🎨 Explore templates in Dakora Playground
+dakora playground
 ```
+
+## What is Dakora?
+
+**Dakora** is a prompt template management system that brings software engineering best practices to AI development. Instead of scattering prompts throughout your codebase, Dakora centralizes them in version-controlled YAML files with:
+
+- **Type Safety**: Define required inputs and their types - catch errors before runtime
+- **Jinja2 Templating**: Use variables, conditionals, loops for dynamic prompts
+- **Versioning**: Semantic versioning (1.0.0, 2.0.0) for safe prompt evolution
+- **Visual Playground**: Interactive web UI to test and refine prompts
+- **Hot Reload**: Update prompts without redeploying your application
+
+### Dakora Playground
+
+The playground is a powerful web-based UI for working with your templates:
+
+```bash
+dakora playground
+```
+
+This opens an interactive interface where you can:
+
+- 📋 **Browse** all your templates
+- ✏️ **Edit** templates with syntax highlighting
+- 🧪 **Test** templates with sample inputs
+- 📊 **Compare** different versions
+- 💾 **Create** new templates visually
+
+**Try it now!** After running the setup script, run `dakora playground` to explore the agent templates created by the examples.
 
 ## Overview
 
@@ -49,6 +88,7 @@ By combining it with Dakora, you get:
 - **`load_env.py`** - Utility for loading environment variables from `.env` file
 - **`setup.ps1`** / **`setup.sh`** - Automated setup scripts for Windows/Linux/Mac
 - **`requirements.txt`** - Python dependencies
+- **`dakora.yaml`** - Dakora configuration file (created by `dakora init`)
 - **`prompts/`** - Directory containing all Dakora templates (auto-created by scripts)
 - **`.env.example`** - Example environment configuration file
 
@@ -219,16 +259,31 @@ az login
 
 ## Setup Dakora
 
-**Note:** Both example scripts automatically create required templates on first run, so manual template creation is optional.
+The setup scripts automatically run `dakora init` which creates:
 
-If you want to initialize Dakora manually:
+- **`dakora.yaml`** - Configuration file pointing to your prompts directory
+- **`prompts/`** - Directory for storing template files
+- **`prompts/summarizer.yaml`** - Example template to get you started
+
+You can also initialize Dakora manually:
 
 ```bash
 cd examples/microsoft-agent-framework
 dakora init
 ```
 
-The templates are automatically created in the `prompts/` directory when you run either example script.
+The example scripts will auto-create additional templates on first run. After templates are created, you can:
+
+```bash
+# List all templates
+dakora list
+
+# View the playground
+dakora playground
+
+# Watch for template changes (hot-reload)
+dakora watch
+```
 
 ## Running the Examples
 
@@ -342,6 +397,110 @@ The multi-agent system uses 8 templates total:
 - `prompt_summarize_article.yaml` - Prompt for summarizing articles into key points
 
 All templates are automatically created when you run `multi_agent_example.py` for the first time.
+
+## Working with Templates in Dakora Playground
+
+Once you've run the examples and templates are created, the Dakora Playground is the best way to explore and modify them:
+
+### Starting the Playground
+
+```bash
+# Make sure you're in the virtual environment
+.\venv\Scripts\Activate.ps1  # Windows
+# OR
+source venv/bin/activate     # Linux/Mac
+
+# Launch the playground
+dakora playground
+```
+
+This starts a local web server (typically at `http://localhost:8000`) and opens your browser.
+
+### What You Can Do
+
+#### 1. Browse Templates
+
+- See all 9 agent templates at a glance
+- View template metadata (version, description, tags)
+- Filter by use case or agent type
+
+#### 2. Edit Templates Live
+
+- Modify agent personalities and behaviors
+- Adjust prompt instructions
+- Add or remove template variables
+- Changes are saved immediately to YAML files
+
+#### 3. Test Templates Interactively
+
+- Fill in input variables
+- Preview rendered output
+- Test different scenarios without running Python code
+- Iterate quickly on prompt engineering
+
+#### 4. Create New Templates
+
+- Click "New Template" to create custom agents
+- Define inputs with types and validation
+- Use Jinja2 syntax for dynamic content
+- Save and version your creations
+
+### Example: Customizing an Agent
+
+Let's say you want to make the Coder Agent more focused on Python:
+
+1. Run `dakora playground`
+2. Click on **agent_coder** in the template list
+3. Edit the template to add:
+
+   ```yaml
+   template: |
+     You are a Coder Agent - an expert Python software engineer.
+     Your primary language is Python, focusing on:
+     - Modern Python 3.10+ features
+     - Type hints and mypy validation
+     - Pytest for testing
+     - FastAPI for web services
+   ```
+
+4. Save the changes
+5. Run `multi_agent_example.py` again - the agent now uses your updated template!
+
+### Template Versioning
+
+The playground makes it easy to version your templates:
+
+1. Edit a template (e.g., `agent_router`)
+2. Click the version dropdown
+3. Select "Create new version"
+4. Bump version to `2.0.0`
+5. Make your changes
+6. Now you can A/B test v1.0.0 vs v2.0.0 in your code:
+
+```python
+# Use version 1.0.0
+template_v1 = vault.get("agent_router", version="1.0.0")
+
+# Use version 2.0.0
+template_v2 = vault.get("agent_router", version="2.0.0")
+```
+
+### Hot Reload During Development
+
+For rapid iteration:
+
+```bash
+# Terminal 1: Watch for changes
+dakora watch
+
+# Terminal 2: Run playground
+dakora playground
+
+# Terminal 3: Run your agent
+python multi_agent_example.py
+```
+
+Now when you edit templates in the playground, your agents can pick up changes instantly using `vault.invalidate_cache()`.
 
 ## Architecture Patterns
 
@@ -519,12 +678,94 @@ pip install -U agent-framework agent-framework-azure azure-identity dakora
 
 ## Next Steps
 
-1. **Start simple**: Run `simple_agent_example.py` to understand the basics
-2. **Explore multi-agent**: Run `multi_agent_example.py` to see advanced patterns
-3. **Customize templates**: Edit templates in `prompts/` to fit your needs
-4. **Build your own**: Use the patterns to create your own agent applications
-5. **Experiment**: Try different agent combinations and workflows
-6. **Share your experience**: Join the Dakora Discord or contribute examples
+1. **Start with the playground**: Run `dakora playground` to explore templates visually
+2. **Run the simple example**: `python simple_agent_example.py` to understand the basics
+3. **Try multi-agent routing**: `python multi_agent_example.py` to see advanced patterns
+4. **Customize templates**: Edit agent personalities in the playground and test immediately
+5. **Build your own agents**: Use the patterns to create your own agent applications
+6. **Experiment with versions**: Try A/B testing different prompt versions
+7. **Join the community**: Share your experience on Discord or contribute examples
+
+## Why Use Dakora for AI Agents?
+
+### The Problem with Hardcoded Prompts
+
+Traditional approach:
+
+```python
+# ❌ Prompts scattered in code
+agent = create_agent(
+    instructions="""You are a helpful coding assistant.
+    You specialize in Python programming.
+    Be clear and concise..."""
+)
+```
+
+Problems:
+
+- 🚫 Hard to track prompt changes
+- 🚫 No version control
+- 🚫 Difficult to A/B test
+- 🚫 Can't update without redeployment
+- 🚫 No type safety for inputs
+- 🚫 Hard to share across team
+
+### The Dakora Approach
+
+With Dakora:
+
+```python
+# ✅ Prompts managed centrally
+template = vault.get("agent_coder")
+instructions = template.render(
+    language="Python",
+    expertise_level="expert"
+)
+agent = create_agent(instructions=instructions)
+```
+
+Benefits:
+
+- ✅ **Version controlled** - Track every prompt change in git
+- ✅ **Type safe** - Validate inputs before rendering
+- ✅ **Testable** - Test prompts independently in playground
+- ✅ **Hot reload** - Update prompts without redeployment
+- ✅ **Collaborative** - Team can edit prompts visually
+- ✅ **Reusable** - Share templates across multiple agents
+- ✅ **Observable** - Built-in logging for prompt performance
+
+### Real-World Use Cases
+
+#### Multi-Tenant SaaS
+
+- Different prompt versions per customer
+- A/B test prompt improvements
+- Roll back problematic prompts instantly
+
+#### Rapid Iteration
+
+- Product team edits prompts in playground
+- No code deployment needed
+- Test changes immediately
+
+#### Agent Orchestration
+
+- Centralized library of agent personalities
+- Consistent behavior across services
+- Easy to add new specialized agents
+
+#### Compliance & Audit
+
+- Track all prompt changes
+- Version history for regulations
+- Rollback to compliant versions
+
+## Learn More About Dakora
+
+- **Main Repository**: <https://github.com/bogdan-pistol/dakora>
+- **Documentation**: <https://github.com/bogdan-pistol/dakora/blob/main/README.md>
+- **Live Playground Demo**: <https://playground.dakora.io/>
+- **Discord Community**: <https://discord.gg/QSRRcFjzE8>
 
 ## Contributing
 

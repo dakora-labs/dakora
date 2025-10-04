@@ -99,6 +99,23 @@ else
     echo ""
 fi
 
+# Initialize Dakora
+echo "Initializing Dakora..."
+if [ ! -f "dakora.yaml" ]; then
+    dakora init
+    if [ $? -eq 0 ]; then
+        echo "✓ Dakora initialized"
+        echo ""
+    else
+        echo "⚠️  Could not initialize Dakora automatically"
+        echo "   The examples will still work (they auto-create templates)"
+        echo ""
+    fi
+else
+    echo "✓ Dakora already initialized"
+    echo ""
+fi
+
 # Check environment variables
 echo "Checking environment configuration..."
 
@@ -164,7 +181,11 @@ echo "4. Or run the multi-agent example:"
 echo "   python multi_agent_example.py"
 echo ""
 
-echo "5. When done, deactivate the virtual environment:"
+echo "5. Explore and edit templates with Dakora Playground:"
+echo "   dakora playground"
+echo ""
+
+echo "6. When done, deactivate the virtual environment:"
 echo "   deactivate"
 echo ""
 
