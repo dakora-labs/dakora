@@ -1,0 +1,5 @@
+openai-agents>=0.3.0
+openai>=1.0.0
+dakora>=1.0.0
+python-dotenv>=1.0.0
+typing-extensions>=4.12.0

@@ -244,7 +244,15 @@ async def chat_endpoint(message: str, template_id: str):
     return {"response": result}
 ```
 
-See [examples/](examples/) for a complete FastAPI application with multiple endpoints, reasoning controls, and error handling.
+## Examples
+
+### Multi-Agent Research Assistant
+
+**[examples/openai-agents/](examples/openai-agents/)** - Build intelligent research agents with the OpenAI Agents Framework, using Dakora to manage complex multi-agent prompts with type-safe inputs and hot-reload during development.
+
+### FastAPI Integration
+
+See [examples/fastapi/](examples/fastapi/) for a complete FastAPI application with multiple endpoints, reasoning controls, and error handling.
 
 ### With Logging
 

@@ -1,0 +1,93 @@
+id: report_template
+version: 1.0.0
+description: Template for formatting final research reports with consistent structure
+
+template: |
+  # {{title}}
+
+  **Generated**: {{timestamp}}
+  **Research Depth**: {{depth_level}}
+
+  ---
+
+  ## Executive Summary
+
+  {{executive_summary}}
+
+  ---
+
+  ## Detailed Findings
+
+  {% for section in sections %}
+  ### {{section.title}}
+
+  {{section.content}}
+
+  {% if section.key_points|length > 0 %}
+  **Key Points:**
+  {% for point in section.key_points %}
+  - {{point}}
+  {% endfor %}
+  {% endif %}
+
+  {% endfor %}
+
+  ---
+
+  ## Key Insights
+
+  {% for insight in insights %}
+  {{loop.index}}. {{insight}}
+  {% endfor %}
+
+  ---
+
+  {% if recommendations|length > 0 %}
+  ## Recommendations
+
+  {% for rec in recommendations %}
+  - **{{rec.category}}**: {{rec.text}}
+  {% endfor %}
+
+  {% endif %}
+
+  ---
+
+  ## Methodology
+
+  This research was conducted using a multi-agent system:
+  - Research planning and strategy formulation
+  - Parallel deep analysis of key subtopics
+  - Cross-analysis synthesis and insight generation
+
+  {{methodology_notes|default}}
+
+inputs:
+  title:
+    type: string
+    required: true
+  timestamp:
+    type: string
+    required: true
+  depth_level:
+    type: string
+    required: false
+    default: standard
+  executive_summary:
+    type: string
+    required: true
+  sections:
+    type: array<string>
+    required: false
+    default: []
+  insights:
+    type: array<string>
+    required: true
+  recommendations:
+    type: array<string>
+    required: false
+    default: []
+  methodology_notes:
+    type: string
+    required: false
+    default: ""
