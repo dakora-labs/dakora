@@ -11,24 +11,50 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Discord](https://img.shields.io/discord/1422246380096720969?style=for-the-badge&color=667eea&label=Community&logo=discord&logoColor=white)](https://discord.gg/QSRRcFjzE8)
 
-A Python library for managing and rendering prompt templates with type-safe inputs, versioning, and an interactive web playground.
+A Python library for managing and executing LLM prompts with type-safe inputs, versioning, and an interactive web playground. Execute templates against 100+ LLM providers with built-in cost tracking.
 
 ## 🚀 Try it Now - No Installation Required!
 
 **[playground.dakora.io](https://playground.dakora.io/)** - Experience Dakora's interactive playground directly in your browser. Edit templates, test inputs, and see instant results with the exact same interface that ships with the Python package.
 
+## Use Case
+
+```python
+from dakora import Vault
+
+# Load your templates
+vault = Vault("dakora.yaml")
+
+# Execute against any LLM provider
+result = vault.get("summarizer").execute(
+    model="gpt-4",
+    input_text="Your article here..."
+)
+
+print(result.output)          # The LLM's response
+print(f"${result.cost_usd}")  # Track costs automatically
+```
+
+Or from the command line:
+
+```bash
+dakora run summarizer --model gpt-4 --input-text "Article..."
+```
+
 ## Features
 
 - 🌐 **[Live Web Playground](https://playground.dakora.io/)** - Try online without installing anything!
 - 🎯 **Local Playground** - Same modern React UI included with pip install
+- 🚀 **LLM Execution** - Run templates against 100+ LLM providers (OpenAI, Anthropic, Google, etc.)
 - 🎨 **Type-safe prompt templates** with validation and coercion
 - 📁 **File-based template management** with YAML definitions
 - 🔄 **Hot-reload support** for development
 - 📝 **Jinja2 templating** with custom filters
 - 🏷️ **Semantic versioning** for templates
-- 📊 **Optional execution logging** to SQLite
-- 🖥️ **CLI interface** for template management
+- 📊 **Optional execution logging** to SQLite with cost tracking
+- 🖥️ **CLI interface** for template management and execution
 - 🧵 **Thread-safe caching** for production use
+- 💰 **Cost & performance tracking** - Monitor tokens, latency, and costs
 
 ## Installation
 
@@ -143,7 +169,97 @@ dakora playground --no-build       # Skip UI build
 dakora playground --demo           # Run in demo mode (like the web version)
 ```
 
-### 5. CLI Usage
+### 5. Execute Templates with LLMs
+
+Dakora can execute templates against real LLM providers (OpenAI, Anthropic, Google, etc.) using the integrated LiteLLM support.
+
+#### API Key Setup
+
+Set your API keys as environment variables:
+
+```bash
+export OPENAI_API_KEY=your_key_here
+export ANTHROPIC_API_KEY=your_key_here
+export GOOGLE_API_KEY=your_key_here
+```
+
+Or create a `.env` file in your project root:
+
+```
+OPENAI_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_key_here
+```
+
+**Security Note:** Never commit API keys to version control. Add `.env` to your `.gitignore`.
+
+#### Execute from Python
+
+```python
+from dakora import Vault
+
+vault = Vault("dakora.yaml")
+template = vault.get("summarizer")
+
+# Execute with gpt-4
+result = template.execute(
+    model="gpt-4",
+    input_text="Your article content here..."
+)
+
+print(result.output)
+print(f"Cost: ${result.cost_usd:.4f}")
+print(f"Tokens: {result.tokens_in} → {result.tokens_out}")
+```
+
+#### Execute from CLI
+
+```bash
+# Basic execution
+dakora run summarizer --model gpt-4 --input-text "Article to summarize..."
+
+# With LLM parameters
+dakora run summarizer --model gpt-4 \
+  --input-text "Article..." \
+  --temperature 0.7 \
+  --max-tokens 100
+
+# JSON output for scripting
+dakora run summarizer --model gpt-4 \
+  --input-text "Article..." \
+  --json
+
+# Quiet mode (only LLM response)
+dakora run summarizer --model gpt-4 \
+  --input-text "Article..." \
+  --quiet
+```
+
+**Example Output:**
+
+```
+╭─────────────────────────────────────╮
+│ Model: gpt-4 (openai)               │
+│ Cost: $0.0045 USD                   │
+│ Latency: 1,234 ms                   │
+│ Tokens: 150 → 80                    │
+╰─────────────────────────────────────╯
+
+The article discusses the recent advances in...
+```
+
+#### Supported Models
+
+Dakora supports 100+ LLM providers through LiteLLM:
+
+- **OpenAI:** `gpt-4`, `gpt-4-turbo`, `gpt-5-nano`, `gpt-3.5-turbo`
+- **Anthropic:** `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`
+- **Google:** `gemini-pro`, `gemini-1.5-pro`
+- **Local:** `ollama/llama3`, `ollama/mistral`
+- **And many more...**
+
+See [LiteLLM docs](https://docs.litellm.ai/docs/providers) for the full list.
+
+### 6. CLI Usage
 
 ![CLI Workflow](docs/assets/cli-workflow.gif)
 
@@ -153,6 +269,9 @@ dakora list
 
 # Get template content
 dakora get greeting
+
+# Execute a template
+dakora run summarizer --model gpt-4 --input-text "..."
 
 # Bump version
 dakora bump greeting --minor

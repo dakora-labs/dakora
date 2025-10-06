@@ -1,11 +1,15 @@
-import typer, sys, time, subprocess, webbrowser, threading
+import typer, sys, time, subprocess, webbrowser, threading, json
 from pathlib import Path
 import yaml
+from dotenv import load_dotenv
 from .vault import Vault
 from .watcher import Watcher
 from .playground import create_playground
+from .exceptions import ValidationError, RenderError, TemplateNotFound, APIKeyError, RateLimitError, ModelNotFoundError, LLMError
 
 app = typer.Typer(add_completion=False)
+
+load_dotenv()
 
 @app.command()
 def init():
@@ -227,3 +231,138 @@ def playground(
     except Exception as e:
         typer.echo(f"❌ Failed to start playground: {e}", err=True)
         raise typer.Exit(1)
+
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def run(
+    ctx: typer.Context,
+    template_id: str = typer.Argument(..., help="Template ID to execute"),
+    model: str = typer.Option(..., "--model", "-m", help="LLM model to use (e.g., 'gpt-4', 'claude-3-opus')"),
+    config: str = typer.Option("dakora.yaml", help="Config file path"),
+    temperature: float = typer.Option(None, "--temperature", "-t", help="Sampling temperature (0.0-2.0)"),
+    max_tokens: int = typer.Option(None, "--max-tokens", help="Maximum tokens to generate"),
+    top_p: float = typer.Option(None, "--top-p", help="Nucleus sampling probability"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON result"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only output response text")
+):
+    """Execute a template against an LLM model.
+
+    Template inputs should be provided as --<input-name> <value> flags.
+    Any parameter not matching a template input will be passed to LiteLLM.
+
+    Examples:
+      dakora run summarizer --model gpt-4 --input-text "Article content..."
+      dakora run summarizer --model gpt-5-nano --input-text "Text" --temperature 0.7
+      dakora run chatbot --model claude-3-opus --message "Hello" --max-tokens 100
+    """
+    try:
+        vault = Vault(config)
+    except FileNotFoundError:
+        typer.echo(f"❌ Config file not found: {config}", err=True)
+        typer.echo("💡 Run 'dakora init' to create a new project", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Failed to load config: {e}", err=True)
+        raise typer.Exit(1)
+
+    try:
+        template = vault.get(template_id)
+    except TemplateNotFound:
+        typer.echo(f"❌ Template '{template_id}' not found", err=True)
+        typer.echo(f"💡 Run 'dakora list' to see available templates", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Failed to load template: {e}", err=True)
+        raise typer.Exit(1)
+
+    template_input_names = set(template.spec.inputs.keys())
+
+    extra_args = ctx.args
+    template_kwargs = {}
+    llm_kwargs = {}
+
+    if temperature is not None:
+        llm_kwargs["temperature"] = temperature
+    if max_tokens is not None:
+        llm_kwargs["max_tokens"] = max_tokens
+    if top_p is not None:
+        llm_kwargs["top_p"] = top_p
+
+    i = 0
+    while i < len(extra_args):
+        arg = extra_args[i]
+
+        if arg.startswith("--") and i + 1 < len(extra_args):
+            key = arg[2:].replace("-", "_")
+            value = extra_args[i + 1]
+
+            if key in template_input_names:
+                template_kwargs[key] = value
+            else:
+                try:
+                    parsed_value = json.loads(value)
+                    llm_kwargs[key] = parsed_value
+                except (json.JSONDecodeError, ValueError):
+                    llm_kwargs[key] = value
+
+            i += 2
+        else:
+            i += 1
+
+    required_inputs = {name for name, spec in template.spec.inputs.items() if spec.required}
+    missing_inputs = required_inputs - set(template_kwargs.keys())
+    if missing_inputs:
+        typer.echo(f"❌ Missing required inputs: {', '.join(missing_inputs)}", err=True)
+        typer.echo(f"💡 Usage: dakora run {template_id} --model {model} " +
+                  " ".join(f"--{inp} <value>" for inp in sorted(template_input_names)), err=True)
+        raise typer.Exit(1)
+
+    try:
+        result = template.execute(model=model, **template_kwargs, **llm_kwargs)
+    except ValidationError as e:
+        typer.echo(f"❌ Validation error: {e}", err=True)
+        raise typer.Exit(1)
+    except RenderError as e:
+        typer.echo(f"❌ Render error: {e}", err=True)
+        raise typer.Exit(1)
+    except APIKeyError as e:
+        typer.echo(f"❌ API key error: {e}", err=True)
+        typer.echo(f"💡 Set the required environment variable (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)", err=True)
+        raise typer.Exit(1)
+    except RateLimitError as e:
+        typer.echo(f"❌ Rate limit exceeded: {e}", err=True)
+        raise typer.Exit(1)
+    except ModelNotFoundError as e:
+        typer.echo(f"❌ Model not found: {e}", err=True)
+        raise typer.Exit(1)
+    except LLMError as e:
+        typer.echo(f"❌ LLM error: {e}", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {e}", err=True)
+        raise typer.Exit(1)
+
+    if json_output:
+        output = {
+            "output": result.output,
+            "provider": result.provider,
+            "model": result.model,
+            "tokens_in": result.tokens_in,
+            "tokens_out": result.tokens_out,
+            "cost_usd": result.cost_usd,
+            "latency_ms": result.latency_ms
+        }
+        typer.echo(json.dumps(output, indent=2))
+    elif quiet:
+        typer.echo(result.output)
+    else:
+        cost_str = f"${result.cost_usd:.4f}" if result.cost_usd > 0 else "$0.0000"
+        latency_str = f"{result.latency_ms:,} ms" if result.latency_ms < 10000 else f"{result.latency_ms / 1000:.1f}s"
+
+        typer.echo("╭─────────────────────────────────────╮")
+        typer.echo(f"│ Model: {result.model} ({result.provider})".ljust(38) + "│")
+        typer.echo(f"│ Cost: {cost_str} USD".ljust(38) + "│")
+        typer.echo(f"│ Latency: {latency_str}".ljust(38) + "│")
+        typer.echo(f"│ Tokens: {result.tokens_in} → {result.tokens_out}".ljust(38) + "│")
+        typer.echo("╰─────────────────────────────────────╯")
+        typer.echo()
+        typer.echo(result.output)
