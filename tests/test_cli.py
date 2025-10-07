@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import os
-import sys
 import pytest
 from dakora.cli import app
 import typer.testing
@@ -49,26 +47,3 @@ def test_config_provider_not_found( monkeypatch):
 
     assert result.exit_code == 1
     assert "not yet supported" in result.stdout
-
-
-def main():
-    """Run all init tests"""
-    print("🧪 Testing dakora init command...\n")
-
-    try:
-        test_config_all_keys()
-        test_config_no_keys()
-        test_config_openai_key()
-        test_config_provider_not_found
-        print("\n🎉 All init tests passed!")
-        return 0
-    
-    except Exception as e:
-        print(f"\n❌ Init test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
-
-if __name__ == "__main__":
-    sys.exit(main())
-    

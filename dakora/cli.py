@@ -90,25 +90,25 @@ def config(
     """
     supported_keys  = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY', 'VERTEX_API_KEY', 'AWS_API_KEY', 'RECRAFT_API_KEY', 'XINFERENCE_API_KEY', 'NSCALE_API_KEY']
     
-    if (provider):
+    if provider:
         key = f'{provider.upper()}_API_KEY'
-        if(key not in supported_keys):
+        if key not in supported_keys:
             typer.echo(f"Provider {provider} is not yet supported. ")
-            sys.exit(1)
-        if(os.getenv(key)):
+            typer.Exit(1)
+        if os.getenv(key):
             typer.echo(f"✓ {key} found")
-            sys.exit(0)
+            typer.Exit(0)
         else:
             typer.echo(f"✗ {key} not set")
             sys.exit(1)
 
     else:
         for key in supported_keys:
-            if(os.getenv(key)):
+            if os.getenv(key):
                 typer.echo(f"✓ {key} found")
             else:
                 typer.echo(f"✗ {key} not set")
-    sys.exit(0)
+    raise typer.Exit(0)
 
 
 def _build_ui():

@@ -320,9 +320,22 @@ dakora bump greeting --minor
 
 # Watch for changes
 dakora watch
+
 ```
 
+
 ![CLI Output](docs/assets/cli-output.png)
+
+### Verify API Keys
+
+Check which API keys are configured:
+``` bash
+# Check all providers
+dakora config
+
+# Check specific provider
+dakora config --provider openai
+```
 
 ## Template Format
 
