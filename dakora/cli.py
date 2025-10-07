@@ -6,6 +6,9 @@ from .vault import Vault
 from .watcher import Watcher
 from .playground import create_playground
 from .exceptions import ValidationError, RenderError, TemplateNotFound, APIKeyError, RateLimitError, ModelNotFoundError, LLMError
+from typing_extensions import Annotated
+from typing import Optional
+import os
 
 app = typer.Typer(add_completion=False)
 
@@ -77,6 +80,36 @@ def watch():
             time.sleep(1)
     except KeyboardInterrupt:
         w.stop()
+
+@app.command()
+def config(
+    provider: Annotated[Optional[str], typer.Option(help="Supported providers: OpenAI, Anthropic, Google, Vertex, AWS, Recraft, XInference, NScale")]= None
+    ):
+    """
+    Check which supported API Keys have been set.
+    """
+    supported_keys  = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY', 'VERTEX_API_KEY', 'AWS_API_KEY', 'RECRAFT_API_KEY', 'XINFERENCE_API_KEY', 'NSCALE_API_KEY']
+    
+    if (provider):
+        key = f'{provider.upper()}_API_KEY'
+        if(key not in supported_keys):
+            typer.echo(f"Provider {provider} is not yet supported. ")
+            sys.exit(1)
+        if(os.getenv(key)):
+            typer.echo(f"✓ {key} found")
+            sys.exit(0)
+        else:
+            typer.echo(f"✗ {key} not set")
+            sys.exit(1)
+
+    else:
+        for key in supported_keys:
+            if(os.getenv(key)):
+                typer.echo(f"✓ {key} found")
+            else:
+                typer.echo(f"✗ {key} not set")
+    sys.exit(0)
+
 
 def _build_ui():
     """Build the React UI for the playground."""

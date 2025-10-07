@@ -11,7 +11,7 @@ Dakora is a Python library for managing and rendering prompt templates with type
 - **Registry**: Template discovery system (`dakora/registry/`) - abstract base with LocalRegistry implementation that scans YAML files in prompt directories
 - **Model**: Pydantic-based template specifications (`dakora/model.py`) - defines TemplateSpec with input validation and type coercion
 - **Renderer**: Jinja2-based template rendering (`dakora/renderer.py`) - includes custom filters like `yaml` and `default`
-- **CLI**: Typer-based command interface (`dakora/cli.py`) - provides init, list, get, bump, watch, and playground commands
+- **CLI**: Typer-based command interface (`dakora/cli.py`) - provides init, list, get, bump, watch, config, and playground commands
 - **Playground**: FastAPI-based web server (`dakora/playground.py`) - interactive React-based web interface for template development and testing, with demo mode support
 - **Logging**: Optional SQLite-based execution logging (`dakora/logging.py`) - tracks template executions with inputs, outputs, and metadata
 - **Watcher**: File system monitoring (`dakora/watcher.py`) - hot-reload support for template changes during development
@@ -20,6 +20,23 @@ Dakora is a Python library for managing and rendering prompt templates with type
 Templates are stored as YAML files with structure: `{id, version, description, template, inputs, metadata}`. The `inputs` field defines typed parameters (string, number, boolean, array<string>, object) with validation and defaults.
 
 The playground UI is built with React, TypeScript, and shadcn/ui components, providing a modern interface for template development. It supports both development mode (hot-reload) and demo mode (read-only with example templates).
+
+## Working with API Keys
+
+Dakora integrates with LLM providers for examples and playground functionality. API keys are managed through environment variables.
+**Setup:**
+1. Create `.env` file in project root (already in `.gitignore`)
+2. Add required API keys:
+```
+OPENAI_API_KEY="example_key_openai_123"
+```
+3. Validate configuration: `uv run python -m dakora.cli config`
+
+**The `config` Command:**
+- Validates API key presence and format
+- Usage: `dakora config [--provider PROVIDER]`
+- Returns `✓ {key} found` on success and `✗ {key} not set` for missing keys
+- Exits with `0` on success, and `1` if a specific key is not found or a provider is not supported
 
 ## Development Commands
 
@@ -33,6 +50,18 @@ export PATH="$HOME/.local/bin:$PATH" && uv sync
 
 # Run CLI commands during development
 export PATH="$HOME/.local/bin:$PATH" && uv run python -m dakora.cli --help
+```
+
+**API Key Configuration:**
+```bash
+# Create .env file for API keys
+touch .env
+
+# Validate API key configuration
+export PATH="$HOME/.local/bin:$PATH" && uv run python -m dakora.cli config check
+
+# Check specific API key
+export PATH="$HOME/.local/bin:$PATH" && uv run python -m dakora.cli config --provider openai
 ```
 
 **Testing the CLI:**
