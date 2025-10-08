@@ -173,24 +173,66 @@ dakora playground --demo           # Run in demo mode (like the web version)
 
 Dakora can execute templates against real LLM providers (OpenAI, Anthropic, Google, etc.) using the integrated LiteLLM support.
 
-#### API Key Setup
+### Setting API Keys
+Get an API Key from your LLM provider, you will need an account:
+- [Open AI](https://platform.openai.com/docs/libraries#create-and-export-an-api-key) 
+- [Anthropic](https://docs.claude.com/en/docs/get-started) 
+- [Google](https://ai.google.dev/gemini-api/docs/api-key#api-keys)
 
-Set your API keys as environment variables:
+Set your API Key as environment variables:
+
+<details>
+<summary>Linux/MacOS</summary>
+
+```zsh
+export OPENAI_API_KEY="your_key_here"
+export ANTHROPIC_API_KEY="your_key_here"
+export GOOGLE_API_KEY="your_key_here"
+```
+</details>
+
+<details>
+<summary>Windows</summary>
 
 ```bash
-export OPENAI_API_KEY=your_key_here
-export ANTHROPIC_API_KEY=your_key_here
-export GOOGLE_API_KEY=your_key_here
+setx OPENAI_API_KEY "your_api_key_here"
+setx ANTHROPIC_API_KEY=your_key_here
+setx GOOGLE_API_KEY=your_key_here
+```
+</details>
+
+<details>
+<summary>Cross-platform</summary>
+Alternatively create a .env file in your project root:
+
+```bash
+OPENAI_API_KEY="your_key_here"
+GOOGLE_API_KEY="your_key_here"
+ANTHROPIC_API_KEY="your-api-key-here"
 ```
 
-Or create a `.env` file in your project root:
+Load and use in your Python code:
 
 ```
-OPENAI_API_KEY=your_key_here
-ANTHROPIC_API_KEY=your_key_here
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Access variables using os.environ or os.getenv()
+api_key = os.getenv("OPENAI_API_KEY")
+
+#initialise the LLM Client
 ```
 
-**Security Note:** Never commit API keys to version control. Add `.env` to your `.gitignore`.
+## Warning
+Nerver commit your API key to version control.
+Add .env to your .gitignore with:
+```bash
+echo ".env" >> .gitignore
+```
+</details>
 
 #### Execute from Python
 
@@ -278,9 +320,22 @@ dakora bump greeting --minor
 
 # Watch for changes
 dakora watch
+
 ```
 
+
 ![CLI Output](docs/assets/cli-output.png)
+
+### Verify API Keys
+
+Check which API keys are configured:
+``` bash
+# Check all providers
+dakora config
+
+# Check specific provider
+dakora config --provider openai
+```
 
 ## Template Format
 
