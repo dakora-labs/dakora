@@ -1,0 +1,426 @@
+---
+title: Model Comparison
+description: 'Compare LLM outputs across multiple models in parallel'
+---
+
+## Overview
+
+Dakora's model comparison feature allows you to execute the same template across multiple LLM models simultaneously and compare their outputs, costs, and performance.
+
+This is useful for:
+- **Model Selection**: Find the best model for your use case
+- **Cost Optimization**: Compare costs across providers
+- **Quality Assessment**: Evaluate output quality side-by-side
+- **A/B Testing**: Test different models in production scenarios
+
+## Quick Start
+
+### Python API
+
+```python
+from dakora import Vault
+
+vault = Vault("dakora.yaml")
+template = vault.get("summarizer")
+
+# Compare across 3 models
+result = template.compare(
+    models=["gpt-4", "claude-3-opus", "gemini-pro"],
+    input_text="Your article content here..."
+)
+
+# Access results
+for r in result.results:
+    print(f"{r.model}: {r.output[:100]}...")
+    print(f"  Cost: ${r.cost_usd:.4f}")
+    print(f"  Latency: {r.latency_ms}ms")
+
+# Aggregate metrics
+print(f"\nTotal Cost: ${result.total_cost_usd:.4f}")
+print(f"Success Rate: {result.successful_count}/{len(result.results)}")
+```
+
+### CLI
+
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus,gemini-pro \
+  --input-text "Your article content here..."
+```
+
+## Features
+
+### Parallel Execution
+
+Models are executed in parallel using asyncio for maximum speed:
+
+```python
+# All 5 models execute simultaneously
+result = template.compare(
+    models=["gpt-4", "gpt-4-turbo", "claude-3-opus", "claude-3-sonnet", "gemini-pro"],
+    input_text="Text to analyze"
+)
+```
+
+<Info>
+  Parallel execution significantly reduces total wait time compared to sequential execution.
+</Info>
+
+### Graceful Failure Handling
+
+If one model fails, others continue execution:
+
+```python
+result = template.compare(
+    models=["gpt-4", "nonexistent-model", "claude-3-opus"],
+    input_text="Test"
+)
+
+# Check which succeeded
+for r in result.results:
+    if r.error:
+        print(f"❌ {r.model}: {r.error}")
+    else:
+        print(f"✅ {r.model}: Success")
+
+print(f"Successful: {result.successful_count}/{len(result.results)}")
+```
+
+**Example output:**
+```
+✅ gpt-4: Success
+❌ nonexistent-model: Model not found
+✅ claude-3-opus: Success
+Successful: 2/3
+```
+
+### Cost & Performance Tracking
+
+Automatic tracking of execution metadata:
+
+```python
+result = template.compare(
+    models=["gpt-4", "claude-3-opus"],
+    input_text="Test"
+)
+
+# Per-model metrics
+for r in result.results:
+    print(f"{r.model}:")
+    print(f"  Provider: {r.provider}")
+    print(f"  Cost: ${r.cost_usd:.4f}")
+    print(f"  Latency: {r.latency_ms}ms")
+    print(f"  Tokens: {r.tokens_in} → {r.tokens_out}")
+
+# Aggregate metrics
+print(f"\nTotal Cost: ${result.total_cost_usd:.4f}")
+print(f"Total Tokens: {result.total_tokens_in} → {result.total_tokens_out}")
+```
+
+## Usage Examples
+
+### Basic Comparison
+
+```python
+from dakora import Vault
+
+vault = Vault("dakora.yaml")
+template = vault.get("summarizer")
+
+result = template.compare(
+    models=["gpt-4", "claude-3-opus"],
+    input_text="Long article text..."
+)
+
+# Print outputs side-by-side
+for r in result.results:
+    print(f"\n{'='*60}")
+    print(f"Model: {r.model}")
+    print(f"{'='*60}")
+    print(r.output)
+```
+
+### With LLM Parameters
+
+Pass parameters that apply to all models:
+
+```python
+result = template.compare(
+    models=["gpt-4", "claude-3-opus", "gemini-pro"],
+    input_text="Article...",
+    temperature=0.7,
+    max_tokens=150
+)
+```
+
+### Cost Analysis
+
+Find the most cost-effective model:
+
+```python
+result = template.compare(
+    models=["gpt-4", "gpt-3.5-turbo", "claude-3-haiku", "gemini-flash"],
+    input_text="Test article"
+)
+
+# Sort by cost
+sorted_results = sorted(result.results, key=lambda r: r.cost_usd)
+
+print("Models ranked by cost:")
+for r in sorted_results:
+    if not r.error:
+        print(f"{r.model}: ${r.cost_usd:.4f}")
+```
+
+### Quality vs Cost Trade-off
+
+```python
+result = template.compare(
+    models=["gpt-4", "gpt-3.5-turbo", "claude-3-opus", "claude-3-haiku"],
+    input_text="Complex article requiring nuanced understanding..."
+)
+
+# Analyze cost vs output length as proxy for quality
+for r in result.results:
+    if not r.error:
+        cost_per_token = r.cost_usd / r.tokens_out if r.tokens_out > 0 else 0
+        print(f"{r.model}:")
+        print(f"  Cost: ${r.cost_usd:.4f}")
+        print(f"  Output length: {len(r.output)} chars")
+        print(f"  Cost per output token: ${cost_per_token:.6f}")
+```
+
+### CLI Comparison Modes
+
+#### Default Table View
+
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus,gemini-pro \
+  --input-text "Article..."
+```
+
+**Output:**
+```
+─────────────────────────────────────────────────────────────────
+ Model           │ Response (preview)      │ Cost    │ Latency
+─────────────────────────────────────────────────────────────────
+✅gpt-4           │ The article discusses... │ $0.0045 │ 1,234ms
+✅claude-3-opus   │ This article explores... │ $0.0038 │ 856ms
+✅gemini-pro      │ A comprehensive over...  │ $0.0012 │ 2,145ms
+─────────────────────────────────────────────────────────────────
+
+Total Cost: $0.0095 | Success: 3/3
+```
+
+#### Verbose Mode (Full Responses)
+
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus \
+  --input-text "Article..." \
+  --verbose
+```
+
+**Output:**
+```
+✅ gpt-4 (openai)
+Cost: $0.0045 | Latency: 1,234 ms | Tokens: 150 → 80
+
+The article discusses the recent advances in artificial
+intelligence and machine learning technologies...
+(full response)
+
+────────────────────────────────────────────────────────
+
+✅ claude-3-opus (anthropic)
+Cost: $0.0038 | Latency: 856 ms | Tokens: 150 → 75
+
+This article explores cutting-edge developments in AI...
+(full response)
+
+────────────────────────────────────────────────────────
+
+Total Cost: $0.0083
+Success Rate: 2/2
+```
+
+#### JSON Mode (Programmatic)
+
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus \
+  --input-text "Article..." \
+  --json
+```
+
+**Output:**
+```json
+{
+  "results": [
+    {
+      "model": "gpt-4",
+      "provider": "openai",
+      "output": "The article discusses...",
+      "tokens_in": 150,
+      "tokens_out": 80,
+      "cost_usd": 0.0045,
+      "latency_ms": 1234,
+      "error": null
+    },
+    {
+      "model": "claude-3-opus",
+      "provider": "anthropic",
+      "output": "This article explores...",
+      "tokens_in": 150,
+      "tokens_out": 75,
+      "cost_usd": 0.0038,
+      "latency_ms": 856,
+      "error": null
+    }
+  ],
+  "total_cost_usd": 0.0083,
+  "total_tokens_in": 300,
+  "total_tokens_out": 155,
+  "successful_count": 2,
+  "failed_count": 0
+}
+```
+
+## API Reference
+
+### `template.compare()`
+
+Execute template across multiple models in parallel.
+
+**Parameters:**
+- `models` (list[str], required): List of model identifiers
+- `**kwargs`: Template inputs and LLM parameters
+
+**Returns:**
+- `ComparisonResult`: Object containing results and aggregate metrics
+
+**Example:**
+```python
+result = template.compare(
+    models=["gpt-4", "claude-3-opus"],
+    input_text="Article...",
+    temperature=0.7
+)
+```
+
+### `ComparisonResult`
+
+**Attributes:**
+- `results` (list[ExecutionResult]): List of execution results, one per model
+- `total_cost_usd` (float): Sum of costs across successful executions
+- `total_tokens_in` (int): Sum of input tokens
+- `total_tokens_out` (int): Sum of output tokens
+- `successful_count` (int): Number of successful executions
+- `failed_count` (int): Number of failed executions
+
+### `ExecutionResult`
+
+**Attributes:**
+- `output` (str): LLM response text
+- `provider` (str): Provider name (e.g., "openai", "anthropic")
+- `model` (str): Model name
+- `tokens_in` (int): Input token count
+- `tokens_out` (int): Output token count
+- `cost_usd` (float): Execution cost in USD
+- `latency_ms` (int): Response latency in milliseconds
+- `error` (str | None): Error message if execution failed
+
+## Best Practices
+
+### Model Selection Strategy
+
+1. **Start broad**: Compare diverse models (GPT-4, Claude, Gemini)
+2. **Narrow down**: Test variants of best performers (e.g., claude-3-opus vs claude-3-sonnet)
+3. **Consider cost**: Factor in both quality and price for your use case
+
+### Handling Failures
+
+Always check for errors before using results:
+
+```python
+result = template.compare(models=[...], input_text="...")
+
+for r in result.results:
+    if r.error:
+        print(f"Warning: {r.model} failed: {r.error}")
+        continue
+
+    # Safe to use r.output
+    process_output(r.output)
+```
+
+### Performance Tips
+
+- **Limit concurrent models**: More than 5-10 models may hit rate limits
+- **Use appropriate timeouts**: Set reasonable `max_tokens` to avoid long waits
+- **Cache results**: Store comparison results for expensive evaluations
+
+### Cost Management
+
+```python
+# Set a cost budget
+MAX_COST = 0.10  # $0.10
+
+result = template.compare(
+    models=["gpt-4", "claude-3-opus", "gemini-pro"],
+    input_text="Article..."
+)
+
+if result.total_cost_usd > MAX_COST:
+    print(f"⚠️  Cost ${result.total_cost_usd:.4f} exceeds budget ${MAX_COST}")
+else:
+    print(f"✅ Within budget: ${result.total_cost_usd:.4f}")
+```
+
+## Integration with Logging
+
+Comparisons are automatically logged when logging is enabled:
+
+```yaml
+# dakora.yaml
+logging:
+  enabled: true
+  backend: sqlite
+  db_path: ./dakora.db
+```
+
+Each model execution is logged separately with full metadata.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="LLM Execution"
+    icon="rocket"
+    href="/features/llm-execution"
+  >
+    Learn about single-model execution
+  </Card>
+  <Card
+    title="CLI Reference"
+    icon="terminal"
+    href="/features/cli"
+  >
+    Full CLI command documentation
+  </Card>
+  <Card
+    title="API Keys"
+    icon="key"
+    href="/guides/api-keys"
+  >
+    Set up authentication for providers
+  </Card>
+  <Card
+    title="Examples"
+    icon="code"
+    href="/examples/basic-usage"
+  >
+    See real-world usage patterns
+  </Card>
+</CardGroup>

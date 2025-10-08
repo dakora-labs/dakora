@@ -399,3 +399,215 @@ def run(
         typer.echo("╰─────────────────────────────────────╯")
         typer.echo()
         typer.echo(result.output)
+
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def compare(
+    ctx: typer.Context,
+    template_id: str = typer.Argument(..., help="Template ID to execute"),
+    models: str = typer.Option(..., "--models", "-m", help="Comma-separated list of models (e.g., 'gpt-4,claude-3-opus')"),
+    config: str = typer.Option("dakora.yaml", help="Config file path"),
+    temperature: float = typer.Option(None, "--temperature", "-t", help="Sampling temperature (0.0-2.0)"),
+    max_tokens: int = typer.Option(None, "--max-tokens", help="Maximum tokens to generate"),
+    top_p: float = typer.Option(None, "--top-p", help="Nucleus sampling probability"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON result"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full responses (not truncated)")
+):
+    """Compare template execution across multiple LLM models.
+
+    Template inputs should be provided as --<input-name> <value> flags.
+    Any parameter not matching a template input will be passed to LiteLLM.
+
+    Examples:
+      dakora compare summarizer --models gpt-4,claude-3-opus --input-text "Article..."
+      dakora compare summarizer --models gpt-4,claude-3-opus,gemini-pro --input-text "Text" --temperature 0.7
+      dakora compare chatbot --models gpt-4,claude-3-opus --message "Hello" --verbose
+    """
+    try:
+        vault = Vault(config)
+    except FileNotFoundError:
+        typer.echo(f"❌ Config file not found: {config}", err=True)
+        typer.echo("💡 Run 'dakora init' to create a new project", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Failed to load config: {e}", err=True)
+        raise typer.Exit(1)
+
+    try:
+        template = vault.get(template_id)
+    except TemplateNotFound:
+        typer.echo(f"❌ Template '{template_id}' not found", err=True)
+        typer.echo(f"💡 Run 'dakora list' to see available templates", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Failed to load template: {e}", err=True)
+        raise typer.Exit(1)
+
+    model_list = [m.strip() for m in models.split(",") if m.strip()]
+    if not model_list:
+        typer.echo("❌ No models specified", err=True)
+        typer.echo("💡 Provide comma-separated models: --models gpt-4,claude-3-opus", err=True)
+        raise typer.Exit(1)
+
+    template_input_names = set(template.spec.inputs.keys())
+
+    extra_args = ctx.args
+    template_kwargs = {}
+    llm_kwargs = {}
+
+    if temperature is not None:
+        llm_kwargs["temperature"] = temperature
+    if max_tokens is not None:
+        llm_kwargs["max_tokens"] = max_tokens
+    if top_p is not None:
+        llm_kwargs["top_p"] = top_p
+
+    i = 0
+    while i < len(extra_args):
+        arg = extra_args[i]
+
+        if arg.startswith("--") and i + 1 < len(extra_args):
+            key = arg[2:].replace("-", "_")
+            value = extra_args[i + 1]
+
+            if key in template_input_names:
+                template_kwargs[key] = value
+            else:
+                try:
+                    parsed_value = json.loads(value)
+                    llm_kwargs[key] = parsed_value
+                except (json.JSONDecodeError, ValueError):
+                    llm_kwargs[key] = value
+
+            i += 2
+        else:
+            i += 1
+
+    required_inputs = {name for name, spec in template.spec.inputs.items() if spec.required}
+    missing_inputs = required_inputs - set(template_kwargs.keys())
+    if missing_inputs:
+        typer.echo(f"❌ Missing required inputs: {', '.join(missing_inputs)}", err=True)
+        typer.echo(f"💡 Usage: dakora compare {template_id} --models {models} " +
+                  " ".join(f"--{inp} <value>" for inp in sorted(template_input_names)), err=True)
+        raise typer.Exit(1)
+
+    try:
+        comparison = template.compare(models=model_list, **template_kwargs, **llm_kwargs)
+    except ValidationError as e:
+        typer.echo(f"❌ Validation error: {e}", err=True)
+        raise typer.Exit(1)
+    except RenderError as e:
+        typer.echo(f"❌ Render error: {e}", err=True)
+        raise typer.Exit(1)
+    except APIKeyError as e:
+        typer.echo(f"❌ API key error: {e}", err=True)
+        typer.echo(f"💡 Set the required environment variable (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)", err=True)
+        raise typer.Exit(1)
+    except RateLimitError as e:
+        typer.echo(f"❌ Rate limit exceeded: {e}", err=True)
+        raise typer.Exit(1)
+    except ModelNotFoundError as e:
+        typer.echo(f"❌ Model not found: {e}", err=True)
+        raise typer.Exit(1)
+    except LLMError as e:
+        typer.echo(f"❌ LLM error: {e}", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"❌ Unexpected error: {e}", err=True)
+        raise typer.Exit(1)
+
+    if json_output:
+        output = {
+            "results": [
+                {
+                    "model": r.model,
+                    "provider": r.provider,
+                    "output": r.output,
+                    "tokens_in": r.tokens_in,
+                    "tokens_out": r.tokens_out,
+                    "cost_usd": r.cost_usd,
+                    "latency_ms": r.latency_ms,
+                    "error": r.error
+                }
+                for r in comparison.results
+            ],
+            "total_cost_usd": comparison.total_cost_usd,
+            "total_tokens_in": comparison.total_tokens_in,
+            "total_tokens_out": comparison.total_tokens_out,
+            "successful_count": comparison.successful_count,
+            "failed_count": comparison.failed_count
+        }
+        typer.echo(json.dumps(output, indent=2))
+    elif verbose:
+        for i, result in enumerate(comparison.results):
+            if i > 0:
+                typer.echo("\n" + "─" * 80 + "\n")
+
+            if result.error:
+                typer.echo(f"❌ {result.model} ({result.provider}) - FAILED")
+                typer.echo(f"Error: {result.error}")
+            else:
+                cost_str = f"${result.cost_usd:.4f}" if result.cost_usd > 0 else "$0.0000"
+                latency_str = f"{result.latency_ms:,} ms" if result.latency_ms < 10000 else f"{result.latency_ms / 1000:.1f}s"
+
+                typer.echo(f"✅ {result.model} ({result.provider})")
+                typer.echo(f"Cost: {cost_str} | Latency: {latency_str} | Tokens: {result.tokens_in} → {result.tokens_out}")
+                typer.echo()
+                typer.echo(result.output)
+
+        typer.echo("\n" + "─" * 80)
+        typer.echo(f"\nTotal Cost: ${comparison.total_cost_usd:.4f}")
+        typer.echo(f"Total Tokens: {comparison.total_tokens_in} → {comparison.total_tokens_out}")
+        typer.echo(f"Success Rate: {comparison.successful_count}/{len(comparison.results)}")
+    else:
+        max_model_len = max(len(r.model) for r in comparison.results)
+        max_model_len = max(max_model_len, 15)
+
+        header_model = "Model".ljust(max_model_len)
+        header_response = "Response (preview)".ljust(80)
+        header_cost = "Cost".ljust(10)
+        header_latency = "Latency".ljust(10)
+        header_tokens = "Tokens".ljust(12)
+
+        separator = "─" * (max_model_len + 80 + 10 + 10 + 12 + 8)
+
+        typer.echo(separator)
+        typer.echo(f" {header_model} │ {header_response} │ {header_cost} │ {header_latency} │ {header_tokens}")
+        typer.echo(separator)
+
+        for result in comparison.results:
+            model_col = result.model.ljust(max_model_len)
+
+            if result.error:
+                status = "❌"
+                response_col = f"ERROR: {result.error[:74]}"
+                response_col = response_col.ljust(80)
+                cost_col = "N/A".ljust(10)
+                latency_col = "N/A".ljust(10)
+                tokens_col = "N/A".ljust(12)
+            else:
+                status = "✅"
+                response_preview = result.output.replace("\n", " ").strip()
+                if len(response_preview) > 77:
+                    response_preview = response_preview[:77] + "..."
+                response_col = response_preview.ljust(80)
+
+                cost_str = f"${result.cost_usd:.4f}" if result.cost_usd > 0 else "$0.0000"
+                cost_col = cost_str.ljust(10)
+
+                if result.latency_ms < 10000:
+                    latency_str = f"{result.latency_ms:,}ms"
+                else:
+                    latency_str = f"{result.latency_ms / 1000:.1f}s"
+                latency_col = latency_str.ljust(10)
+
+                tokens_col = f"{result.tokens_in}→{result.tokens_out}".ljust(12)
+
+            typer.echo(f"{status}{model_col} │ {response_col} │ {cost_col} │ {latency_col} │ {tokens_col}")
+
+        typer.echo(separator)
+        typer.echo(f"\nTotal Cost: ${comparison.total_cost_usd:.4f} | Total Tokens: {comparison.total_tokens_in} → {comparison.total_tokens_out} | Success: {comparison.successful_count}/{len(comparison.results)}")
+
+        if verbose:
+            typer.echo("\n💡 Use --verbose to see full responses")
+        elif not json_output and comparison.successful_count < len(comparison.results):
+            typer.echo("💡 Some models failed - use --verbose to see error details")

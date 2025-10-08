@@ -1,0 +1,446 @@
+---
+title: Command Line Interface
+description: 'Use Dakora from the terminal with powerful CLI commands'
+---
+
+## Overview
+
+Dakora provides a comprehensive CLI for managing templates, executing prompts, and comparing model outputs without writing any Python code.
+
+## Installation
+
+The CLI is automatically available after installing Dakora:
+
+```bash
+pip install dakora
+```
+
+Verify installation:
+
+```bash
+dakora --help
+```
+
+## Commands
+
+### `dakora init`
+
+Initialize a new Dakora project in the current directory.
+
+```bash
+dakora init
+```
+
+**Creates:**
+- `dakora.yaml` - Project configuration file
+- `prompts/` - Directory for template files
+- `prompts/summarizer.yaml` - Example template to get started
+
+---
+
+### `dakora list`
+
+List all available templates in the project.
+
+```bash
+dakora list
+```
+
+**Output:**
+```
+summarizer
+greeting
+code-reviewer
+```
+
+---
+
+### `dakora get`
+
+Display the raw template content for a specific template.
+
+```bash
+dakora get <template-id>
+```
+
+**Example:**
+```bash
+dakora get summarizer
+```
+
+**Output:**
+```
+Summarize the following into exactly 3 bullet points:
+
+{{ input_text }}
+```
+
+---
+
+### `dakora run`
+
+Execute a template against a single LLM model.
+
+```bash
+dakora run <template-id> --model <model> [OPTIONS]
+```
+
+**Required Arguments:**
+- `<template-id>` - ID of the template to execute
+- `--model`, `-m` - Model to use (e.g., `gpt-4`, `claude-3-opus`)
+- Template-specific inputs as flags (e.g., `--input-text "..."`)
+
+**Optional Arguments:**
+- `--config` - Config file path (default: `dakora.yaml`)
+- `--temperature`, `-t` - Sampling temperature (0.0-2.0)
+- `--max-tokens` - Maximum tokens to generate
+- `--top-p` - Nucleus sampling probability
+- `--json` - Output raw JSON result
+- `--quiet`, `-q` - Only output response text
+
+**Examples:**
+
+Basic execution:
+```bash
+dakora run summarizer \
+  --model gpt-4 \
+  --input-text "Long article text here..."
+```
+
+With LLM parameters:
+```bash
+dakora run summarizer \
+  --model gpt-4 \
+  --input-text "Article..." \
+  --temperature 0.7 \
+  --max-tokens 150
+```
+
+JSON output:
+```bash
+dakora run summarizer \
+  --model gpt-4 \
+  --input-text "Article..." \
+  --json
+```
+
+**Output (default):**
+```
+╭─────────────────────────────────────╮
+│ Model: gpt-4 (openai)               │
+│ Cost: $0.0045 USD                   │
+│ Latency: 1,234 ms                   │
+│ Tokens: 150 → 80                    │
+╰─────────────────────────────────────╯
+
+The article discusses the recent advances...
+```
+
+---
+
+### `dakora compare`
+
+Compare template execution across multiple LLM models in parallel.
+
+```bash
+dakora compare <template-id> --models <model1>,<model2>,... [OPTIONS]
+```
+
+**Required Arguments:**
+- `<template-id>` - ID of the template to execute
+- `--models`, `-m` - Comma-separated list of models
+- Template-specific inputs as flags
+
+**Optional Arguments:**
+- `--config` - Config file path (default: `dakora.yaml`)
+- `--temperature`, `-t` - Sampling temperature (applies to all models)
+- `--max-tokens` - Maximum tokens to generate
+- `--top-p` - Nucleus sampling probability
+- `--json` - Output raw JSON result
+- `--verbose`, `-v` - Show full responses (not truncated)
+
+**Examples:**
+
+Basic comparison:
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus,gemini-pro \
+  --input-text "Article to summarize..."
+```
+
+With temperature control:
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus \
+  --input-text "Article..." \
+  --temperature 0.3
+```
+
+Verbose output (full responses):
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus \
+  --input-text "Article..." \
+  --verbose
+```
+
+JSON output:
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus \
+  --input-text "Article..." \
+  --json
+```
+
+**Output (default):**
+```
+─────────────────────────────────────────────────────────────────────────
+ Model           │ Response (preview)                    │ Cost    │ ...
+─────────────────────────────────────────────────────────────────────────
+✅gpt-4           │ The article discusses recent AI...    │ $0.0045 │ ...
+✅claude-3-opus   │ This article explores cutting-edge... │ $0.0038 │ ...
+✅gemini-pro      │ A comprehensive overview of modern... │ $0.0012 │ ...
+─────────────────────────────────────────────────────────────────────────
+
+Total Cost: $0.0095 | Total Tokens: 450 → 237 | Success: 3/3
+```
+
+**Output (verbose):**
+```
+✅ gpt-4 (openai)
+Cost: $0.0045 | Latency: 1,234 ms | Tokens: 150 → 80
+
+The article discusses the recent advances in artificial intelligence...
+(full response text)
+
+────────────────────────────────────────────────────────────────────
+
+✅ claude-3-opus (anthropic)
+Cost: $0.0038 | Latency: 856 ms | Tokens: 150 → 75
+
+This article explores cutting-edge developments in AI and ML...
+(full response text)
+
+────────────────────────────────────────────────────────────────────
+
+Total Cost: $0.0083
+Total Tokens: 300 → 155
+Success Rate: 2/2
+```
+
+<Tip>
+  The `compare` command handles partial failures gracefully. If one model fails (e.g., API key missing), others continue execution.
+</Tip>
+
+---
+
+### `dakora bump`
+
+Increment the semantic version of a template.
+
+```bash
+dakora bump <template-id> [OPTIONS]
+```
+
+**Options:**
+- `--patch` - Increment patch version (default: `1.0.0` → `1.0.1`)
+- `--minor` - Increment minor version (`1.0.0` → `1.1.0`)
+- `--major` - Increment major version (`1.0.0` → `2.0.0`)
+
+**Examples:**
+```bash
+dakora bump greeting --patch   # 1.0.0 → 1.0.1
+dakora bump greeting --minor   # 1.0.0 → 1.1.0
+dakora bump greeting --major   # 1.0.0 → 2.0.0
+```
+
+---
+
+### `dakora watch`
+
+Watch the prompts directory for changes and automatically reload templates.
+
+```bash
+dakora watch
+```
+
+Useful during development to see template changes immediately without restarting your application.
+
+<Info>
+  Press `Ctrl+C` to stop watching.
+</Info>
+
+---
+
+### `dakora config`
+
+Check which API keys are configured for LLM providers.
+
+```bash
+dakora config [OPTIONS]
+```
+
+**Options:**
+- `--provider` - Check specific provider (e.g., `openai`, `anthropic`)
+
+**Examples:**
+```bash
+# Check all providers
+dakora config
+
+# Check specific provider
+dakora config --provider openai
+```
+
+**Output:**
+```
+✓ OPENAI_API_KEY found
+✗ ANTHROPIC_API_KEY not set
+✗ GOOGLE_API_KEY not set
+```
+
+<Warning>
+  See the [API Keys Guide](/guides/api-keys) for setting up provider authentication.
+</Warning>
+
+---
+
+### `dakora playground`
+
+Launch the interactive web playground for developing and testing templates.
+
+```bash
+dakora playground [OPTIONS]
+```
+
+**Options:**
+- `--port` - Port to run on (default: `3000`)
+- `--host` - Host to bind to (default: `localhost`)
+- `--config` - Config file path (default: `dakora.yaml`)
+- `--dev` - Development mode with auto-reload
+- `--demo` - Demo mode (read-only, session isolation)
+- `--no-build` - Skip building the UI
+- `--no-browser` - Don't open browser automatically
+
+**Examples:**
+```bash
+# Start playground (opens browser)
+dakora playground
+
+# Custom port
+dakora playground --port 8080
+
+# Development mode
+dakora playground --dev
+
+# Demo mode (read-only)
+dakora playground --demo
+```
+
+The playground automatically:
+1. 🔨 Builds the React UI (first run only)
+2. 🚀 Starts the FastAPI server
+3. 🌐 Opens your browser
+
+<Tip>
+  You can also use the online playground at [playground.dakora.io](https://playground.dakora.io) without any installation.
+</Tip>
+
+---
+
+## Tips & Best Practices
+
+### Dynamic Arguments
+
+Both `run` and `compare` commands support dynamic template inputs:
+
+```bash
+# Any --<input-name> flag is passed to the template
+dakora run my-template \
+  --model gpt-4 \
+  --custom-input "value" \
+  --another-input "value2"
+```
+
+### LLM Parameters
+
+Pass any LiteLLM-supported parameter directly:
+
+```bash
+dakora run summarizer \
+  --model gpt-4 \
+  --input-text "..." \
+  --temperature 0.7 \
+  --max-tokens 100 \
+  --top-p 0.9 \
+  --frequency-penalty 0.5
+```
+
+### Error Handling
+
+The CLI provides clear error messages:
+
+```bash
+❌ API key error: OPENAI_API_KEY not found
+💡 Set the required environment variable (e.g., OPENAI_API_KEY)
+```
+
+```bash
+❌ Template 'nonexistent' not found
+💡 Run 'dakora list' to see available templates
+```
+
+### Piping and Scripting
+
+Use `--json` for programmatic access:
+
+```bash
+# Capture JSON output
+result=$(dakora run summarizer --model gpt-4 --input-text "..." --json)
+
+# Extract specific fields with jq
+echo $result | jq '.output'
+echo $result | jq '.cost_usd'
+```
+
+Use `--quiet` for simple text output:
+
+```bash
+# Only the response text
+dakora run summarizer --model gpt-4 --input-text "..." --quiet
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="API Keys Setup"
+    icon="key"
+    href="/guides/api-keys"
+  >
+    Configure API keys for LLM providers
+  </Card>
+  <Card
+    title="Model Comparison"
+    icon="scale-balanced"
+    href="/features/model-comparison"
+  >
+    Learn more about comparing models
+  </Card>
+  <Card
+    title="LLM Execution"
+    icon="rocket"
+    href="/features/llm-execution"
+  >
+    Deep dive into template execution
+  </Card>
+  <Card
+    title="Examples"
+    icon="code"
+    href="/examples/basic-usage"
+  >
+    See real-world usage examples
+  </Card>
+</CardGroup>
