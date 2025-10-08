@@ -1,0 +1,171 @@
+---
+title: Templates
+description: 'Learn about Dakora template structure and features'
+---
+
+## What is a Template?
+
+A template in Dakora is a YAML file that defines:
+- A unique identifier and version
+- A Jinja2 template string
+- Input specifications with types and validation
+- Optional metadata
+
+## Template Structure
+
+```yaml
+id: unique_template_id          # Required: Template identifier
+version: 1.0.0                  # Required: Semantic version
+description: Template purpose   # Optional: Human-readable description
+template: |                     # Required: Jinja2 template string
+  Your template content here
+  {{ variable_name }}
+inputs:                         # Optional: Input specifications
+  variable_name:
+    type: string                # Type: string|number|boolean|array<string>|object
+    required: true              # Default: true
+    default: "default value"    # Optional: Default value
+metadata:                       # Optional: Custom metadata
+  tags: ["tag1", "tag2"]
+  author: "Your Name"
+```
+
+## Template ID
+
+The template ID is used to retrieve templates from the vault:
+
+```python
+template = vault.get("my_template_id")
+```
+
+<Warning>
+  Template IDs must be unique within a vault. Use descriptive names like `blog-post-generator` or `email-summarizer`.
+</Warning>
+
+## Jinja2 Templating
+
+Dakora uses Jinja2 for template rendering. All Jinja2 features are supported:
+
+### Variables
+
+```yaml
+template: |
+  Hello {{ name }}!
+```
+
+### Conditionals
+
+```yaml
+template: |
+  {% if premium %}
+    Welcome, premium user!
+  {% else %}
+    Welcome!
+  {% endif %}
+```
+
+### Loops
+
+```yaml
+template: |
+  Your tasks:
+  {% for task in tasks %}
+  - {{ task }}
+  {% endfor %}
+```
+
+### Built-in Filters
+
+Dakora includes custom Jinja2 filters:
+
+#### `default` Filter
+
+Provide fallback values:
+
+```yaml
+template: |
+  {{ message | default("Hello!") }}
+```
+
+#### `yaml` Filter
+
+Convert objects to YAML format:
+
+```yaml
+template: |
+  Configuration:
+  {{ config | yaml }}
+```
+
+## File Location
+
+Templates are stored in the directory specified in `dakora.yaml`:
+
+```yaml
+prompt_dir: ./prompts
+```
+
+Each template is a separate `.yaml` file:
+
+```
+prompts/
+├── greeting.yaml
+├── summarizer.yaml
+└── email-generator.yaml
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Descriptive IDs">
+    Choose clear, descriptive template IDs:
+    - ✅ `customer-email-template`
+    - ❌ `template1`
+  </Accordion>
+
+  <Accordion title="Version Semantically">
+    Follow semantic versioning:
+    - Major: Breaking changes to inputs or output format
+    - Minor: New features, backward compatible
+    - Patch: Bug fixes, typos
+  </Accordion>
+
+  <Accordion title="Document Inputs">
+    Use descriptions to explain what each input does:
+    ```yaml
+    inputs:
+      tone:
+        type: string
+        description: "The tone of the response (formal, casual, friendly)"
+    ```
+  </Accordion>
+
+  <Accordion title="Provide Defaults">
+    Make templates easier to use with sensible defaults:
+    ```yaml
+    inputs:
+      max_length:
+        type: number
+        default: 100
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Input Types"
+    icon="keyboard"
+    href="/concepts/inputs"
+  >
+    Learn about input validation and types
+  </Card>
+  <Card
+    title="Versioning"
+    icon="code-branch"
+    href="/concepts/versioning"
+  >
+    Understand template versioning
+  </Card>
+</CardGroup>

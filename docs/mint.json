@@ -1,0 +1,105 @@
+{
+  "name": "Dakora",
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#667eea",
+    "light": "#a5b4fc",
+    "dark": "#4c51bf",
+    "anchors": {
+      "from": "#667eea",
+      "to": "#4c51bf"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/bogdan-pistol/dakora"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Playground",
+    "url": "https://playground.dakora.io"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "Examples",
+      "url": "examples"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Discord",
+      "icon": "discord",
+      "url": "https://discord.gg/QSRRcFjzE8"
+    },
+    {
+      "name": "PyPI",
+      "icon": "python",
+      "url": "https://pypi.org/project/dakora/"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "installation"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "concepts/templates",
+        "concepts/vault",
+        "concepts/inputs",
+        "concepts/versioning"
+      ]
+    },
+    {
+      "group": "Features",
+      "pages": [
+        "features/playground",
+        "features/llm-execution",
+        "features/model-comparison",
+        "features/logging",
+        "features/cli"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/vault",
+        "api-reference/template-handle",
+        "api-reference/execution-result",
+        "api-reference/comparison-result"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "examples/basic-usage",
+        "examples/fastapi-integration",
+        "examples/openai-agents",
+        "examples/hot-reload"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/api-keys",
+        "guides/custom-filters",
+        "guides/logging-setup",
+        "guides/deployment"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/bogdan-pistol/dakora",
+    "discord": "https://discord.gg/QSRRcFjzE8"
+  }
+}

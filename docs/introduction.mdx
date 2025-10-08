@@ -1,0 +1,180 @@
+---
+title: Introduction
+description: 'A Python library for managing and executing LLM prompts with type-safe inputs, versioning, and an interactive web playground'
+---
+
+<img
+  className="block dark:hidden"
+  src="/logo/light.svg"
+  alt="Dakora Logo"
+  width="200"
+/>
+<img
+  className="hidden dark:block"
+  src="/logo/dark.svg"
+  alt="Dakora Logo"
+  width="200"
+/>
+
+## What is Dakora?
+
+Dakora is a Python library that makes it easy to manage, version, and execute LLM prompts. Think of it as **version control for your prompts** with built-in execution capabilities.
+
+### Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Type-Safe Templates"
+    icon="shield-check"
+    href="/concepts/templates"
+  >
+    Define prompts with validated inputs and automatic type coercion
+  </Card>
+  <Card
+    title="LLM Execution"
+    icon="rocket"
+    href="/features/llm-execution"
+  >
+    Execute templates against 100+ LLM providers with built-in cost tracking
+  </Card>
+  <Card
+    title="Interactive Playground"
+    icon="laptop"
+    href="/features/playground"
+  >
+    Modern React UI for developing and testing templates
+  </Card>
+  <Card
+    title="Model Comparison"
+    icon="scale-balanced"
+    href="/features/model-comparison"
+  >
+    Compare outputs across multiple models in parallel
+  </Card>
+</CardGroup>
+
+## Use Case
+
+```python
+from dakora import Vault
+
+# Load your templates
+vault = Vault("dakora.yaml")
+
+# Execute against any LLM provider
+result = vault.get("summarizer").execute(
+    model="gpt-4",
+    input_text="Your article here..."
+)
+
+print(result.output)          # The LLM's response
+print(f"${result.cost_usd}")  # Track costs automatically
+```
+
+## Why Dakora?
+
+<AccordionGroup>
+  <Accordion title="Separation of Concerns">
+    Keep your prompts separate from your application code. Update prompts without redeploying your application.
+  </Accordion>
+
+  <Accordion title="Version Control">
+    Track prompt changes with semantic versioning. Know exactly which version of a prompt produced which results.
+  </Accordion>
+
+  <Accordion title="Type Safety">
+    Define input schemas with validation. Catch errors before they reach your LLM provider.
+  </Accordion>
+
+  <Accordion title="Cost Transparency">
+    Built-in tracking for tokens, latency, and costs across all providers.
+  </Accordion>
+</AccordionGroup>
+
+## Quick Example
+
+<Steps>
+  <Step title="Install Dakora">
+    ```bash
+    pip install dakora
+    ```
+  </Step>
+
+  <Step title="Initialize Project">
+    ```bash
+    dakora init
+    ```
+  </Step>
+
+  <Step title="Create Template">
+    Create `prompts/greeting.yaml`:
+    ```yaml
+    id: greeting
+    version: 1.0.0
+    template: |
+      Hello {{ name }}!
+      {{ message | default("Welcome!") }}
+    inputs:
+      name:
+        type: string
+        required: true
+    ```
+  </Step>
+
+  <Step title="Use in Code">
+    ```python
+    from dakora import Vault
+
+    vault = Vault("dakora.yaml")
+    template = vault.get("greeting")
+
+    result = template.render(name="Alice")
+    print(result)  # Hello Alice! Welcome!
+    ```
+  </Step>
+</Steps>
+
+## Try it Now
+
+<CardGroup cols={2}>
+  <Card
+    title="Live Playground"
+    icon="globe"
+    href="https://playground.dakora.io"
+  >
+    Try Dakora in your browser without installing anything
+  </Card>
+  <Card
+    title="Quick Start Guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running in 5 minutes
+  </Card>
+</CardGroup>
+
+## What's Next?
+
+<CardGroup cols={3}>
+  <Card
+    title="Quick Start"
+    icon="play"
+    href="/quickstart"
+  >
+    Get started with Dakora in 5 minutes
+  </Card>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/concepts/templates"
+  >
+    Learn about templates, vault, and inputs
+  </Card>
+  <Card
+    title="Examples"
+    icon="code"
+    href="/examples/basic-usage"
+  >
+    See real-world usage examples
+  </Card>
+</CardGroup>
