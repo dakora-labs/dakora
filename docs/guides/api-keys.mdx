@@ -1,0 +1,254 @@
+---
+title: API Keys Setup
+description: 'Configure API keys for LLM providers'
+---
+
+## Overview
+
+Dakora uses LiteLLM to execute templates against 100+ LLM providers. Each provider requires an API key.
+
+## Getting API Keys
+
+<Steps>
+  <Step title="Choose Your Provider">
+    Select from popular providers:
+    - [OpenAI](https://platform.openai.com/api-keys) - GPT-4, GPT-3.5
+    - [Anthropic](https://console.anthropic.com/) - Claude models
+    - [Google](https://ai.google.dev/gemini-api/docs/api-key) - Gemini Pro
+  </Step>
+
+  <Step title="Create API Key">
+    Follow your provider's documentation to create an API key. Keep it secure!
+  </Step>
+
+  <Step title="Set Environment Variable">
+    Configure the key as an environment variable (see methods below)
+  </Step>
+</Steps>
+
+## Configuration Methods
+
+### Method 1: Environment Variables (Recommended)
+
+<Tabs>
+  <Tab title="macOS/Linux">
+    Add to your `~/.bashrc`, `~/.zshrc`, or `~/.bash_profile`:
+
+    ```bash
+    export OPENAI_API_KEY="sk-..."
+    export ANTHROPIC_API_KEY="sk-ant-..."
+    export GOOGLE_API_KEY="AIza..."
+    ```
+
+    Then reload:
+    ```bash
+    source ~/.zshrc  # or ~/.bashrc
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    **PowerShell:**
+    ```powershell
+    $env:OPENAI_API_KEY="sk-..."
+    $env:ANTHROPIC_API_KEY="sk-ant-..."
+    ```
+
+    **Command Prompt:**
+    ```bash
+    setx OPENAI_API_KEY "sk-..."
+    setx ANTHROPIC_API_KEY "sk-ant-..."
+    ```
+
+    <Warning>Restart your terminal after using `setx`</Warning>
+  </Tab>
+</Tabs>
+
+### Method 2: .env File (Development)
+
+Create `.env` in your project root:
+
+```bash
+OPENAI_API_KEY="sk-..."
+ANTHROPIC_API_KEY="sk-ant-..."
+GOOGLE_API_KEY="AIza..."
+```
+
+Load in your Python code:
+
+```python
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Use Dakora normally
+from dakora import Vault
+vault = Vault("dakora.yaml")
+```
+
+<Warning>
+  **Never commit `.env` to version control!**
+
+  Add to your `.gitignore`:
+  ```bash
+  echo ".env" >> .gitignore
+  ```
+</Warning>
+
+### Method 3: In Code (Not Recommended)
+
+For testing only:
+
+```python
+import os
+
+os.environ["OPENAI_API_KEY"] = "sk-..."
+
+from dakora import Vault
+vault = Vault("dakora.yaml")
+```
+
+<Warning>
+  Don't hardcode API keys in your source code. Use environment variables or `.env` files instead.
+</Warning>
+
+## Verify Configuration
+
+Check which API keys are configured:
+
+```bash
+# Check all providers
+dakora config
+
+# Check specific provider
+dakora config --provider openai
+```
+
+**Output:**
+```
+✓ OPENAI_API_KEY found
+✗ ANTHROPIC_API_KEY not set
+✗ GOOGLE_API_KEY not set
+```
+
+## Provider-Specific Keys
+
+### OpenAI
+
+```bash
+OPENAI_API_KEY="sk-..."
+```
+
+Models: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
+
+### Anthropic
+
+```bash
+ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+Models: `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`
+
+### Google
+
+```bash
+GOOGLE_API_KEY="AIza..."
+```
+
+Models: `gemini-pro`, `gemini-1.5-pro`
+
+### Azure OpenAI
+
+```bash
+AZURE_API_KEY="..."
+AZURE_API_BASE="https://your-resource.openai.azure.com"
+AZURE_API_VERSION="2023-05-15"
+```
+
+Models: `azure/gpt-4`, `azure/gpt-35-turbo`
+
+### Local Models (Ollama)
+
+No API key required:
+
+```python
+result = template.execute(
+    model="ollama/llama3",
+    input_text="..."
+)
+```
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Environment Variables">
+    Store API keys in environment variables, not in code
+  </Accordion>
+
+  <Accordion title="Add .env to .gitignore">
+    Never commit `.env` files to version control
+  </Accordion>
+
+  <Accordion title="Rotate Keys Regularly">
+    Rotate API keys periodically for security
+  </Accordion>
+
+  <Accordion title="Use Separate Keys for Dev/Prod">
+    Use different API keys for development and production environments
+  </Accordion>
+
+  <Accordion title="Monitor Usage">
+    Track API usage to detect unauthorized access
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="AuthenticationError">
+    **Error:** `AuthenticationError: Invalid API key`
+
+    **Solution:**
+    1. Verify your API key is correct
+    2. Check the environment variable name matches the provider
+    3. Ensure the key hasn't expired
+  </Accordion>
+
+  <Accordion title="Key Not Found">
+    **Error:** `API key not found for provider`
+
+    **Solution:**
+    1. Run `dakora config --provider openai` to verify
+    2. Check environment variable is set: `echo $OPENAI_API_KEY`
+    3. Restart your terminal/IDE after setting variables
+  </Accordion>
+
+  <Accordion title=".env Not Loading">
+    **Error:** Keys in `.env` file not being read
+
+    **Solution:**
+    1. Install python-dotenv: `pip install python-dotenv`
+    2. Add `load_dotenv()` before importing Dakora
+    3. Ensure `.env` is in the current working directory
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="LLM Execution"
+    icon="rocket"
+    href="/features/llm-execution"
+  >
+    Execute templates with LLM providers
+  </Card>
+  <Card
+    title="Model Comparison"
+    icon="scale-balanced"
+    href="/features/model-comparison"
+  >
+    Compare outputs across multiple models
+  </Card>
+</CardGroup>

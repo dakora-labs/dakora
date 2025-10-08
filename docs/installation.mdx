@@ -1,0 +1,114 @@
+---
+title: Installation
+description: 'Install Dakora and get your environment ready'
+---
+
+## Requirements
+
+- Python 3.11 or higher
+- pip or uv package manager
+
+<Info>
+  For the interactive playground:
+  - PyPI releases include a pre-built UI (no additional setup)
+  - Development installs require Node.js 18+ (builds automatically on first run)
+</Info>
+
+## Install from PyPI
+
+<CodeGroup>
+
+```bash pip
+pip install dakora
+```
+
+```bash uv
+uv add dakora
+```
+
+</CodeGroup>
+
+## Development Installation
+
+For contributing or development:
+
+```bash
+git clone https://github.com/bogdan-pistol/dakora.git
+cd dakora
+uv sync
+source .venv/bin/activate
+```
+
+<Tabs>
+  <Tab title="macOS/Linux">
+    ```bash
+    source .venv/bin/activate
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```bash
+    .venv\Scripts\activate
+    ```
+  </Tab>
+</Tabs>
+
+## Verify Installation
+
+```bash
+dakora --version
+```
+
+You should see the version number printed.
+
+## Optional Dependencies
+
+### For LLM Execution
+
+Dakora uses LiteLLM for LLM execution. Install provider-specific SDKs if needed:
+
+<CodeGroup>
+
+```bash OpenAI
+pip install openai
+```
+
+```bash Anthropic
+pip install anthropic
+```
+
+```bash Google
+pip install google-generativeai
+```
+
+</CodeGroup>
+
+<Note>
+  Most providers work out-of-the-box with LiteLLM. Provider SDKs are only needed for specific features or local models.
+</Note>
+
+### For Environment Variables
+
+To use `.env` files for API keys:
+
+```bash
+pip install python-dotenv
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get started with Dakora in 5 minutes
+  </Card>
+  <Card
+    title="API Keys Setup"
+    icon="key"
+    href="/guides/api-keys"
+  >
+    Configure API keys for LLM providers
+  </Card>
+</CardGroup>
