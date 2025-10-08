@@ -159,6 +159,91 @@ logging:
 - **Error handling**: Use custom exception hierarchy for clear error messages
 - **Testing**: Maintain test coverage with unit, integration, and performance tests
 
+## Playground UI Development
+
+The playground web interface is built with React, TypeScript, Vite, and shadcn/ui. It uses a modular Cockpit architecture for extensibility.
+
+**Build System:**
+```bash
+# Build the UI (outputs to playground/ directory)
+cd web && npm run build
+
+# The playground/ directory structure:
+playground/
+├── .gitkeep           # IMPORTANT: Keeps directory in git when empty
+├── index.html         # Built HTML (gitignored)
+└── assets/            # Built JS/CSS bundles (gitignored)
+```
+
+**Why .gitkeep Matters:**
+- `playground/` build artifacts are gitignored (see `.gitignore`)
+- `.gitkeep` ensures the directory exists in git
+- CI builds the UI fresh during deployment
+- Local development: build manually before running `dakora playground`
+
+**Running the Playground:**
+```bash
+# From project root (requires dakora.yaml config file)
+uv run dakora playground
+
+# Common options:
+--port 3000          # Custom port (default: 3000)
+--no-browser         # Don't auto-open browser
+--demo               # Demo mode (read-only, example templates)
+--no-build           # Skip UI build (use existing)
+```
+
+**UI Architecture:**
+
+```
+web/src/
+├── components/
+│   ├── layout/              # Layout system
+│   │   ├── TopBar.tsx       # Horizontal navigation with tabs
+│   │   ├── Sidebar.tsx      # Collapsible sidebar wrapper
+│   │   └── MainLayout.tsx   # Layout orchestrator
+│   ├── TemplateList.tsx     # Template sidebar content
+│   ├── TemplateEditor.tsx   # Template editing/rendering
+│   ├── StatusBar.tsx        # Footer status bar
+│   └── ui/                  # shadcn/ui components
+├── views/
+│   └── TemplatesView.tsx    # Templates tab view
+├── hooks/
+│   └── useApi.ts            # API client hooks
+└── App.tsx                  # Main app entry point
+```
+
+**Adding New Features:**
+
+1. **New Tab (e.g., Compare, Analytics):**
+   - Add tab definition to `TopBar.tsx` tabs array
+   - Create new view component in `views/` (e.g., `CompareView.tsx`)
+   - Add case to `App.tsx` renderView() switch
+   - Return `{ sidebar, content }` from view component
+
+2. **New Sidebar Content:**
+   - Views control their own sidebar via returned `sidebar` prop
+   - Sidebar automatically swaps when tab changes
+   - Example: `CompareView.tsx` returns model selector in sidebar
+
+3. **Shared Components:**
+   - Add to `components/` for reusable UI elements
+   - Use shadcn/ui components from `components/ui/`
+   - Follow existing patterns (StatusBar, TemplateEditor)
+
+**Development Workflow:**
+```bash
+# 1. Make UI changes in web/src/
+# 2. Build the UI
+cd web && npm run build
+
+# 3. Test locally
+cd .. && uv run dakora playground --no-browser
+
+# 4. Validate with Playwright if needed
+# (Playwright MCP is available for automated testing)
+```
+
 ## Project Structure
 
 ```
@@ -176,12 +261,17 @@ dakora/
 │   └── registry/
 │       ├── base.py          # Abstract registry interface
 │       └── local.py         # Local filesystem registry
-├── playground-ui/           # React + TypeScript UI
+├── web/                     # Playground UI source
 │   ├── src/
 │   │   ├── components/      # React components
-│   │   ├── lib/             # Utilities and API client
+│   │   │   ├── layout/      # Layout system (TopBar, Sidebar, MainLayout)
+│   │   │   └── ui/          # shadcn/ui components
+│   │   ├── views/           # Tab view components
+│   │   ├── hooks/           # React hooks (API client)
 │   │   └── App.tsx          # Main application
 │   └── package.json
+├── playground/              # Built UI (gitignored except .gitkeep)
+│   └── .gitkeep            # Keeps directory in git
 ├── tests/                   # Test suite
 ├── prompts/                 # Example templates
 └── pyproject.toml           # Project metadata
