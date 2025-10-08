@@ -27,9 +27,6 @@ env/
 ehthumbs.db
 Thumbs.db
 
-# Claude Code related files
-.claude/
-
 # Dakora user-generated files (from init command)
 dakora.yaml
 dakora.db
@@ -66,3 +63,4 @@ playground/*
 # Development scripts (keep in repo but users might create their own)
 dev_*.py
 build_*.py
+.scratchpad/
