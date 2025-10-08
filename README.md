@@ -289,6 +289,70 @@ dakora run summarizer --model gpt-4 \
 The article discusses the recent advances in...
 ```
 
+#### Compare Multiple Models
+
+Compare the same prompt across different models to find the best one for your use case.
+
+**Prerequisites:** You need API keys for each provider you want to compare. See the [Setting API Keys](#setting-api-keys) section above for setup instructions.
+
+**From Python:**
+
+```python
+from dakora import Vault
+
+vault = Vault("dakora.yaml")
+template = vault.get("summarizer")
+
+# Compare across multiple models in parallel
+# Note: You need OPENAI_API_KEY, ANTHROPIC_API_KEY, and GOOGLE_API_KEY set
+comparison = template.compare(
+    models=["gpt-4", "claude-3-opus", "gemini-pro"],
+    input_text="Your article content here...",
+    temperature=0.7
+)
+
+# View aggregate stats
+print(f"Total Cost: ${comparison.total_cost_usd:.4f}")
+print(f"Successful: {comparison.successful_count}/{len(comparison.results)}")
+print(f"Total Tokens: {comparison.total_tokens_in} → {comparison.total_tokens_out}")
+
+# Compare individual results
+for result in comparison.results:
+    if result.error:
+        print(f"❌ {result.model}: {result.error}")
+    else:
+        print(f"✅ {result.model} (${result.cost_usd:.4f}, {result.latency_ms}ms)")
+        print(f"   {result.output[:100]}...")
+```
+
+**Example Output:**
+
+```
+Total Cost: $0.0890
+Successful: 3/3
+Total Tokens: 450 → 180
+
+✅ gpt-4 ($0.0450, 1234ms)
+   The article discusses recent advances in artificial intelligence and their impact on...
+✅ claude-3-opus ($0.0320, 987ms)
+   Recent AI developments have transformed multiple industries. The article examines...
+✅ gemini-pro ($0.0120, 1567ms)
+   This piece explores cutting-edge AI technologies and analyzes their effects across...
+```
+
+**Key Features:**
+- ⚡ **Parallel execution** - All models run simultaneously for speed
+- 💪 **Handles failures gracefully** - One model failing doesn't stop others (e.g., missing API key)
+- 📊 **Rich comparison data** - Costs, tokens, latency for each model
+- 🔄 **Order preserved** - Results match input model order
+- 📝 **All executions logged** - Each execution tracked separately
+
+**Why Compare Models?**
+- Find the most cost-effective model for your use case
+- Test quality differences between providers
+- Evaluate latency trade-offs
+- Build fallback strategies for production
+
 #### Supported Models
 
 Dakora supports 100+ LLM providers through LiteLLM:

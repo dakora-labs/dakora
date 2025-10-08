@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from pathlib import Path
 import yaml
 from threading import RLock
@@ -10,7 +10,7 @@ from .model import TemplateSpec
 from .exceptions import ValidationError, RenderError, TemplateNotFound, DakoraError
 from .logging import Logger
 from .llm.client import LLMClient
-from .llm.models import ExecutionResult
+from .llm.models import ExecutionResult, ComparisonResult
 
 class Vault:
     """
@@ -135,6 +135,60 @@ class TemplateHandle:
             )
 
         return result
+
+    def compare(self, models: List[str], **kwargs: Any) -> ComparisonResult:
+        """
+        Execute template against multiple LLM models in parallel.
+
+        Args:
+            models: List of LLM model identifiers (e.g., ['gpt-4', 'claude-3-opus', 'gemini-pro'])
+            **kwargs: Template inputs merged with LiteLLM parameters
+                     Template inputs are extracted based on spec.inputs
+                     Remaining kwargs are passed directly to LiteLLM
+
+        Returns:
+            ComparisonResult with results for each model and aggregate statistics
+
+        Raises:
+            ValidationError: Invalid template inputs
+            RenderError: Template rendering failed
+        """
+        if self._llm_client is None:
+            self._llm_client = LLMClient()
+
+        template_input_names = set(self.spec.inputs.keys())
+        template_inputs = {k: v for k, v in kwargs.items() if k in template_input_names}
+        llm_params = {k: v for k, v in kwargs.items() if k not in template_input_names}
+
+        try:
+            vars = self.spec.coerce_inputs(template_inputs)
+        except Exception as e:
+            raise ValidationError(str(e)) from e
+
+        try:
+            prompt = self.vault.renderer.render(self.spec.template, vars)
+        except Exception as e:
+            raise RenderError(str(e)) from e
+
+        comparison = self._llm_client.compare(prompt, models, **llm_params)
+
+        if self.vault.logger:
+            for result in comparison.results:
+                self.vault.logger.write(
+                    prompt_id=self.id,
+                    version=self.version,
+                    inputs=vars,
+                    output=result.output,
+                    cost=None,
+                    latency_ms=result.latency_ms,
+                    provider=result.provider,
+                    model=result.model,
+                    tokens_in=result.tokens_in,
+                    tokens_out=result.tokens_out,
+                    cost_usd=result.cost_usd
+                )
+
+        return comparison
 
     def run(self, func, **kwargs):
         """
