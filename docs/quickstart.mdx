@@ -156,6 +156,35 @@ dakora get greeting
 dakora run summarizer --model gpt-4 --input-text "Article to summarize..."
 ```
 
+### Compare Models
+
+Compare outputs across multiple LLM models:
+
+```bash
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus,gemini-pro \
+  --input-text "Article to summarize..."
+```
+
+**Output modes:**
+- Default: Clean table format with truncated responses
+- `--verbose`: Show full responses for each model
+- `--json`: Machine-readable JSON output
+
+```bash
+# Verbose output with full responses
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus \
+  --input-text "Text..." \
+  --verbose
+
+# JSON output for programmatic use
+dakora compare summarizer \
+  --models gpt-4,claude-3-opus \
+  --input-text "Text..." \
+  --json
+```
+
 ### Bump Version
 
 ```bash
