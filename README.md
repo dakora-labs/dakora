@@ -1,7 +1,7 @@
 # Dakora
 
 <p align="center">
-  <img src=".github/assets/logo.svg" alt="Dakora Logo" width="200">
+  <img src="assets/logo.svg" alt="Dakora Logo" width="200">
 </p>
 
 [![CI](https://github.com/bogdan-pistol/dakora/workflows/CI/badge.svg)](https://github.com/bogdan-pistol/dakora/actions)
@@ -144,7 +144,7 @@ Launch the same web-based playground locally (included with pip install):
 dakora playground
 ```
 
-![Playground Demo](.github/assets/playground-demo.gif)
+![Playground Demo](assets/playground-demo.gif)
 
 This **automatically**:
 - 🔨 Builds the modern React UI (first run only)
@@ -159,7 +159,7 @@ This **automatically**:
 - 📊 Example templates for inspiration
 - 💻 Modern UI built with shadcn/ui components
 
-![Playground Interface](.github/assets/playground-interface.png)
+![Playground Interface](assets/playground-interface.png)
 
 **Local Options:**
 ```bash
@@ -367,7 +367,7 @@ See [LiteLLM docs](https://docs.litellm.ai/docs/providers) for the full list.
 
 ### 6. CLI Usage
 
-![CLI Workflow](.github/assets/cli-workflow.gif)
+![CLI Workflow](assets/cli-workflow.gif)
 
 ```bash
 # List all templates
@@ -388,7 +388,7 @@ dakora watch
 ```
 
 
-![CLI Output](.github/assets/cli-output.png)
+![CLI Output](assets/cli-output.png)
 
 ### Verify API Keys
 
@@ -405,7 +405,7 @@ dakora config --provider openai
 
 Templates are defined in YAML files with the following structure:
 
-![Template Editing](.github/assets/template-editing.png)
+![Template Editing](assets/template-editing.png)
 
 ```yaml
 id: unique_template_id          # Required: Template identifier
