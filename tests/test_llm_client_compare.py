@@ -34,10 +34,10 @@ class TestLLMClientCompare:
         with patch('dakora.llm.client.acompletion') as mock_acompletion:
             mock_acompletion.side_effect = mock_litellm_responses
 
-            result = client.compare(
+            result = asyncio.run(client.compare(
                 prompt="Test prompt",
                 models=["gpt-4", "claude-3-opus", "gemini-pro"]
-            )
+            ))
 
             assert isinstance(result, ComparisonResult)
             assert len(result.results) == 3
@@ -62,10 +62,10 @@ class TestLLMClientCompare:
         with patch('dakora.llm.client.acompletion') as mock_acompletion:
             mock_acompletion.side_effect = mock_litellm_responses
 
-            result = client.compare(
+            result = asyncio.run(client.compare(
                 prompt="Test prompt",
                 models=["gpt-4", "claude-3-opus", "gemini-pro"]
-            )
+            ))
 
             assert result.total_cost_usd == pytest.approx(0.06, abs=0.001)
             assert result.total_tokens_in == 100 + 105 + 110
@@ -91,10 +91,10 @@ class TestLLMClientCompare:
                 return response
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_mixed):
-            result = client.compare(
+            result = asyncio.run(client.compare(
                 prompt="Test prompt",
                 models=["gpt-4", "claude-3-opus", "gemini-pro"]
-            )
+            ))
 
             assert result.successful_count == 2
             assert result.failed_count == 1
@@ -115,10 +115,10 @@ class TestLLMClientCompare:
             raise Exception("Rate limit exceeded")
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_fail):
-            result = client.compare(
+            result = asyncio.run(client.compare(
                 prompt="Test prompt",
                 models=["gpt-4", "claude-3-opus"]
-            )
+            ))
 
             assert result.successful_count == 0
             assert result.failed_count == 2
@@ -143,7 +143,7 @@ class TestLLMClientCompare:
             return response
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_ordered):
-            result = client.compare(prompt="Test prompt", models=models)
+            result = asyncio.run(client.compare(prompt="Test prompt", models=models))
 
             assert [r.model for r in result.results] == models
 
@@ -153,12 +153,12 @@ class TestLLMClientCompare:
         with patch('dakora.llm.client.acompletion') as mock_acompletion:
             mock_acompletion.side_effect = mock_litellm_responses
 
-            result = client.compare(
+            result = asyncio.run(client.compare(
                 prompt="Test prompt",
                 models=["gpt-4", "claude-3-opus"],
                 temperature=0.7,
                 max_tokens=100
-            )
+            ))
 
             assert result.successful_count == 2
 
@@ -177,7 +177,7 @@ class TestLLMClientCompare:
             return response
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_single):
-            result = client.compare(prompt="Test prompt", models=["gpt-4"])
+            result = asyncio.run(client.compare(prompt="Test prompt", models=["gpt-4"]))
 
             assert len(result.results) == 1
             assert result.successful_count == 1
@@ -196,10 +196,10 @@ class TestLLMClientCompare:
             return response
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_timeout):
-            result = client.compare(
+            result = asyncio.run(client.compare(
                 prompt="Test prompt",
                 models=["gpt-4", "claude-3-opus"]
-            )
+            ))
 
             assert result.successful_count == 1
             assert result.failed_count == 1
@@ -218,10 +218,10 @@ class TestLLMClientCompare:
             return response
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_bad_request):
-            result = client.compare(
+            result = asyncio.run(client.compare(
                 prompt="Test prompt",
                 models=["gpt-4", "invalid-model"]
-            )
+            ))
 
             assert result.successful_count == 1
             assert result.failed_count == 1
@@ -238,7 +238,7 @@ class TestLLMClientCompare:
             return response
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_no_usage):
-            result = client.compare(prompt="Test prompt", models=["gpt-4"])
+            result = asyncio.run(client.compare(prompt="Test prompt", models=["gpt-4"]))
 
             assert result.results[0].tokens_in == 0
             assert result.results[0].tokens_out == 0
@@ -256,7 +256,7 @@ class TestLLMClientCompare:
             return response
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_no_cost):
-            result = client.compare(prompt="Test prompt", models=["gpt-4"])
+            result = asyncio.run(client.compare(prompt="Test prompt", models=["gpt-4"]))
 
             assert result.results[0].cost_usd == 0.0
             assert result.total_cost_usd == 0.0
@@ -266,13 +266,13 @@ class TestLLMClientCompare:
 
         async def mock_acompletion_empty(**kwargs):
             response = Mock()
-            response.choices = [Mock(message=Mock(content=None))]
+            response.choices = [Mock(message=Mock(content=None, refusal=None))]
             response._hidden_params = {"custom_llm_provider": "openai", "response_cost": 0.01}
             response.usage = Mock(prompt_tokens=100, completion_tokens=0)
             return response
 
         with patch('dakora.llm.client.acompletion', side_effect=mock_acompletion_empty):
-            result = client.compare(prompt="Test prompt", models=["gpt-4"])
+            result = asyncio.run(client.compare(prompt="Test prompt", models=["gpt-4"]))
 
             assert result.results[0].output == ""
             assert result.successful_count == 1

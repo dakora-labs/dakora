@@ -64,3 +64,6 @@ playground/*
 dev_*.py
 build_*.py
 .scratchpad/
+
+# Playwright MCP testing artifacts
+.playwright-mcp/

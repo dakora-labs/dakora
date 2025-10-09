@@ -19,6 +19,7 @@ class LLMClient:
     def __init__(self):
         litellm.suppress_debug_info = True
         litellm.drop_params = True
+        litellm.cache = None
 
     def execute(self, prompt: str, model: str, **kwargs: Any) -> ExecutionResult:
         start_time = time.time()
@@ -71,11 +72,15 @@ class LLMClient:
     async def _execute_async(self, prompt: str, model: str, **kwargs: Any) -> ExecutionResult:
         start_time = time.time()
 
+        # Create a copy of kwargs to avoid mutation issues in parallel execution
+        kwargs_copy = dict(kwargs)
+        timeout = kwargs_copy.pop("timeout", 120)
+
         params = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "timeout": kwargs.pop("timeout", 120),
-            **kwargs
+            "timeout": timeout,
+            **kwargs_copy
         }
 
         try:
@@ -138,7 +143,13 @@ class LLMClient:
 
         latency_ms = int((time.time() - start_time) * 1000)
 
-        output = response.choices[0].message.content or ""
+        message = response.choices[0].message
+        output = message.content or ""
+        finish_reason = response.choices[0].finish_reason if hasattr(response.choices[0], 'finish_reason') else None
+
+        if not output and hasattr(message, 'refusal') and message.refusal:
+            output = f"[REFUSAL] {message.refusal}"
+
         provider = response._hidden_params.get("custom_llm_provider", "unknown")
         tokens_in = response.usage.prompt_tokens if response.usage else 0
         tokens_out = response.usage.completion_tokens if response.usage else 0
@@ -147,6 +158,18 @@ class LLMClient:
         if hasattr(response, '_hidden_params') and 'response_cost' in response._hidden_params:
             cost_usd = float(response._hidden_params['response_cost'])
 
+        if not output and finish_reason == 'length':
+            return ExecutionResult(
+                output="",
+                provider=provider,
+                model=model,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_usd=cost_usd,
+                latency_ms=latency_ms,
+                error=f"Max tokens limit reached. Please increase max_tokens to see output."
+            )
+
         return ExecutionResult(
             output=output,
             provider=provider,
@@ -154,20 +177,18 @@ class LLMClient:
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             cost_usd=cost_usd,
-            latency_ms=latency_ms
+            latency_ms=latency_ms,
+            error=f"⚠️ Response truncated - max_tokens limit reached" if finish_reason == 'length' and output else None
         )
 
-    def compare(self, prompt: str, models: List[str], **kwargs: Any) -> ComparisonResult:
-        async def _run_comparison():
-            tasks = [self._execute_async(prompt, model, **kwargs) for model in models]
-            results = await asyncio.gather(*tasks)
-            return results
-
-        results = asyncio.run(_run_comparison())
+    async def compare(self, prompt: str, models: List[str], **kwargs: Any) -> ComparisonResult:
+        tasks = [self._execute_async(prompt, model, **kwargs) for model in models]
+        results = await asyncio.gather(*tasks)
 
         total_cost_usd = sum(r.cost_usd for r in results if r.error is None)
         total_tokens_in = sum(r.tokens_in for r in results if r.error is None)
         total_tokens_out = sum(r.tokens_out for r in results if r.error is None)
+        total_time_ms = max((r.latency_ms for r in results), default=0)
         successful_count = sum(1 for r in results if r.error is None)
         failed_count = sum(1 for r in results if r.error is not None)
 
@@ -176,6 +197,7 @@ class LLMClient:
             total_cost_usd=total_cost_usd,
             total_tokens_in=total_tokens_in,
             total_tokens_out=total_tokens_out,
+            total_time_ms=total_time_ms,
             successful_count=successful_count,
             failed_count=failed_count
         )

@@ -17,5 +17,6 @@ class ComparisonResult(BaseModel):
     total_cost_usd: float = Field(ge=0.0, description="Total cost across all successful executions")
     total_tokens_in: int = Field(ge=0, description="Total input tokens across all executions")
     total_tokens_out: int = Field(ge=0, description="Total output tokens across all executions")
+    total_time_ms: int = Field(ge=0, description="Maximum latency across all executions")
     successful_count: int = Field(ge=0, description="Number of successful executions")
     failed_count: int = Field(ge=0, description="Number of failed executions")

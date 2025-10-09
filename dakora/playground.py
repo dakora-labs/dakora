@@ -23,6 +23,7 @@ import uvicorn
 from .vault import Vault
 from .model import TemplateSpec, InputSpec
 from .exceptions import TemplateNotFound, ValidationError, RenderError
+from .llm.models import ExecutionResult, ComparisonResult
 
 
 class RenderRequest(BaseModel):
@@ -58,6 +59,15 @@ class TemplateResponse(BaseModel):
 class RenderResponse(BaseModel):
     rendered: str
     inputs_used: Dict[str, Any]
+
+
+class ExecuteRequest(BaseModel):
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+    models: List[str] = Field(min_items=1, max_items=3)
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    top_p: Optional[float] = None
+    params: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PlaygroundServer:
@@ -297,6 +307,35 @@ class PlaygroundServer:
                     rendered=rendered,
                     inputs_used=inputs_used
                 )
+            except TemplateNotFound:
+                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+            except RenderError as e:
+                raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/api/templates/{template_id}/compare")
+        async def compare_template(template_id: str, request: ExecuteRequest):
+            """Compare template execution across one or more LLM models."""
+            try:
+                template = self.vault.get(template_id)
+
+                llm_params = {}
+                if request.temperature is not None:
+                    llm_params['temperature'] = request.temperature
+                if request.max_tokens is not None:
+                    llm_params['max_tokens'] = request.max_tokens
+                if request.top_p is not None:
+                    llm_params['top_p'] = request.top_p
+                llm_params.update(request.params)
+
+                all_kwargs = {**request.inputs, **llm_params}
+
+                result = await template.compare(models=request.models, **all_kwargs)
+
+                return result.model_dump()
             except TemplateNotFound:
                 raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
             except ValidationError as e:
@@ -825,6 +864,35 @@ class DemoPlaygroundServer(PlaygroundServer):
                     rendered=rendered,
                     inputs_used=inputs_used
                 )
+            except TemplateNotFound:
+                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+            except RenderError as e:
+                raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/api/templates/{template_id}/compare")
+        async def compare_template(template_id: str, req: ExecuteRequest, request: Request):
+            """Compare template execution across one or more LLM models."""
+            try:
+                template = request.state.vault.get(template_id)
+
+                llm_params = {}
+                if req.temperature is not None:
+                    llm_params['temperature'] = req.temperature
+                if req.max_tokens is not None:
+                    llm_params['max_tokens'] = req.max_tokens
+                if req.top_p is not None:
+                    llm_params['top_p'] = req.top_p
+                llm_params.update(req.params)
+
+                all_kwargs = {**req.inputs, **llm_params}
+
+                result = await template.compare(models=req.models, **all_kwargs)
+
+                return result.model_dump()
             except TemplateNotFound:
                 raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
             except ValidationError as e:

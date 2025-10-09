@@ -136,7 +136,7 @@ class TemplateHandle:
 
         return result
 
-    def compare(self, models: List[str], **kwargs: Any) -> ComparisonResult:
+    async def compare(self, models: List[str], **kwargs: Any) -> ComparisonResult:
         """
         Execute template against multiple LLM models in parallel.
 
@@ -170,7 +170,7 @@ class TemplateHandle:
         except Exception as e:
             raise RenderError(str(e)) from e
 
-        comparison = self._llm_client.compare(prompt, models, **llm_params)
+        comparison = await self._llm_client.compare(prompt, models, **llm_params)
 
         if self.vault.logger:
             for result in comparison.results:

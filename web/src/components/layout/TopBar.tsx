@@ -1,4 +1,4 @@
-import { FileText } from 'lucide-react';
+import { FileText, Rocket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TopBarProps {
@@ -8,6 +8,7 @@ interface TopBarProps {
 
 const tabs = [
   { id: 'templates', label: 'Templates', icon: FileText },
+  { id: 'execute', label: 'Execute', icon: Rocket },
 ];
 
 export function TopBar({ activeTab, onTabChange }: TopBarProps) {

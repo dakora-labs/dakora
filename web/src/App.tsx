@@ -1,20 +1,15 @@
 import { useState } from 'react';
 import { MainLayout } from './components/layout/MainLayout';
 import { TemplatesView } from './views/TemplatesView';
+import { ExecuteView } from './views/ExecuteView';
 
 function App() {
   const [activeTab, setActiveTab] = useState('templates');
 
-  const renderView = () => {
-    switch (activeTab) {
-      case 'templates':
-        return TemplatesView();
-      default:
-        return TemplatesView();
-    }
-  };
+  const templatesView = TemplatesView();
+  const executeView = ExecuteView();
 
-  const view = renderView();
+  const view = activeTab === 'execute' ? executeView : templatesView;
 
   return (
     <MainLayout

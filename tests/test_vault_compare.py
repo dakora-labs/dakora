@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch, AsyncMock
 import yaml
 import pytest
 import sqlite3
+import asyncio
 
 from dakora.vault import Vault, TemplateHandle
 from dakora.llm.models import ExecutionResult, ComparisonResult
@@ -110,6 +111,7 @@ def mock_comparison_result():
         total_cost_usd=0.11,
         total_tokens_in=303,
         total_tokens_out=150,
+        total_time_ms=1500,
         successful_count=3,
         failed_count=0
     )
@@ -123,13 +125,13 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = mock_comparison_result
+                mock_client.compare = AsyncMock(return_value=mock_comparison_result)
                 mock_client_class.return_value = mock_client
 
-                result = template.compare(
+                result = asyncio.run(template.compare(
                     models=["gpt-4", "claude-3-opus", "gemini-pro"],
                     text="Sample text to summarize"
-                )
+                ))
 
                 assert result == mock_comparison_result
                 assert len(result.results) == 3
@@ -151,15 +153,15 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = mock_comparison_result
+                mock_client.compare = AsyncMock(return_value=mock_comparison_result)
                 mock_client_class.return_value = mock_client
 
-                result = template.compare(
+                result = asyncio.run(template.compare(
                     models=["gpt-4", "claude-3-opus"],
                     text="Sample text",
                     temperature=0.7,
                     max_tokens=100
-                )
+                ))
 
                 assert result == mock_comparison_result
 
@@ -174,13 +176,13 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = mock_comparison_result
+                mock_client.compare = AsyncMock(return_value=mock_comparison_result)
                 mock_client_class.return_value = mock_client
 
-                result = template.compare(
+                result = asyncio.run(template.compare(
                     models=["gpt-4", "claude-3-opus", "gemini-pro"],
                     text="Sample text"
-                )
+                ))
 
                 assert result == mock_comparison_result
 
@@ -237,6 +239,7 @@ class TestTemplateHandleCompare:
             total_cost_usd=0.07,
             total_tokens_in=198,
             total_tokens_out=102,
+            total_time_ms=1500,
             successful_count=2,
             failed_count=1
         )
@@ -244,13 +247,13 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = partial_result
+                mock_client.compare = AsyncMock(return_value=partial_result)
                 mock_client_class.return_value = mock_client
 
-                result = template.compare(
+                result = asyncio.run(template.compare(
                     models=["gpt-4", "claude-3-opus", "gemini-pro"],
                     text="Sample text"
-                )
+                ))
 
                 assert result.successful_count == 2
                 assert result.failed_count == 1
@@ -287,6 +290,7 @@ class TestTemplateHandleCompare:
             total_cost_usd=0.0,
             total_tokens_in=0,
             total_tokens_out=0,
+            total_time_ms=100,
             successful_count=0,
             failed_count=2
         )
@@ -294,13 +298,13 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = failure_result
+                mock_client.compare = AsyncMock(return_value=failure_result)
                 mock_client_class.return_value = mock_client
 
-                result = template.compare(
+                result = asyncio.run(template.compare(
                     models=["gpt-4", "claude-3-opus"],
                     text="Sample text"
-                )
+                ))
 
                 assert result.successful_count == 0
                 assert result.failed_count == 2
@@ -311,7 +315,7 @@ class TestTemplateHandleCompare:
         template = vault.get("test-template")
 
         with pytest.raises(ValidationError):
-            template.compare(models=["gpt-4", "claude-3-opus"])
+            asyncio.run(template.compare(models=["gpt-4", "claude-3-opus"]))
 
     def test_compare_single_model(self, temp_vault_no_logging):
         vault = temp_vault_no_logging
@@ -332,6 +336,7 @@ class TestTemplateHandleCompare:
             total_cost_usd=0.05,
             total_tokens_in=100,
             total_tokens_out=50,
+            total_time_ms=1200,
             successful_count=1,
             failed_count=0
         )
@@ -339,10 +344,10 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = single_result
+                mock_client.compare = AsyncMock(return_value=single_result)
                 mock_client_class.return_value = mock_client
 
-                result = template.compare(models=["gpt-4"], text="Sample text")
+                result = asyncio.run(template.compare(models=["gpt-4"], text="Sample text"))
 
                 assert len(result.results) == 1
                 assert result.successful_count == 1
@@ -384,6 +389,7 @@ class TestTemplateHandleCompare:
             total_cost_usd=0.11,
             total_tokens_in=303,
             total_tokens_out=150,
+            total_time_ms=1500,
             successful_count=3,
             failed_count=0
         )
@@ -391,13 +397,13 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = ordered_result
+                mock_client.compare = AsyncMock(return_value=ordered_result)
                 mock_client_class.return_value = mock_client
 
-                result = template.compare(
+                result = asyncio.run(template.compare(
                     models=["gemini-pro", "gpt-4", "claude-3-opus"],
                     text="Sample text"
-                )
+                ))
 
                 assert result.results[0].model == "gemini-pro"
                 assert result.results[1].model == "gpt-4"
@@ -410,11 +416,11 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = mock_comparison_result
+                mock_client.compare = AsyncMock(return_value=mock_comparison_result)
                 mock_client_class.return_value = mock_client
 
-                template.compare(models=["gpt-4", "claude-3-opus"], text="First comparison")
-                template.compare(models=["gpt-4", "gemini-pro"], text="Second comparison")
+                asyncio.run(template.compare(models=["gpt-4", "claude-3-opus"], text="First comparison"))
+                asyncio.run(template.compare(models=["gpt-4", "gemini-pro"], text="Second comparison"))
 
                 assert mock_client_class.call_count == 1
                 assert mock_client.compare.call_count == 2
@@ -464,6 +470,7 @@ class TestTemplateHandleCompare:
             total_cost_usd=0.05,
             total_tokens_in=102,
             total_tokens_out=51,
+            total_time_ms=800,
             successful_count=2,
             failed_count=0
         )
@@ -471,15 +478,15 @@ class TestTemplateHandleCompare:
         with patch.object(template, '_llm_client', None):
             with patch('dakora.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
-                mock_client.compare.return_value = mock_result
+                mock_client.compare = AsyncMock(return_value=mock_result)
                 mock_client_class.return_value = mock_client
 
-                result = template.compare(
+                result = asyncio.run(template.compare(
                     models=["gpt-4", "claude-3-opus"],
                     name="John",
                     age=30,
                     temperature=0.5
-                )
+                ))
 
                 call_args = mock_client.compare.call_args
                 assert "Name: John, Age: 30, City: Unknown" in call_args[0][0]
@@ -493,6 +500,7 @@ class TestComparisonResultModel:
             total_cost_usd=0.0,
             total_tokens_in=0,
             total_tokens_out=0,
+            total_time_ms=0,
             successful_count=0,
             failed_count=0
         )
@@ -506,6 +514,7 @@ class TestComparisonResultModel:
                 total_cost_usd=-1.0,
                 total_tokens_in=0,
                 total_tokens_out=0,
+                total_time_ms=0,
                 successful_count=0,
                 failed_count=0
             )
