@@ -1,4 +1,4 @@
-import typer, sys, time, subprocess, webbrowser, threading, json
+import typer, sys, time, subprocess, webbrowser, threading, json, asyncio
 from pathlib import Path
 import yaml
 from dotenv import load_dotenv
@@ -491,7 +491,7 @@ def compare(
         raise typer.Exit(1)
 
     try:
-        comparison = template.compare(models=model_list, **template_kwargs, **llm_kwargs)
+        comparison = asyncio.run(template.compare(models=model_list, **template_kwargs, **llm_kwargs))
     except ValidationError as e:
         typer.echo(f"❌ Validation error: {e}", err=True)
         raise typer.Exit(1)

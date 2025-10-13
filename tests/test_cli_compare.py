@@ -85,6 +85,7 @@ def test_compare_basic(temp_project):
         total_tokens_in=20,
         total_tokens_out=42,
         successful_count=2,
+        total_time_ms=600,
         failed_count=0
     )
 
@@ -122,6 +123,7 @@ def test_compare_json_output(temp_project):
         total_tokens_in=10,
         total_tokens_out=20,
         successful_count=1,
+        total_time_ms=600,
         failed_count=0
     )
 
@@ -172,6 +174,7 @@ def test_compare_verbose_output(temp_project):
         total_tokens_in=20,
         total_tokens_out=42,
         successful_count=2,
+        total_time_ms=600,
         failed_count=0
     )
 
@@ -222,6 +225,7 @@ def test_compare_with_failure(temp_project):
         total_tokens_in=10,
         total_tokens_out=20,
         successful_count=1,
+        total_time_ms=600,
         failed_count=1
     )
 
@@ -270,6 +274,7 @@ def test_compare_all_failures(temp_project):
         total_tokens_in=0,
         total_tokens_out=0,
         successful_count=0,
+        total_time_ms=600,
         failed_count=2
     )
 
@@ -315,6 +320,7 @@ def test_compare_verbose_with_failures(temp_project):
         total_tokens_in=10,
         total_tokens_out=20,
         successful_count=1,
+        total_time_ms=600,
         failed_count=1
     )
 
@@ -407,6 +413,7 @@ def test_compare_with_llm_params(temp_project):
         total_tokens_in=10,
         total_tokens_out=20,
         successful_count=1,
+        total_time_ms=600,
         failed_count=0
     )
 
@@ -573,6 +580,7 @@ def test_compare_three_models(temp_project):
         total_tokens_in=30,
         total_tokens_out=60,
         successful_count=3,
+        total_time_ms=600,
         failed_count=0
     )
 
@@ -610,6 +618,7 @@ def test_compare_long_model_names(temp_project):
         total_tokens_in=10,
         total_tokens_out=20,
         successful_count=1,
+        total_time_ms=600,
         failed_count=0
     )
 
@@ -643,6 +652,7 @@ def test_compare_with_extra_args(temp_project):
         total_tokens_in=10,
         total_tokens_out=20,
         successful_count=1,
+        total_time_ms=600,
         failed_count=0
     )
 

@@ -681,6 +681,83 @@ class TestPlaygroundTemplateCreationAPI:
         assert new_count == initial_count + 1
 
 
+class TestPlaygroundCompareAPI:
+    """Test template comparison endpoint"""
+
+    def test_compare_endpoint_not_found(self, playground_url):
+        """Test compare endpoint with non-existent template returns 404"""
+        payload = {
+            "inputs": {"text": "Sample text"},
+            "models": ["gpt-4"]
+        }
+
+        response = requests.post(
+            f"{playground_url}/api/templates/nonexistent-template/compare",
+            json=payload
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert "not found" in data["detail"].lower()
+
+    def test_compare_endpoint_missing_required_input(self, playground_url):
+        """Test compare endpoint fails when required input is missing"""
+        payload = {
+            "inputs": {},
+            "models": ["gpt-4"]
+        }
+
+        response = requests.post(
+            f"{playground_url}/api/templates/simple-greeting/compare",
+            json=payload
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert "validation error" in data["detail"].lower()
+
+    def test_compare_endpoint_missing_models(self, playground_url):
+        """Test compare endpoint fails when models list is missing"""
+        payload = {
+            "inputs": {"name": "Test"}
+        }
+
+        response = requests.post(
+            f"{playground_url}/api/templates/simple-greeting/compare",
+            json=payload
+        )
+
+        assert response.status_code == 422
+
+    def test_compare_endpoint_empty_models_list(self, playground_url):
+        """Test compare endpoint fails when models list is empty"""
+        payload = {
+            "inputs": {"name": "Test"},
+            "models": []
+        }
+
+        response = requests.post(
+            f"{playground_url}/api/templates/simple-greeting/compare",
+            json=payload
+        )
+
+        assert response.status_code == 422
+
+    def test_compare_endpoint_too_many_models(self, playground_url):
+        """Test compare endpoint fails when more than 3 models are provided"""
+        payload = {
+            "inputs": {"name": "Test"},
+            "models": ["gpt-4", "claude-3-opus", "gemini-pro", "extra-model"]
+        }
+
+        response = requests.post(
+            f"{playground_url}/api/templates/simple-greeting/compare",
+            json=payload
+        )
+
+        assert response.status_code == 422
+
+
 class TestPlaygroundErrorHandling:
     """Test error handling and edge cases"""
 
