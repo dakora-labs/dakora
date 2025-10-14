@@ -13,17 +13,16 @@
 
 A Python library for managing and executing LLM prompts with type-safe inputs, versioning, and an interactive web playground. Execute templates against 100+ LLM providers with built-in cost tracking.
 
-## 🚀 Try it Now - No Installation Required!
+## 🚀 Try it Now - No Installation Required
 
 **[playground.dakora.io](https://playground.dakora.io/)** - Experience Dakora's interactive playground directly in your browser. Edit templates, test inputs, and see instant results with the exact same interface that ships with the Python package.
 
 ## Use Case
 
 ```python
-from dakora import Vault
+from dakora import Vault, LocalRegistry
 
-# Load your templates
-vault = Vault("dakora.yaml")
+vault = Vault(LocalRegistry("./prompts"))
 
 # Execute against any LLM provider
 result = vault.get("summarizer").execute(
@@ -33,6 +32,26 @@ result = vault.get("summarizer").execute(
 
 print(result.output)          # The LLM's response
 print(f"${result.cost_usd}")  # Track costs automatically
+```
+
+**Multiple ways to initialize:**
+
+```python
+# Direct registry injection (recommended)
+vault = Vault(LocalRegistry("./prompts"))
+
+# Azure Blob Storage
+from dakora import AzureRegistry
+vault = Vault(AzureRegistry(
+    container="prompts",
+    account_url="https://myaccount.blob.core.windows.net"
+))
+
+# Config file (for CLI tools)
+vault = Vault.from_config("dakora.yaml")
+
+# Legacy shorthand
+vault = Vault(prompt_dir="./prompts")
 ```
 
 Or from the command line:
@@ -63,6 +82,7 @@ pip install dakora
 ```
 
 **For the interactive playground**:
+
 - PyPI releases include a pre-built UI - just run `dakora playground`
 - For development installs (git clone), Node.js 18+ is required
 - The UI builds automatically from source on first run if not present
@@ -85,6 +105,7 @@ dakora init
 ```
 
 This creates:
+
 - `dakora.yaml` - Configuration file
 - `prompts/` - Directory for template files
 - `prompts/summarizer.yaml` - Example template
@@ -134,10 +155,12 @@ print(result)
 
 ### 4. Interactive Playground 🎯
 
-#### Try Online - No Installation Required!
+#### Try Online - No Installation Required
+
 Visit **[playground.dakora.io](https://playground.dakora.io/)** to experience the playground instantly in your browser with example templates.
 
 #### Or Run Locally
+
 Launch the same web-based playground locally (included with pip install):
 
 ```bash
@@ -147,11 +170,13 @@ dakora playground
 ![Playground Demo](assets/playground-demo.gif)
 
 This **automatically**:
+
 - 🔨 Builds the modern React UI (first run only)
 - 🚀 Starts the server at `http://localhost:3000`
 - 🌐 Opens your browser to the playground
 
 **Features:**
+
 - ✨ **Identical experience** online and locally
 - 📱 Mobile-friendly design that works on all screen sizes
 - 🎨 Real-time template editing and preview
@@ -162,6 +187,7 @@ This **automatically**:
 ![Playground Interface](assets/playground-interface.png)
 
 **Local Options:**
+
 ```bash
 dakora playground --port 8080      # Custom port
 dakora playground --no-browser     # Don't open browser
@@ -174,9 +200,11 @@ dakora playground --demo           # Run in demo mode (like the web version)
 Dakora can execute templates against real LLM providers (OpenAI, Anthropic, Google, etc.) using the integrated LiteLLM support.
 
 ### Setting API Keys
+
 Get an API Key from your LLM provider, you will need an account:
-- [Open AI](https://platform.openai.com/docs/libraries#create-and-export-an-api-key) 
-- [Anthropic](https://docs.claude.com/en/docs/get-started) 
+
+- [Open AI](https://platform.openai.com/docs/libraries#create-and-export-an-api-key)
+- [Anthropic](https://docs.claude.com/en/docs/get-started)
 - [Google](https://ai.google.dev/gemini-api/docs/api-key#api-keys)
 
 Set your API Key as environment variables:
@@ -189,6 +217,7 @@ export OPENAI_API_KEY="your_key_here"
 export ANTHROPIC_API_KEY="your_key_here"
 export GOOGLE_API_KEY="your_key_here"
 ```
+
 </details>
 
 <details>
@@ -199,6 +228,7 @@ setx OPENAI_API_KEY "your_api_key_here"
 setx ANTHROPIC_API_KEY=your_key_here
 setx GOOGLE_API_KEY=your_key_here
 ```
+
 </details>
 
 <details>
@@ -213,7 +243,7 @@ ANTHROPIC_API_KEY="your-api-key-here"
 
 Load and use in your Python code:
 
-```
+```python
 from dotenv import load_dotenv
 import os
 
@@ -227,14 +257,17 @@ api_key = os.getenv("OPENAI_API_KEY")
 ```
 
 ## Warning
+
 Nerver commit your API key to version control.
 Add .env to your .gitignore with:
+
 ```bash
 echo ".env" >> .gitignore
 ```
+
 </details>
 
-#### Execute from Python
+### Execute from Python
 
 ```python
 from dakora import Vault
@@ -278,7 +311,7 @@ dakora run summarizer --model gpt-4 \
 
 **Example Output:**
 
-```
+```text
 ╭─────────────────────────────────────╮
 │ Model: gpt-4 (openai)               │
 │ Cost: $0.0045 USD                   │
@@ -327,7 +360,7 @@ for result in comparison.results:
 
 **Example Output:**
 
-```
+```text
 Total Cost: $0.0890
 Successful: 3/3
 Total Tokens: 450 → 180
@@ -341,6 +374,7 @@ Total Tokens: 450 → 180
 ```
 
 **Key Features:**
+
 - ⚡ **Parallel execution** - All models run simultaneously for speed
 - 💪 **Handles failures gracefully** - One model failing doesn't stop others (e.g., missing API key)
 - 📊 **Rich comparison data** - Costs, tokens, latency for each model
@@ -348,6 +382,7 @@ Total Tokens: 450 → 180
 - 📝 **All executions logged** - Each execution tracked separately
 
 **Why Compare Models?**
+
 - Find the most cost-effective model for your use case
 - Test quality differences between providers
 - Evaluate latency trade-offs
@@ -393,6 +428,7 @@ dakora watch
 ### Verify API Keys
 
 Check which API keys are configured:
+
 ``` bash
 # Check all providers
 dakora config
@@ -439,15 +475,122 @@ metadata:                       # Optional: Custom metadata
 
 ## Configuration
 
-`dakora.yaml` structure:
+### Local Storage (Default)
+
+`dakora.yaml` structure for local file storage:
 
 ```yaml
-registry: local                 # Registry type (currently only 'local')
+registry: local                 # Registry type
 prompt_dir: ./prompts          # Path to templates directory
 logging:                       # Optional: Execution logging
   enabled: true
   backend: sqlite
   db_path: ./dakora.db
+```
+
+### Azure Blob Storage
+
+For cloud-based template storage with Azure Blob Storage:
+
+**Install Azure dependencies:**
+
+```bash
+pip install dakora[azure]
+```
+
+**Python usage:**
+
+```python
+
+from dakora import Vault, AzureRegistry
+
+# Option 1: Direct initialization with DefaultAzureCredential
+vault = Vault(AzureRegistry(
+    container="prompts",
+    account_url="https://myaccount.blob.core.windows.net"
+    # Uses DefaultAzureCredential (Azure CLI, Managed Identity, etc.)
+))
+
+# Option 2: With connection string
+vault = Vault(AzureRegistry(
+    container="prompts",
+    connection_string="DefaultEndpointsProtocol=https;AccountName=..."
+))
+
+# Option 3: From config file
+vault = Vault.from_config("dakora.yaml")
+
+# Use normally - same API as local storage
+template = vault.get("greeting")
+result = template.render(name="Alice")
+```
+
+**Configuration file (`dakora.yaml`):**
+
+```yaml
+
+registry: azure
+azure_container: prompts                    # Azure Blob container name
+azure_account_url: https://myaccount.blob.core.windows.net
+# Optional: Connection string (alternative to account_url)
+# azure_connection_string: "DefaultEndpointsProtocol=https;..."
+# Optional: Custom prefix for blob paths
+# azure_prefix: prompts/
+logging:                                    # Optional: Same as local
+  enabled: true
+  backend: sqlite
+  db_path: ./dakora.db
+
+```
+
+**Authentication:**
+
+AzureRegistry supports multiple authentication methods:
+
+1. **DefaultAzureCredential (Recommended)** - Automatically tries multiple methods:
+   - Azure CLI (`az login`)
+   - Managed Identity (when running on Azure)
+   - Environment variables
+   - Visual Studio Code
+   - And more...
+
+2. **Connection String** - Direct connection string with account key:
+
+   ```python
+   vault = Vault(AzureRegistry(
+       container="prompts",
+       connection_string=os.environ["AZURE_STORAGE_CONNECTION_STRING"]
+   ))
+   ```
+
+**Environment Variables:**
+
+```bash
+# For DefaultAzureCredential (recommended)
+az login  # Authenticate via Azure CLI
+
+# Or use connection string
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=..."
+```
+
+**Features:**
+
+- ✅ Same API as local storage - just swap the registry
+- ✅ Thread-safe with caching
+- ✅ List, load, and save templates to Azure Blob Storage
+- ✅ Works with all Dakora features (CLI, playground, execution)
+- ✅ Secure authentication via Azure credentials
+
+**CLI Usage:**
+
+```bash
+# All CLI commands work with Azure registry
+dakora list                    # Lists templates from Azure
+dakora get greeting            # Loads from Azure Blob Storage
+dakora run summarizer --model gpt-4 --input-text "..."
+
+# Playground works too
+dakora playground              # Uses Azure registry from config
 ```
 
 ## Advanced Usage

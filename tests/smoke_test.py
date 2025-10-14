@@ -3,11 +3,12 @@
 Quick smoke test for Dakora functionality
 """
 import tempfile
-import shutil
 from pathlib import Path
 import yaml
 import sys
 import os
+import gc
+import time
 
 # Add parent directory to path to import dakora
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,6 +27,7 @@ def test_vault_operations():
         prompts_dir.mkdir()
 
         # Create test template
+        # NOTE: Filename MUST match template ID for the new registry convention
         template_data = {
             "id": "test_template",
             "version": "1.0.0",
@@ -37,33 +39,36 @@ def test_vault_operations():
             }
         }
 
-        (prompts_dir / "test.yaml").write_text(yaml.safe_dump(template_data))
+        (prompts_dir / "test_template.yaml").write_text(yaml.safe_dump(template_data))
 
         # Test Vault initialization
         vault = Vault(prompt_dir=str(prompts_dir))
+        
+        try:
+            # Test listing templates
+            template_ids = list(vault.list())
+            assert "test_template" in template_ids, f"Template not found in list: {template_ids}"
+            print("✅ Template listing works")
 
-        # Test listing templates
-        template_ids = list(vault.list())
-        assert "test_template" in template_ids, f"Template not found in list: {template_ids}"
-        print("✅ Template listing works")
+            # Test getting template
+            template = vault.get("test_template")
+            assert template.id == "test_template"
+            assert template.version == "1.0.0"
+            print("✅ Template retrieval works")
 
-        # Test getting template
-        template = vault.get("test_template")
-        assert template.id == "test_template"
-        assert template.version == "1.0.0"
-        print("✅ Template retrieval works")
+            # Test rendering
+            result = template.render(name="Alice", age=30)
+            expected = "Hello Alice! You are 30 years old."
+            assert result == expected, f"Expected '{expected}', got '{result}'"
+            print("✅ Template rendering works")
 
-        # Test rendering
-        result = template.render(name="Alice", age=30)
-        expected = "Hello Alice! You are 30 years old."
-        assert result == expected, f"Expected '{expected}', got '{result}'"
-        print("✅ Template rendering works")
-
-        # Test type coercion
-        result2 = template.render(name="Bob", age="25")  # string age should be coerced
-        expected2 = "Hello Bob! You are 25.0 years old."
-        assert result2 == expected2, f"Type coercion failed: {result2}"
-        print("✅ Type coercion works")
+            # Test type coercion
+            result2 = template.render(name="Bob", age="25")  # string age should be coerced
+            expected2 = "Hello Bob! You are 25.0 years old."
+            assert result2 == expected2, f"Type coercion failed: {result2}"
+            print("✅ Type coercion works")
+        finally:
+            vault.close()
 
 def test_cli_operations():
     """Test CLI commands"""
@@ -100,6 +105,14 @@ def test_cli_operations():
             assert result.exit_code == 0, f"Bump failed: {result.stdout}"
             assert "1.0.1" in result.stdout, f"Version not bumped: {result.stdout}"
             print("✅ CLI bump works")
+            
+            # Clean up database connections before directory cleanup
+            if Path("dakora.db").exists():
+                # Load and close vault to release database locks
+                vault = Vault("dakora.yaml")
+                vault.close()
+                gc.collect()
+                time.sleep(0.1)
 
         finally:
             os.chdir(original_cwd)
@@ -114,33 +127,37 @@ def test_error_handling():
         prompts_dir.mkdir()
 
         vault = Vault(prompt_dir=str(prompts_dir))
-
-        # Test template not found
+        
         try:
-            vault.get("nonexistent")
-            assert False, "Should have raised TemplateNotFound"
-        except Exception as e:
-            assert "TemplateNotFound" in str(type(e)), f"Wrong exception type: {type(e)}"
-            print("✅ Template not found error works")
+            # Test template not found
+            try:
+                vault.get("nonexistent")
+                assert False, "Should have raised TemplateNotFound"
+            except Exception as e:
+                assert "TemplateNotFound" in str(type(e)), f"Wrong exception type: {type(e)}"
+                print("✅ Template not found error works")
 
-        # Test validation error
-        template_data = {
-            "id": "validation_test",
-            "version": "1.0.0",
-            "template": "Hello {{ name }}!",
-            "inputs": {
-                "name": {"type": "string", "required": True}
+            # Test validation error
+            template_data = {
+                "id": "validation_test",
+                "version": "1.0.0",
+                "template": "Hello {{ name }}!",
+                "inputs": {
+                    "name": {"type": "string", "required": True}
+                }
             }
-        }
-        (prompts_dir / "validation.yaml").write_text(yaml.safe_dump(template_data))
+            # Filename must match ID
+            (prompts_dir / "validation_test.yaml").write_text(yaml.safe_dump(template_data))
 
-        template = vault.get("validation_test")
-        try:
-            template.render()  # Missing required input
-            assert False, "Should have raised ValidationError"
-        except Exception as e:
-            assert "missing input" in str(e), f"Wrong error message: {e}"
-            print("✅ Validation error works")
+            template = vault.get("validation_test")
+            try:
+                template.render()  # Missing required input
+                assert False, "Should have raised ValidationError"
+            except Exception as e:
+                assert "missing input" in str(e), f"Wrong error message: {e}"
+                print("✅ Validation error works")
+        finally:
+            vault.close()
 
 def main():
     """Run all smoke tests"""

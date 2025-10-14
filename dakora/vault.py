@@ -5,39 +5,163 @@ import yaml
 from threading import RLock
 
 from .renderer import Renderer
-from .registry.local import LocalRegistry
+from .registry import LocalRegistry, Registry
 from .model import TemplateSpec
-from .exceptions import ValidationError, RenderError, TemplateNotFound, DakoraError
+from .exceptions import ValidationError, RenderError, DakoraError
 from .logging import Logger
 from .llm.client import LLMClient
 from .llm.models import ExecutionResult, ComparisonResult
 
 class Vault:
     """
-    Public API.
-    - load templates from local dir
-    - render with validated variables
-    - optional logging
-    - hot-reload via invalidate_cache()
+    Vault manages prompt templates with flexible storage backends.
+    
+    Examples:
+        # Direct registry injection (recommended)
+        from dakora.registry import LocalRegistry, AzureRegistry
+        vault = Vault(LocalRegistry("./prompts"))
+        
+        # With logging
+        vault = Vault(
+            LocalRegistry("./prompts"),
+            logging_enabled=True,
+            logging_db_path="./dakora.db"
+        )
+        
+        # Azure storage
+        vault = Vault(AzureRegistry(
+            container="prompts",
+            account_url="https://..."
+        ))
+        
+        # Legacy config file (still supported)
+        vault = Vault.from_config("dakora.yaml")
     """
-    def __init__(self, config_path: str | None = None, prompt_dir: str | None = None):
-        if not (config_path or prompt_dir):
-            raise DakoraError("pass config_path or prompt_dir")
-        self.config = self._load_config(config_path) if config_path else {"prompt_dir": prompt_dir, "logging": {"enabled": False}}
-        self.registry = LocalRegistry(self.config["prompt_dir"])
+    def __init__(
+        self,
+        registry: Registry | str | None = None,
+        *,
+        logging_enabled: bool = False,
+        logging_db_path: str = "./dakora.db",
+        # Legacy support
+        prompt_dir: str | None = None,
+    ):
+        """Initialize Vault with a registry.
+        
+        Args:
+            registry: A Registry instance (LocalRegistry, AzureRegistry, etc.) 
+                     OR a path to dakora.yaml config file
+            logging_enabled: Enable execution logging
+            logging_db_path: Path to SQLite database for logs
+            prompt_dir: (Legacy) Shorthand for LocalRegistry(prompt_dir)
+            
+        Raises:
+            DakoraError: If no registry provided or configuration is invalid
+        """
+        # Handle different initialization patterns
+        if isinstance(registry, str):
+            # String could be config path - try to load as config
+            if registry.endswith(('.yaml', '.yml')) or '/' in registry or '\\' in registry:
+                # Looks like a file path, use legacy config loading
+                config = self._load_config(registry)
+                self.registry = self._create_registry(config)
+                self.config = config
+            else:
+                raise DakoraError(f"String registry must be a config file path, got: {registry}")
+        elif isinstance(registry, Registry):
+            self.registry = registry
+            self.config = {
+                "logging": {
+                    "enabled": logging_enabled,
+                    "db_path": logging_db_path
+                }
+            }
+        elif prompt_dir is not None:
+            # Legacy: prompt_dir shorthand
+            self.registry = LocalRegistry(prompt_dir)
+            self.config = {
+                "registry": "local",
+                "prompt_dir": prompt_dir,
+                "logging": {
+                    "enabled": logging_enabled,
+                    "db_path": logging_db_path
+                }
+            }
+        elif registry is None:
+            raise DakoraError(
+                "Must provide a registry. Examples:\n"
+                "  Vault(LocalRegistry('./prompts'))\n"
+                "  Vault(AzureRegistry(container='prompts', ...))\n"
+                "  Vault.from_config('dakora.yaml')\n"
+                "  Vault(prompt_dir='./prompts')  # legacy"
+            )
+        else:
+            raise DakoraError(f"Invalid registry type: {type(registry)}")
+        
         self.renderer = Renderer()
         self.logger = Logger(self.config["logging"]["db_path"]) if self.config.get("logging", {}).get("enabled") else None
         self._cache: Dict[str, TemplateSpec] = {}
         self._lock = RLock()
 
+    @classmethod
+    def from_config(cls, config_path: str) -> "Vault":
+        """Create Vault from a configuration file.
+        
+        Args:
+            config_path: Path to dakora.yaml configuration file
+            
+        Returns:
+            Configured Vault instance
+            
+        Example:
+            vault = Vault.from_config("dakora.yaml")
+        """
+        config = cls._load_config(config_path)
+        registry = cls._create_registry(config)
+        
+        # Create instance with the registry
+        instance = cls.__new__(cls)
+        instance.registry = registry
+        instance.config = config
+        instance.renderer = Renderer()
+        instance.logger = Logger(config["logging"]["db_path"]) if config.get("logging", {}).get("enabled") else None
+        instance._cache = {}
+        instance._lock = RLock()
+        return instance
+
     @staticmethod
     def _load_config(path: str) -> Dict:
         data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-        if "prompt_dir" not in data:
-            raise DakoraError("dakora.yaml missing prompt_dir")
+        registry_type = data.get("registry", "local")
+        if registry_type == "local":
+            if "prompt_dir" not in data:
+                raise DakoraError("dakora.yaml missing prompt_dir for local registry")
+        elif registry_type == "azure":
+            if "azure_container" not in data:
+                raise DakoraError("dakora.yaml missing azure_container for azure registry")
+        else:
+            raise DakoraError(f"Unknown registry type: {registry_type}")
         if "logging" not in data:
             data["logging"] = {"enabled": False}
         return data
+
+    @staticmethod
+    def _create_registry(config: Dict) -> Registry:
+        registry_type = config.get("registry", "local")
+        if registry_type == "local":
+            return LocalRegistry(config["prompt_dir"])
+        if registry_type == "azure":  # lazy import so azure deps are optional
+            try:
+                from .registry import AzureRegistry
+            except ImportError as e:  # pragma: no cover - runtime only
+                raise DakoraError("Azure support requires installing optional dependencies: pip install 'dakora[azure]'") from e
+            return AzureRegistry(
+                container=config["azure_container"],
+                prefix=config.get("azure_prefix", "prompts/"),
+                connection_string=config.get("azure_connection_string"),
+                account_url=config.get("azure_account_url"),
+            )
+        raise DakoraError(f"Unsupported registry type: {registry_type}")
 
     def list(self):
         return list(self.registry.list_ids())
@@ -58,6 +182,20 @@ class Vault:
     def get(self, template_id: str) -> "TemplateHandle":
         spec = self.get_spec(template_id)
         return TemplateHandle(self, spec)
+
+    # Resource management -------------------------------------------------
+    def close(self) -> None:
+        if self.logger:
+            try:
+                self.logger.close()
+            except Exception:
+                pass
+
+    def __enter__(self):  # pragma: no cover - convenience
+        return self
+
+    def __exit__(self, exc_type, exc, tb):  # pragma: no cover - convenience
+        self.close()
 
 class TemplateHandle:
     def __init__(self, vault: Vault, spec: TemplateSpec):

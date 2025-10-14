@@ -1,4 +1,5 @@
-from typing import Literal, Annotated, Union, List, Dict, Any
+from typing import Literal, Dict, Any
+
 InputType = Literal["string", "number", "boolean", "array<string>", "object"]
 
 JSONDict = Dict[str, Any]

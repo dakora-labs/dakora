@@ -6,16 +6,14 @@ editing, and testing prompt templates in real-time.
 """
 
 from __future__ import annotations
-import json
 import yaml
 import uuid
 import tempfile
-import shutil
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from fastapi import FastAPI, HTTPException, Request, Cookie
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -23,7 +21,6 @@ import uvicorn
 from .vault import Vault
 from .model import TemplateSpec, InputSpec
 from .exceptions import TemplateNotFound, ValidationError, RenderError
-from .llm.models import ExecutionResult, ComparisonResult
 
 
 class RenderRequest(BaseModel):
@@ -63,7 +60,7 @@ class RenderResponse(BaseModel):
 
 class ExecuteRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
-    models: List[str] = Field(min_items=1, max_items=3)
+    models: List[str] = Field(min_length=1, max_length=3)
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     top_p: Optional[float] = None
@@ -81,7 +78,7 @@ class PlaygroundServer:
         app = FastAPI(
             title="Dakora Playground",
             description="Interactive playground for prompt template development",
-            version="0.1.0"
+            version="0.1.0",
         )
 
         # API Routes
@@ -99,20 +96,30 @@ class PlaygroundServer:
             try:
                 template = self.vault.get(template_id)
                 spec = template.spec
+                tmpl = (
+                    spec.template[:-1]
+                    if spec.template.endswith("\n")
+                    else spec.template
+                )
                 return TemplateResponse(
                     id=spec.id,
                     version=spec.version,
                     description=spec.description,
-                    template=spec.template,
-                    inputs={name: {
-                        "type": input_spec.type,
-                        "required": input_spec.required,
-                        "default": input_spec.default
-                    } for name, input_spec in spec.inputs.items()},
-                    metadata=spec.metadata
+                    template=tmpl,
+                    inputs={
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default,
+                        }
+                        for name, input_spec in spec.inputs.items()
+                    },
+                    metadata=spec.metadata,
                 )
             except TemplateNotFound:
-                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Template '{template_id}' not found"
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
@@ -122,12 +129,17 @@ class PlaygroundServer:
             try:
                 # Validate request
                 if not request.id or request.id.strip() == "":
-                    raise HTTPException(status_code=422, detail="Template ID cannot be empty")
+                    raise HTTPException(
+                        status_code=422, detail="Template ID cannot be empty"
+                    )
 
                 # Check if template already exists
                 try:
                     self.vault.get(request.id)
-                    raise HTTPException(status_code=400, detail=f"Template '{request.id}' already exists")
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Template '{request.id}' already exists",
+                    )
                 except TemplateNotFound:
                     pass  # Template doesn't exist, which is what we want
 
@@ -137,7 +149,7 @@ class PlaygroundServer:
                     inputs_dict[input_name] = InputSpec(
                         type=input_data.get("type", "string"),
                         required=input_data.get("required", True),
-                        default=input_data.get("default")
+                        default=input_data.get("default"),
                     )
 
                 # Create TemplateSpec object and validate it
@@ -147,56 +159,41 @@ class PlaygroundServer:
                     description=request.description,
                     template=request.template,
                     inputs=inputs_dict,
-                    metadata=request.metadata
+                    metadata=request.metadata,
                 )
 
-                # Save template to YAML file
-                prompt_dir = Path(self.vault.config["prompt_dir"])
-                filename = f"{spec.id}.yaml"
-                file_path = prompt_dir / filename
-
-                # Create the YAML content
-                yaml_content = {
-                    "id": spec.id,
-                    "version": spec.version,
-                    "description": spec.description,
-                    "template": spec.template,
-                    "inputs": {
-                        name: {
-                            "type": input_spec.type,
-                            "required": input_spec.required,
-                            "default": input_spec.default
-                        }
-                        for name, input_spec in spec.inputs.items()
-                    },
-                    "metadata": spec.metadata
-                }
-
-                # Write to file
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
-
-                # Invalidate cache to pick up the new template
+                # Persist via registry
+                self.vault.registry.save(spec)
                 self.vault.invalidate_cache()
 
                 # Return the created template
+                tmpl = (
+                    spec.template[:-1]
+                    if spec.template.endswith("\n")
+                    else spec.template
+                )
                 return TemplateResponse(
                     id=spec.id,
                     version=spec.version,
                     description=spec.description,
-                    template=spec.template,
-                    inputs={name: {
-                        "type": input_spec.type,
-                        "required": input_spec.required,
-                        "default": input_spec.default
-                    } for name, input_spec in spec.inputs.items()},
-                    metadata=spec.metadata
+                    template=tmpl,
+                    inputs={
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default,
+                        }
+                        for name, input_spec in spec.inputs.items()
+                    },
+                    metadata=spec.metadata,
                 )
 
             except HTTPException:
                 raise  # Re-raise HTTP exceptions as-is
             except ValidationError as e:
-                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Validation error: {str(e)}"
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
@@ -209,29 +206,47 @@ class PlaygroundServer:
                     current_template = self.vault.get(template_id)
                     current_spec = current_template.spec
                 except TemplateNotFound:
-                    raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+                    raise HTTPException(
+                        status_code=404, detail=f"Template '{template_id}' not found"
+                    )
 
                 # Merge update request with current template data
-                updated_version = request.version if request.version is not None else current_spec.version
-                updated_description = request.description if request.description is not None else current_spec.description
-                updated_template = request.template if request.template is not None else current_spec.template
+                updated_version = (
+                    request.version
+                    if request.version is not None
+                    else current_spec.version
+                )
+                updated_description = (
+                    request.description
+                    if request.description is not None
+                    else current_spec.description
+                )
+                updated_template = (
+                    request.template
+                    if request.template is not None
+                    else current_spec.template
+                )
 
                 # Handle inputs merge
-                updated_inputs_dict = {}
+                updated_inputs_dict: Dict[str, InputSpec] = {}
                 if request.inputs is not None:
                     # Convert new input specs from dict format to InputSpec objects
                     for input_name, input_data in request.inputs.items():
                         updated_inputs_dict[input_name] = InputSpec(
                             type=input_data.get("type", "string"),
                             required=input_data.get("required", True),
-                            default=input_data.get("default")
+                            default=input_data.get("default"),
                         )
                 else:
                     # Keep existing inputs
                     updated_inputs_dict = current_spec.inputs
 
                 # Handle metadata merge
-                updated_metadata = request.metadata if request.metadata is not None else current_spec.metadata
+                updated_metadata = (
+                    request.metadata
+                    if request.metadata is not None
+                    else current_spec.metadata
+                )
 
                 # Create updated TemplateSpec object and validate it
                 updated_spec = TemplateSpec(
@@ -240,36 +255,11 @@ class PlaygroundServer:
                     description=updated_description,
                     template=updated_template,
                     inputs=updated_inputs_dict,
-                    metadata=updated_metadata
+                    metadata=updated_metadata,
                 )
 
-                # Save updated template to YAML file
-                prompt_dir = Path(self.vault.config["prompt_dir"])
-                filename = f"{updated_spec.id}.yaml"
-                file_path = prompt_dir / filename
-
-                # Create the YAML content
-                yaml_content = {
-                    "id": updated_spec.id,
-                    "version": updated_spec.version,
-                    "description": updated_spec.description,
-                    "template": updated_spec.template,
-                    "inputs": {
-                        name: {
-                            "type": input_spec.type,
-                            "required": input_spec.required,
-                            "default": input_spec.default
-                        }
-                        for name, input_spec in updated_spec.inputs.items()
-                    },
-                    "metadata": updated_spec.metadata
-                }
-
-                # Write to file
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    yaml.dump(yaml_content, f, default_flow_style=False, sort_keys=False)
-
-                # Invalidate cache to pick up the updated template
+                # Persist via registry
+                self.vault.registry.save(updated_spec)
                 self.vault.invalidate_cache()
 
                 # Return the updated template
@@ -278,18 +268,23 @@ class PlaygroundServer:
                     version=updated_spec.version,
                     description=updated_spec.description,
                     template=updated_spec.template,
-                    inputs={name: {
-                        "type": input_spec.type,
-                        "required": input_spec.required,
-                        "default": input_spec.default
-                    } for name, input_spec in updated_spec.inputs.items()},
-                    metadata=updated_spec.metadata
+                    inputs={
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default,
+                        }
+                        for name, input_spec in updated_spec.inputs.items()
+                    },
+                    metadata=updated_spec.metadata,
                 )
 
             except HTTPException:
                 raise  # Re-raise HTTP exceptions as-is
             except ValidationError as e:
-                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Validation error: {str(e)}"
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
@@ -303,14 +298,15 @@ class PlaygroundServer:
                 # Get the actual inputs used (after validation and defaults)
                 inputs_used = template.spec.coerce_inputs(request.inputs)
 
-                return RenderResponse(
-                    rendered=rendered,
-                    inputs_used=inputs_used
-                )
+                return RenderResponse(rendered=rendered, inputs_used=inputs_used)
             except TemplateNotFound:
-                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Template '{template_id}' not found"
+                )
             except ValidationError as e:
-                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Validation error: {str(e)}"
+                )
             except RenderError as e:
                 raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
             except Exception as e:
@@ -324,11 +320,11 @@ class PlaygroundServer:
 
                 llm_params = {}
                 if request.temperature is not None:
-                    llm_params['temperature'] = request.temperature
+                    llm_params["temperature"] = request.temperature
                 if request.max_tokens is not None:
-                    llm_params['max_tokens'] = request.max_tokens
+                    llm_params["max_tokens"] = request.max_tokens
                 if request.top_p is not None:
-                    llm_params['top_p'] = request.top_p
+                    llm_params["top_p"] = request.top_p
                 llm_params.update(request.params)
 
                 all_kwargs = {**request.inputs, **llm_params}
@@ -337,9 +333,13 @@ class PlaygroundServer:
 
                 return result.model_dump()
             except TemplateNotFound:
-                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Template '{template_id}' not found"
+                )
             except ValidationError as e:
-                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Validation error: {str(e)}"
+                )
             except RenderError as e:
                 raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
             except Exception as e:
@@ -355,12 +355,15 @@ class PlaygroundServer:
                     version=spec.version,
                     description=spec.description,
                     template=spec.template,
-                    inputs={name: {
-                        "type": input_spec.type,
-                        "required": input_spec.required,
-                        "default": input_spec.default
-                    } for name, input_spec in spec.inputs.items()},
-                    metadata=spec.metadata
+                    inputs={
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default,
+                        }
+                        for name, input_spec in spec.inputs.items()
+                    },
+                    metadata=spec.metadata,
                 )
                 for spec in examples
             ]
@@ -375,8 +378,10 @@ class PlaygroundServer:
                     "templates_loaded": template_count,
                     "vault_config": {
                         "prompt_dir": self.vault.config.get("prompt_dir"),
-                        "logging_enabled": self.vault.config.get("logging", {}).get("enabled", False)
-                    }
+                        "logging_enabled": self.vault.config.get("logging", {}).get(
+                            "enabled", False
+                        ),
+                    },
                 }
             except Exception as e:
                 raise HTTPException(status_code=503, detail=f"Unhealthy: {str(e)}")
@@ -386,7 +391,11 @@ class PlaygroundServer:
 
         if (playground_dir / "index.html").exists():
             # Serve built React app
-            app.mount("/", StaticFiles(directory=str(playground_dir), html=True), name="playground")
+            app.mount(
+                "/",
+                StaticFiles(directory=str(playground_dir), html=True),
+                name="playground",
+            )
         else:
             # Fallback to simple HTML page
             @app.get("/", response_class=HTMLResponse)
@@ -474,19 +483,18 @@ Focus on:
 
 Provide specific, actionable feedback.""",
                 inputs={
-                    "code": {
-                        "type": "string",
-                        "required": True
-                    },
-                    "language": {
-                        "type": "string",
-                        "required": True,
-                        "default": "python"
-                    }
+                    "code": InputSpec(type="string", required=True),
+                    "language": InputSpec(
+                        type="string",
+                        required=True,
+                        default="python",
+                    ),
                 },
-                metadata={"category": "development", "tags": ["code-review", "programming"]}
+                metadata={
+                    "category": "development",
+                    "tags": ["code-review", "programming"],
+                },
             ),
-
             TemplateSpec(
                 id="email-responder",
                 version="1.0.0",
@@ -506,23 +514,16 @@ Key points to address:
 
 Write a clear, {{ tone }} response that addresses the main points.""",
                 inputs={
-                    "original_email": {
-                        "type": "string",
-                        "required": True
-                    },
-                    "tone": {
-                        "type": "string",
-                        "required": False,
-                        "default": "professional"
-                    },
-                    "key_points": {
-                        "type": "array<string>",
-                        "required": False
-                    }
+                    "original_email": InputSpec(type="string", required=True),
+                    "tone": InputSpec(
+                        type="string",
+                        required=False,
+                        default="professional",
+                    ),
+                    "key_points": InputSpec(type="array<string>", required=False),
                 },
-                metadata={"category": "communication", "tags": ["email", "business"]}
+                metadata={"category": "communication", "tags": ["email", "business"]},
             ),
-
             TemplateSpec(
                 id="blog-post-generator",
                 version="1.0.0",
@@ -545,37 +546,30 @@ Include these keywords naturally: {{ keywords | join(", ") }}
 
 Focus on providing value and actionable insights.""",
                 inputs={
-                    "topic": {
-                        "type": "string",
-                        "required": True
-                    },
-                    "audience": {
-                        "type": "string",
-                        "required": False,
-                        "default": "developers"
-                    },
-                    "tone": {
-                        "type": "string",
-                        "required": False,
-                        "default": "informative"
-                    },
-                    "length": {
-                        "type": "string",
-                        "required": False,
-                        "default": "medium"
-                    },
-                    "num_sections": {
-                        "type": "number",
-                        "required": False,
-                        "default": 3
-                    },
-                    "keywords": {
-                        "type": "array<string>",
-                        "required": False
-                    }
+                    "topic": InputSpec(type="string", required=True),
+                    "audience": InputSpec(
+                        type="string",
+                        required=False,
+                        default="developers",
+                    ),
+                    "tone": InputSpec(
+                        type="string",
+                        required=False,
+                        default="informative",
+                    ),
+                    "length": InputSpec(
+                        type="string",
+                        required=False,
+                        default="medium",
+                    ),
+                    "num_sections": InputSpec(type="number", required=False, default=3),
+                    "keywords": InputSpec(type="array<string>", required=False),
                 },
-                metadata={"category": "content", "tags": ["blog", "writing", "marketing"]}
-            )
+                metadata={
+                    "category": "content",
+                    "tags": ["blog", "writing", "marketing"],
+                },
+            ),
         ]
 
         return examples
@@ -592,7 +586,7 @@ Focus on providing value and actionable insights.""",
             host=self.host,
             port=self.port,
             reload=debug,
-            log_level="info" if debug else "warning"
+            log_level="info" if debug else "warning",
         )
 
 
@@ -613,11 +607,12 @@ class DemoPlaygroundServer(PlaygroundServer):
         config = {
             "registry": "local",
             "prompt_dir": str(prompt_dir),
-            "logging": {"enabled": False}
+            "logging": {"enabled": False},
         }
         config_file.write_text(yaml.safe_dump(config, sort_keys=False))
 
-        vault = Vault(config_path=str(config_file))
+        # Use the new from_config class method
+        vault = Vault.from_config(str(config_file))
 
         for example in self._get_example_templates():
             yaml_content = {
@@ -629,11 +624,11 @@ class DemoPlaygroundServer(PlaygroundServer):
                     name: {
                         "type": input_spec.type,
                         "required": input_spec.required,
-                        "default": input_spec.default
+                        "default": input_spec.default,
                     }
                     for name, input_spec in example.inputs.items()
                 },
-                "metadata": example.metadata
+                "metadata": example.metadata,
             }
             file_path = prompt_dir / f"{example.id}.yaml"
             file_path.write_text(yaml.safe_dump(yaml_content, sort_keys=False))
@@ -655,7 +650,7 @@ class DemoPlaygroundServer(PlaygroundServer):
         app = FastAPI(
             title="Dakora Playground - Demo Mode",
             description="Interactive playground with session isolation",
-            version="0.1.0"
+            version="0.1.0",
         )
 
         app.add_middleware(
@@ -673,7 +668,9 @@ class DemoPlaygroundServer(PlaygroundServer):
             request.state.session_id = session_id
             request.state.vault = vault
             response = await call_next(request)
-            response.set_cookie("dakora_session_id", session_id, httponly=True, max_age=3600)
+            response.set_cookie(
+                "dakora_session_id", session_id, httponly=True, max_age=3600
+            )
             return response
 
         @app.get("/api/templates", response_model=List[str])
@@ -693,15 +690,20 @@ class DemoPlaygroundServer(PlaygroundServer):
                     version=spec.version,
                     description=spec.description,
                     template=spec.template,
-                    inputs={name: {
-                        "type": input_spec.type,
-                        "required": input_spec.required,
-                        "default": input_spec.default
-                    } for name, input_spec in spec.inputs.items()},
-                    metadata=spec.metadata
+                    inputs={
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default,
+                        }
+                        for name, input_spec in spec.inputs.items()
+                    },
+                    metadata=spec.metadata,
                 )
             except TemplateNotFound:
-                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Template '{template_id}' not found"
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
@@ -709,11 +711,15 @@ class DemoPlaygroundServer(PlaygroundServer):
         async def create_template(req: CreateTemplateRequest, request: Request):
             try:
                 if not req.id or req.id.strip() == "":
-                    raise HTTPException(status_code=422, detail="Template ID cannot be empty")
+                    raise HTTPException(
+                        status_code=422, detail="Template ID cannot be empty"
+                    )
 
                 try:
                     request.state.vault.get(req.id)
-                    raise HTTPException(status_code=400, detail=f"Template '{req.id}' already exists")
+                    raise HTTPException(
+                        status_code=400, detail=f"Template '{req.id}' already exists"
+                    )
                 except TemplateNotFound:
                     pass
 
@@ -722,7 +728,7 @@ class DemoPlaygroundServer(PlaygroundServer):
                     inputs_dict[input_name] = InputSpec(
                         type=input_data.get("type", "string"),
                         required=input_data.get("required", True),
-                        default=input_data.get("default")
+                        default=input_data.get("default"),
                     )
 
                 spec = TemplateSpec(
@@ -731,7 +737,7 @@ class DemoPlaygroundServer(PlaygroundServer):
                     description=req.description,
                     template=req.template,
                     inputs=inputs_dict,
-                    metadata=req.metadata
+                    metadata=req.metadata,
                 )
 
                 prompt_dir = Path(request.state.vault.config["prompt_dir"])
@@ -746,11 +752,11 @@ class DemoPlaygroundServer(PlaygroundServer):
                         name: {
                             "type": input_spec.type,
                             "required": input_spec.required,
-                            "default": input_spec.default
+                            "default": input_spec.default,
                         }
                         for name, input_spec in spec.inputs.items()
                     },
-                    "metadata": spec.metadata
+                    "metadata": spec.metadata,
                 }
 
                 file_path.write_text(yaml.safe_dump(yaml_content, sort_keys=False))
@@ -761,46 +767,65 @@ class DemoPlaygroundServer(PlaygroundServer):
                     version=spec.version,
                     description=spec.description,
                     template=spec.template,
-                    inputs={name: {
-                        "type": input_spec.type,
-                        "required": input_spec.required,
-                        "default": input_spec.default
-                    } for name, input_spec in spec.inputs.items()},
-                    metadata=spec.metadata
+                    inputs={
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default,
+                        }
+                        for name, input_spec in spec.inputs.items()
+                    },
+                    metadata=spec.metadata,
                 )
 
             except HTTPException:
                 raise
             except ValidationError as e:
-                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Validation error: {str(e)}"
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @app.put("/api/templates/{template_id}", response_model=TemplateResponse)
-        async def update_template(template_id: str, req: UpdateTemplateRequest, request: Request):
+        async def update_template(
+            template_id: str, req: UpdateTemplateRequest, request: Request
+        ):
             try:
                 try:
                     current_template = request.state.vault.get(template_id)
                     current_spec = current_template.spec
                 except TemplateNotFound:
-                    raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+                    raise HTTPException(
+                        status_code=404, detail=f"Template '{template_id}' not found"
+                    )
 
-                updated_version = req.version if req.version is not None else current_spec.version
-                updated_description = req.description if req.description is not None else current_spec.description
-                updated_template = req.template if req.template is not None else current_spec.template
+                updated_version = (
+                    req.version if req.version is not None else current_spec.version
+                )
+                updated_description = (
+                    req.description
+                    if req.description is not None
+                    else current_spec.description
+                )
+                updated_template = (
+                    req.template if req.template is not None else current_spec.template
+                )
 
-                updated_inputs_dict = {}
+                updated_inputs_dict: Dict[str, InputSpec] = {}
                 if req.inputs is not None:
                     for input_name, input_data in req.inputs.items():
                         updated_inputs_dict[input_name] = InputSpec(
                             type=input_data.get("type", "string"),
                             required=input_data.get("required", True),
-                            default=input_data.get("default")
+                            default=input_data.get("default"),
                         )
                 else:
                     updated_inputs_dict = current_spec.inputs
 
-                updated_metadata = req.metadata if req.metadata is not None else current_spec.metadata
+                updated_metadata = (
+                    req.metadata if req.metadata is not None else current_spec.metadata
+                )
 
                 updated_spec = TemplateSpec(
                     id=current_spec.id,
@@ -808,7 +833,7 @@ class DemoPlaygroundServer(PlaygroundServer):
                     description=updated_description,
                     template=updated_template,
                     inputs=updated_inputs_dict,
-                    metadata=updated_metadata
+                    metadata=updated_metadata,
                 )
 
                 prompt_dir = Path(request.state.vault.config["prompt_dir"])
@@ -823,11 +848,11 @@ class DemoPlaygroundServer(PlaygroundServer):
                         name: {
                             "type": input_spec.type,
                             "required": input_spec.required,
-                            "default": input_spec.default
+                            "default": input_spec.default,
                         }
                         for name, input_spec in updated_spec.inputs.items()
                     },
-                    "metadata": updated_spec.metadata
+                    "metadata": updated_spec.metadata,
                 }
 
                 file_path.write_text(yaml.safe_dump(yaml_content, sort_keys=False))
@@ -838,54 +863,64 @@ class DemoPlaygroundServer(PlaygroundServer):
                     version=updated_spec.version,
                     description=updated_spec.description,
                     template=updated_spec.template,
-                    inputs={name: {
-                        "type": input_spec.type,
-                        "required": input_spec.required,
-                        "default": input_spec.default
-                    } for name, input_spec in updated_spec.inputs.items()},
-                    metadata=updated_spec.metadata
+                    inputs={
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default,
+                        }
+                        for name, input_spec in updated_spec.inputs.items()
+                    },
+                    metadata=updated_spec.metadata,
                 )
 
             except HTTPException:
                 raise
             except ValidationError as e:
-                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Validation error: {str(e)}"
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @app.post("/api/templates/{template_id}/render", response_model=RenderResponse)
-        async def render_template(template_id: str, req: RenderRequest, request: Request):
+        async def render_template(
+            template_id: str, req: RenderRequest, request: Request
+        ):
             try:
                 template = request.state.vault.get(template_id)
                 rendered = template.render(**req.inputs)
                 inputs_used = template.spec.coerce_inputs(req.inputs)
 
-                return RenderResponse(
-                    rendered=rendered,
-                    inputs_used=inputs_used
-                )
+                return RenderResponse(rendered=rendered, inputs_used=inputs_used)
             except TemplateNotFound:
-                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Template '{template_id}' not found"
+                )
             except ValidationError as e:
-                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Validation error: {str(e)}"
+                )
             except RenderError as e:
                 raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @app.post("/api/templates/{template_id}/compare")
-        async def compare_template(template_id: str, req: ExecuteRequest, request: Request):
+        async def compare_template(
+            template_id: str, req: ExecuteRequest, request: Request
+        ):
             """Compare template execution across one or more LLM models."""
             try:
                 template = request.state.vault.get(template_id)
 
                 llm_params = {}
                 if req.temperature is not None:
-                    llm_params['temperature'] = req.temperature
+                    llm_params["temperature"] = req.temperature
                 if req.max_tokens is not None:
-                    llm_params['max_tokens'] = req.max_tokens
+                    llm_params["max_tokens"] = req.max_tokens
                 if req.top_p is not None:
-                    llm_params['top_p'] = req.top_p
+                    llm_params["top_p"] = req.top_p
                 llm_params.update(req.params)
 
                 all_kwargs = {**req.inputs, **llm_params}
@@ -894,9 +929,13 @@ class DemoPlaygroundServer(PlaygroundServer):
 
                 return result.model_dump()
             except TemplateNotFound:
-                raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Template '{template_id}' not found"
+                )
             except ValidationError as e:
-                raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Validation error: {str(e)}"
+                )
             except RenderError as e:
                 raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
             except Exception as e:
@@ -911,12 +950,15 @@ class DemoPlaygroundServer(PlaygroundServer):
                     version=spec.version,
                     description=spec.description,
                     template=spec.template,
-                    inputs={name: {
-                        "type": input_spec.type,
-                        "required": input_spec.required,
-                        "default": input_spec.default
-                    } for name, input_spec in spec.inputs.items()},
-                    metadata=spec.metadata
+                    inputs={
+                        name: {
+                            "type": input_spec.type,
+                            "required": input_spec.required,
+                            "default": input_spec.default,
+                        }
+                        for name, input_spec in spec.inputs.items()
+                    },
+                    metadata=spec.metadata,
                 )
                 for spec in examples
             ]
@@ -937,8 +979,13 @@ class DemoPlaygroundServer(PlaygroundServer):
         playground_dir = Path(__file__).parent.parent / "playground"
 
         if (playground_dir / "index.html").exists():
-            app.mount("/", StaticFiles(directory=str(playground_dir), html=True), name="playground")
+            app.mount(
+                "/",
+                StaticFiles(directory=str(playground_dir), html=True),
+                name="playground",
+            )
         else:
+
             @app.get("/", response_class=HTMLResponse)
             async def playground_ui():
                 return """
@@ -993,9 +1040,11 @@ class DemoPlaygroundServer(PlaygroundServer):
 
     def run(self, debug: bool = False):
         """Start the playground server in demo mode."""
-        print(f"🎯 Starting Dakora Playground (Demo Mode) at http://{self.host}:{self.port}")
-        print(f"🎮 Session isolation enabled - each user gets a private workspace")
-        print(f"📁 Temporary sessions stored in /tmp/dakora-demo/")
+        print(
+            f"🎯 Starting Dakora Playground (Demo Mode) at http://{self.host}:{self.port}"
+        )
+        print("🎮 Session isolation enabled - each user gets a private workspace")
+        print("📁 Temporary sessions stored in /tmp/dakora-demo/")
         print("")
 
         uvicorn.run(
@@ -1003,14 +1052,27 @@ class DemoPlaygroundServer(PlaygroundServer):
             host=self.host,
             port=self.port,
             reload=debug,
-            log_level="info" if debug else "warning"
+            log_level="info" if debug else "warning",
         )
 
 
-def create_playground(config_path: str = None, prompt_dir: str = None,
-                     host: str = "localhost", port: int = 3000, demo_mode: bool = False) -> PlaygroundServer:
+def create_playground(
+    config_path: Optional[str] = None,
+    prompt_dir: Optional[str] = None,
+    host: str = "localhost",
+    port: int = 3000,
+    demo_mode: bool = False,
+) -> PlaygroundServer:
     """Create a playground server instance."""
     if demo_mode:
         return DemoPlaygroundServer(host=host, port=port)
-    vault = Vault(config_path=config_path, prompt_dir=prompt_dir)
+    
+    # Support both new and legacy ways of creating Vault
+    if config_path:
+        vault = Vault.from_config(config_path)
+    elif prompt_dir:
+        vault = Vault(prompt_dir=prompt_dir)
+    else:
+        raise ValueError("Must provide either config_path or prompt_dir")
+    
     return PlaygroundServer(vault, host=host, port=port)
