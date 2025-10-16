@@ -76,7 +76,6 @@ class AzureRegistry(TemplateRegistry):
 
         try:
             if connection_string:
-                print("using conn string")
                 self._client = BlobServiceClient.from_connection_string(connection_string)
             elif account_url:
                 credential = DefaultAzureCredential()  # attempts multiple auth methods

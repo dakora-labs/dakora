@@ -49,17 +49,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["dakora"]
 
-[tool.hatch.build.targets.wheel.force-include]
-# Include playground directory (built by CI, or empty with .gitkeep)
-"playground" = "playground"
-
 [tool.hatch.build.targets.sdist]
 # Source dist includes dakora source and web/ source
-exclude = ["web/node_modules"]
-
-[tool.hatch.build.targets.sdist.force-include]
-# Force include playground directory structure
-"playground" = "playground"
+exclude = ["web/node_modules", "playground/node_modules", "playground/*.html"]
 
 
 [tool.uv]

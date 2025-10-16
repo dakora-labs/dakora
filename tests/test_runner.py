@@ -21,45 +21,41 @@ def run_tests(test_type="all", verbose=False, fast=False):
     cmd.extend(["--tb=short"])
 
     # Determine which tests to run
-    test_files = []
+    test_args = []
 
     if test_type == "all":
-        test_files = [
-            "tests/test_init.py",
-            "tests/test_playground_server.py",
-            "tests/test_playground_api.py"
-        ]
-        if not fast:
-            test_files.append("tests/test_playground_performance.py")
+        # Run all unit, integration, and performance tests
+        test_args = ["tests/"]
+        if fast:
+            cmd.extend(["-m", "not slow"])  # Skip slow tests in fast mode
 
     elif test_type == "unit":
-        test_files = [
-            "tests/test_init.py",
-            "tests/test_playground_server.py"
-        ]
+        # Run unit tests
+        test_args = ["tests/", "-m", "unit or not (integration or performance)"]
 
     elif test_type == "integration":
-        test_files = ["tests/test_playground_api.py"]
+        # Run integration tests
+        test_args = ["tests/", "-m", "integration"]
 
     elif test_type == "performance":
-        test_files = ["tests/test_playground_performance.py"]
+        # Run performance tests
+        test_args = ["tests/", "-m", "performance"]
         if fast:
             cmd.extend(["-m", "not slow"])  # Skip slow tests in fast mode
 
     elif test_type == "smoke":
-        # Just run a few basic tests quickly
-        cmd.extend([
-            "tests/test_init.py::test_init_creates_proper_structure",
-            "tests/test_playground_server.py::TestPlaygroundServer::test_create_playground_with_config",
-            "tests/test_playground_api.py::TestPlaygroundHealthAPI::test_health_endpoint_returns_200"
-        ])
+        # Run a quick smoke test with minimal tests
+        test_args = [
+            "tests/smoke_test.py",
+            "-v"
+        ]
 
     else:
         print(f"Unknown test type: {test_type}")
         return 1
 
-    # Add test files to command
-    cmd.extend(test_files)
+    # Add test args to command
+    cmd.extend(test_args)
 
     print(f"Running tests: {' '.join(cmd)}")
     print("-" * 60)
