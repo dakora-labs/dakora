@@ -11,8 +11,8 @@ from pathlib import Path
 def run_tests(test_type="all", verbose=False, fast=False):
     """Run different categories of tests"""
 
-    # Base pytest command
-    cmd = ["python", "-m", "pytest"]
+    # Base pytest command - use sys.executable to ensure venv is used
+    cmd = [sys.executable, "-m", "pytest"]
 
     if verbose:
         cmd.append("-v")
@@ -24,14 +24,14 @@ def run_tests(test_type="all", verbose=False, fast=False):
     test_args = []
 
     if test_type == "all":
-        # Run all unit, integration, and performance tests
+        # Run all tests
         test_args = ["tests/"]
         if fast:
             cmd.extend(["-m", "not slow"])  # Skip slow tests in fast mode
 
     elif test_type == "unit":
-        # Run unit tests
-        test_args = ["tests/", "-m", "unit or not (integration or performance)"]
+        # Run unit tests (everything except integration and performance)
+        test_args = ["tests/", "-m", "not integration and not performance"]
 
     elif test_type == "integration":
         # Run integration tests
@@ -42,7 +42,7 @@ def run_tests(test_type="all", verbose=False, fast=False):
         test_args = ["tests/", "-m", "performance"]
         if fast:
             # Fast mode: skip performance tests
-            print("⚠️  Skipping performance tests in fast mode")
+            print("WARNING: Skipping performance tests in fast mode")
             return 0
 
     elif test_type == "smoke":
@@ -64,13 +64,14 @@ def run_tests(test_type="all", verbose=False, fast=False):
 
     # Run the tests
     try:
-        result = subprocess.run(cmd, cwd=Path(__file__).parent.parent)
+        # Use string path for better cross-platform compatibility
+        result = subprocess.run(cmd, cwd=str(Path(__file__).parent.parent))
         return result.returncode
     except KeyboardInterrupt:
-        print("\n🛑 Tests interrupted by user")
+        print("\nERROR: Tests interrupted by user")
         return 1
     except Exception as e:
-        print(f"❌ Error running tests: {e}")
+        print(f"ERROR: Error running tests: {e}")
         return 1
 
 
@@ -96,7 +97,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("🧪 Dakora Test Runner")
+    print("Dakora Test Runner")
     print(f"Test type: {args.test_type}")
     if args.fast:
         print("Fast mode: skipping slow tests")

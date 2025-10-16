@@ -1,7 +1,11 @@
 """
 Tests for the Dakora Playground API using requests
 """
+import pytest
 import requests
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 
 class TestPlaygroundHealthAPI:
