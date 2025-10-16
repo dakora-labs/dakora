@@ -373,15 +373,29 @@ class PlaygroundServer:
             """Health check endpoint."""
             try:
                 template_count = len(list(self.vault.list()))
+                registry_type = self.vault.config.get("registry", "local")
+                
+                vault_config = {
+                    "registry_type": registry_type,
+                    "logging_enabled": self.vault.config.get("logging", {}).get(
+                        "enabled", False
+                    ),
+                }
+                
+                # Add location information based on registry type
+                if registry_type == "local":
+                    vault_config["prompt_dir"] = self.vault.config.get("prompt_dir")
+                elif registry_type == "azure":
+                    container = self.vault.config.get("azure_container", "")
+                    prefix = self.vault.config.get("azure_prefix", "")
+                    # Format as container/prefix or just container if no prefix
+                    location = f"{container}/{prefix}".rstrip('/') if prefix else container
+                    vault_config["cloud_location"] = location
+                
                 return {
                     "status": "healthy",
                     "templates_loaded": template_count,
-                    "vault_config": {
-                        "prompt_dir": self.vault.config.get("prompt_dir"),
-                        "logging_enabled": self.vault.config.get("logging", {}).get(
-                            "enabled", False
-                        ),
-                    },
+                    "vault_config": vault_config,
                 }
             except Exception as e:
                 raise HTTPException(status_code=503, detail=f"Unhealthy: {str(e)}")

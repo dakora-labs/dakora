@@ -1,10 +1,7 @@
 """
 Tests for the Dakora Playground API using requests
 """
-import pytest
 import requests
-import json
-from requests.exceptions import RequestException
 
 
 class TestPlaygroundHealthAPI:
@@ -26,8 +23,15 @@ class TestPlaygroundHealthAPI:
         assert isinstance(data["templates_loaded"], int)
         assert data["templates_loaded"] >= 0
         assert "vault_config" in data
-        assert "prompt_dir" in data["vault_config"]
+        assert "registry_type" in data["vault_config"]
+        assert data["vault_config"]["registry_type"] in ["local", "azure"]
         assert "logging_enabled" in data["vault_config"]
+        
+        # Check for location info based on registry type
+        if data["vault_config"]["registry_type"] == "local":
+            assert "prompt_dir" in data["vault_config"]
+        elif data["vault_config"]["registry_type"] == "azure":
+            assert "cloud_location" in data["vault_config"]
 
     def test_health_shows_correct_template_count(self, playground_url):
         """Test that health endpoint shows correct number of templates"""
@@ -865,7 +869,16 @@ class TestPlaygroundIntegration:
 
         # Verify vault config is accessible
         vault_config = health_data["vault_config"]
-        assert vault_config["prompt_dir"] == "./prompts"
+        assert "registry_type" in vault_config
+        assert vault_config["registry_type"] in ["local", "azure"]
+        
+        # For local registry, check prompt_dir
+        if vault_config["registry_type"] == "local":
+            assert vault_config["prompt_dir"] == "./prompts"
+        # For azure registry, check cloud_location
+        elif vault_config["registry_type"] == "azure":
+            assert "cloud_location" in vault_config
+        
         assert isinstance(vault_config["logging_enabled"], bool)
 
     def test_complete_template_creation_workflow(self, playground_url):
