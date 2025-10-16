@@ -8,6 +8,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
+@pytest.mark.performance
 class TestPlaygroundPerformance:
     """Performance tests for playground API endpoints"""
 
@@ -116,8 +117,9 @@ class TestPlaygroundConcurrency:
         # Check that responses are correct
         successful_responses = [result[1] for result in results if result[0]]
         for response_data in successful_responses:
-            assert "rendered" in response_data
-            assert "ConcurrentTest" in response_data["rendered"]
+            assert response_data is not None, "Response data should not be None"
+            assert "rendered" in response_data, "Response should contain 'rendered' field"
+            assert "ConcurrentTest" in response_data["rendered"], "Rendered output should contain test marker"
 
     def test_mixed_concurrent_operations(self, playground_url):
         """Test mix of different concurrent operations"""
@@ -288,7 +290,7 @@ class TestPlaygroundStress:
                     results.append(response.status_code == 200)
                     request_count += 1
                     time.sleep(0.05)  # Small delay between requests
-                except:
+                except Exception:
                     results.append(False)
 
         # Run sustained load test with 3 concurrent workers
@@ -359,7 +361,7 @@ class TestPlaygroundResourceUsage:
                     timeout=15
                 )
                 return response.status_code == 200
-            except:
+            except Exception:
                 return False
 
         # 5 concurrent large requests

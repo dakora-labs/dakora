@@ -41,7 +41,9 @@ def run_tests(test_type="all", verbose=False, fast=False):
         # Run performance tests
         test_args = ["tests/", "-m", "performance"]
         if fast:
-            cmd.extend(["-m", "not slow"])  # Skip slow tests in fast mode
+            # Fast mode: skip performance tests
+            print("⚠️  Skipping performance tests in fast mode")
+            return 0
 
     elif test_type == "smoke":
         # Run a quick smoke test with minimal tests
