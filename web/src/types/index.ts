@@ -26,7 +26,9 @@ export interface HealthResponse {
   status: string;
   templates_loaded: number;
   vault_config: {
-    prompt_dir: string;
+    registry_type: 'local' | 'azure';
+    prompt_dir?: string;
+    cloud_location?: string;
     logging_enabled: boolean;
   };
 }

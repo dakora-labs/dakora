@@ -2,7 +2,6 @@
 Test configuration and fixtures for Dakora tests
 """
 import tempfile
-import shutil
 import os
 from pathlib import Path
 import yaml

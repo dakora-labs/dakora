@@ -1,5 +1,7 @@
 from __future__ import annotations
-import sqlite3, json, time
+import sqlite3
+import json
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -34,9 +36,19 @@ class Logger:
     def __init__(self, db_path: str | Path) -> None:
         self.path = Path(db_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.path) as con:
-            con.execute(_SCHEMA)
-            self._migrate_if_needed(con)
+        # Maintain a persistent connection to control closing explicitly (Windows file locking)
+        self._con = sqlite3.connect(self.path)
+        self._con.execute(_SCHEMA)
+        self._migrate_if_needed(self._con)
+
+    def close(self) -> None:
+        """Close the database connection and release file locks (critical for Windows)."""
+        try:
+            if hasattr(self, '_con') and self._con:
+                self._con.commit()
+                self._con.close()
+        except Exception:
+            pass
 
     def _migrate_if_needed(self, con: sqlite3.Connection) -> None:
         cursor = con.execute("PRAGMA table_info(logs)")
@@ -55,13 +67,13 @@ class Logger:
               provider: str | None = None, model: str | None = None,
               tokens_in: int | None = None, tokens_out: int | None = None,
               cost_usd: float | None = None) -> None:
-        with sqlite3.connect(self.path) as con:
-            con.execute(
+          self._con.execute(
                 """INSERT INTO logs(prompt_id,version,inputs_json,output_text,cost,latency_ms,provider,model,tokens_in,tokens_out,cost_usd)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (prompt_id, version, json.dumps(inputs, ensure_ascii=False), output, cost, latency_ms,
                  provider, model, tokens_in, tokens_out, cost_usd)
-            )
+          )
+          self._con.commit()
 
 @contextmanager
 def run(logger: Optional[Logger], prompt_id: str, version: str):

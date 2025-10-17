@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, Database, Folder } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, Database, Folder, Cloud } from 'lucide-react';
 import { api } from '../utils/api';
 import { Badge } from '@/components/ui/badge';
 import type { HealthResponse } from '../types';
@@ -95,14 +95,26 @@ export function StatusBar() {
         </div>
 
         <div className="flex items-center flex-wrap gap-3 text-xs">
-          {/* Prompt Directory */}
+          {/* Prompt Directory or Cloud Location */}
           {health?.vault_config && (
             <div className="flex items-center gap-1">
-              <Folder className="w-3 h-3" />
-              <span className="hidden sm:inline">Dir:</span>
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                {health.vault_config.prompt_dir}
-              </code>
+              {health.vault_config.registry_type === 'azure' ? (
+                <>
+                  <Cloud className="w-3 h-3" />
+                  <span className="hidden sm:inline">Cloud:</span>
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                    {health.vault_config.cloud_location}
+                  </code>
+                </>
+              ) : (
+                <>
+                  <Folder className="w-3 h-3" />
+                  <span className="hidden sm:inline">Dir:</span>
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                    {health.vault_config.prompt_dir}
+                  </code>
+                </>
+              )}
             </div>
           )}
 

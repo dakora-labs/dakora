@@ -1,10 +1,11 @@
 """
 Unit tests for Dakora Playground Server
 """
-import pytest
+
 from fastapi.testclient import TestClient
 from dakora.playground import PlaygroundServer, create_playground
 from dakora.vault import Vault
+from fastapi.routing import APIRoute
 
 
 class TestPlaygroundServer:
@@ -25,7 +26,9 @@ class TestPlaygroundServer:
         tmpdir, config_path = temp_project_dir
         prompts_dir = f"{tmpdir}/prompts"
 
-        playground = create_playground(prompt_dir=prompts_dir, host="0.0.0.0", port=8080)
+        playground = create_playground(
+            prompt_dir=prompts_dir, host="0.0.0.0", port=8080
+        )
 
         assert playground.host == "0.0.0.0"
         assert playground.port == 8080
@@ -37,20 +40,23 @@ class TestPlaygroundServer:
         app = playground.app
 
         # Check that app has expected routes
-        routes = [route.path for route in app.routes]
+        routes = [route.path for route in app.routes if isinstance(route, APIRoute)]
         expected_routes = [
             "/api/templates",
             "/api/templates/{template_id}",
             "/api/templates/{template_id}/render",
             "/api/examples",
             "/api/health",
-            "/"
+            "/",
         ]
 
         for expected_route in expected_routes:
             # Check if any route matches (considering path parameters)
-            assert any(expected_route.replace("{template_id}", "{path}") in route
-                      or expected_route == route for route in routes), f"Missing route: {expected_route}"
+            assert any(
+                expected_route.replace("{template_id}", "{path}") in route
+                or expected_route == route
+                for route in routes
+            ), f"Missing route: {expected_route}"
 
     def test_example_templates_structure(self, test_vault):
         """Test that example templates have proper structure"""
@@ -68,12 +74,18 @@ class TestPlaygroundServer:
 
             # Check inputs structure
             for input_name, input_spec in example.inputs.items():
-                assert hasattr(input_spec, 'type')
-                assert hasattr(input_spec, 'required')
-                assert input_spec.type in ["string", "number", "boolean", "array<string>", "object"]
+                assert hasattr(input_spec, "type")
+                assert hasattr(input_spec, "required")
+                assert input_spec.type in [
+                    "string",
+                    "number",
+                    "boolean",
+                    "array<string>",
+                    "object",
+                ]
 
             # Check metadata exists
-            assert hasattr(example, 'metadata')
+            assert hasattr(example, "metadata")
             assert isinstance(example.metadata, dict)
 
 
@@ -127,7 +139,7 @@ class TestPlaygroundServerWithTestClient:
         with TestClient(playground.app) as client:
             response = client.post(
                 "/api/templates/simple-greeting/render",
-                json={"inputs": {"name": "TestClient"}}
+                json={"inputs": {"name": "TestClient"}},
             )
             assert response.status_code == 200
 
@@ -174,8 +186,7 @@ class TestPlaygroundServerWithTestClient:
             assert response.status_code == 404
 
             response = client.post(
-                "/api/templates/nonexistent/render",
-                json={"inputs": {"test": "value"}}
+                "/api/templates/nonexistent/render", json={"inputs": {"test": "value"}}
             )
             assert response.status_code == 404
 
@@ -186,8 +197,7 @@ class TestPlaygroundServerWithTestClient:
         with TestClient(playground.app) as client:
             # Missing required input
             response = client.post(
-                "/api/templates/simple-greeting/render",
-                json={"inputs": {}}
+                "/api/templates/simple-greeting/render", json={"inputs": {}}
             )
             assert response.status_code == 400
             assert "validation error" in response.json()["detail"].lower()
@@ -200,7 +210,7 @@ class TestPlaygroundServerWithTestClient:
             # Template with undefined variable should cause render error
             response = client.post(
                 "/api/templates/error-template/render",
-                json={"inputs": {"name": "test"}}
+                json={"inputs": {"name": "test"}},
             )
             assert response.status_code == 400
             assert "render error" in response.json()["detail"].lower()
@@ -221,7 +231,7 @@ class TestPlaygroundServerEdgeCases:
             config = {
                 "registry": "local",
                 "prompt_dir": "./prompts",
-                "logging": {"enabled": False}
+                "logging": {"enabled": False},
             }
 
             config_path = Path(tmpdir) / "dakora.yaml"
@@ -265,16 +275,16 @@ class TestPlaygroundServerEdgeCases:
             # Test with non-JSON content type
             response = client.post(
                 "/api/templates/simple-greeting/render",
-                data="not json",
-                headers={"Content-Type": "application/json"}
+                content="not json",
+                headers={"Content-Type": "application/json"},
             )
             assert response.status_code == 422
 
             # Test with wrong content type
             response = client.post(
                 "/api/templates/simple-greeting/render",
-                data='{"inputs": {"name": "test"}}',
-                headers={"Content-Type": "text/plain"}
+                content='{"inputs": {"name": "test"}}',
+                headers={"Content-Type": "text/plain"},
             )
             assert response.status_code == 422
 
@@ -292,7 +302,6 @@ class TestPlaygroundServerEdgeCases:
     def test_concurrent_requests(self, test_vault):
         """Test that server handles concurrent requests properly"""
         import threading
-        import time
 
         playground = PlaygroundServer(test_vault)
         results = []
@@ -303,7 +312,7 @@ class TestPlaygroundServerEdgeCases:
                 with TestClient(playground.app) as client:
                     response = client.post(
                         "/api/templates/simple-greeting/render",
-                        json={"inputs": {"name": "ConcurrentTest"}}
+                        json={"inputs": {"name": "ConcurrentTest"}},
                     )
                     results.append(response.status_code == 200)
             except Exception as e:

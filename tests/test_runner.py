@@ -11,8 +11,8 @@ from pathlib import Path
 def run_tests(test_type="all", verbose=False, fast=False):
     """Run different categories of tests"""
 
-    # Base pytest command
-    cmd = ["python", "-m", "pytest"]
+    # Base pytest command - use sys.executable to ensure venv is used
+    cmd = [sys.executable, "-m", "pytest"]
 
     if verbose:
         cmd.append("-v")
@@ -21,58 +21,57 @@ def run_tests(test_type="all", verbose=False, fast=False):
     cmd.extend(["--tb=short"])
 
     # Determine which tests to run
-    test_files = []
+    test_args = []
 
     if test_type == "all":
-        test_files = [
-            "tests/test_init.py",
-            "tests/test_playground_server.py",
-            "tests/test_playground_api.py"
-        ]
-        if not fast:
-            test_files.append("tests/test_playground_performance.py")
-
-    elif test_type == "unit":
-        test_files = [
-            "tests/test_init.py",
-            "tests/test_playground_server.py"
-        ]
-
-    elif test_type == "integration":
-        test_files = ["tests/test_playground_api.py"]
-
-    elif test_type == "performance":
-        test_files = ["tests/test_playground_performance.py"]
+        # Run all tests
+        test_args = ["tests/"]
         if fast:
             cmd.extend(["-m", "not slow"])  # Skip slow tests in fast mode
 
+    elif test_type == "unit":
+        # Run unit tests (everything except integration and performance)
+        test_args = ["tests/", "-m", "not integration and not performance"]
+
+    elif test_type == "integration":
+        # Run integration tests
+        test_args = ["tests/", "-m", "integration"]
+
+    elif test_type == "performance":
+        # Run performance tests
+        test_args = ["tests/", "-m", "performance"]
+        if fast:
+            # Fast mode: skip performance tests
+            print("WARNING: Skipping performance tests in fast mode")
+            return 0
+
     elif test_type == "smoke":
-        # Just run a few basic tests quickly
-        cmd.extend([
-            "tests/test_init.py::test_init_creates_proper_structure",
-            "tests/test_playground_server.py::TestPlaygroundServer::test_create_playground_with_config",
-            "tests/test_playground_api.py::TestPlaygroundHealthAPI::test_health_endpoint_returns_200"
-        ])
+        # Run a quick smoke test with minimal tests
+        test_args = [
+            "tests/smoke_test.py",
+            "-v"
+        ]
 
     else:
         print(f"Unknown test type: {test_type}")
         return 1
 
-    # Add test files to command
-    cmd.extend(test_files)
+    # Add test args to command
+    cmd.extend(test_args)
 
     print(f"Running tests: {' '.join(cmd)}")
     print("-" * 60)
 
     # Run the tests
     try:
-        result = subprocess.run(cmd, cwd=Path(__file__).parent.parent)
+        # Use string path for better cross-platform compatibility
+        result = subprocess.run(cmd, cwd=str(Path(__file__).parent.parent))
         return result.returncode
     except KeyboardInterrupt:
-        print("\n🛑 Tests interrupted by user")
+        print("\nERROR: Tests interrupted by user")
         return 1
     except Exception as e:
-        print(f"❌ Error running tests: {e}")
+        print(f"ERROR: Error running tests: {e}")
         return 1
 
 
@@ -98,7 +97,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("🧪 Dakora Test Runner")
+    print("Dakora Test Runner")
     print(f"Test type: {args.test_type}")
     if args.fast:
         print("Fast mode: skipping slow tests")

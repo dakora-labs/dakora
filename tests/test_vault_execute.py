@@ -1,13 +1,15 @@
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import yaml
 import pytest
 import sqlite3
+import gc
+import time
 
-from dakora.vault import Vault, TemplateHandle
+from dakora.vault import Vault
 from dakora.llm.models import ExecutionResult
-from dakora.exceptions import ValidationError, RenderError, APIKeyError, RateLimitError, ModelNotFoundError, LLMError
+from dakora.exceptions import ValidationError, APIKeyError, RateLimitError, ModelNotFoundError, LLMError
 
 
 @pytest.fixture
@@ -46,7 +48,15 @@ def temp_vault_with_logging():
         config_path.write_text(yaml.safe_dump(config))
 
         vault = Vault(str(config_path))
-        yield vault, tmpdir
+        try:
+            yield vault, tmpdir
+        finally:
+            # Close vault to release database file locks on Windows
+            vault.close()
+            # Force garbage collection to release any remaining references
+            gc.collect()
+            # Small delay to allow Windows to release file locks
+            time.sleep(0.1)
 
 
 @pytest.fixture
@@ -291,7 +301,7 @@ class TestTemplateHandleExecute:
                 mock_client.execute.return_value = mock_result
                 mock_client_class.return_value = mock_client
 
-                result = template.execute(
+                template.execute(
                     model="gpt-4",
                     name="John",
                     age=30,
@@ -317,7 +327,7 @@ class TestTemplateHandleExecute:
                     {"role": "user", "content": "Previous message"}
                 ]
 
-                result = template.execute(
+                template.execute(
                     model="gpt-4",
                     text="Sample text",
                     messages=messages
@@ -332,32 +342,45 @@ class TestDatabaseMigration:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test.db"
 
-            with sqlite3.connect(db_path) as con:
-                con.execute("""
-                    CREATE TABLE IF NOT EXISTS logs (
-                      id INTEGER PRIMARY KEY,
-                      prompt_id TEXT,
-                      version TEXT,
-                      inputs_json TEXT,
-                      output_text TEXT,
-                      cost REAL,
-                      latency_ms INTEGER,
-                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                """)
-
+            # Create old schema
+            con = sqlite3.connect(db_path)
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS logs (
+                  id INTEGER PRIMARY KEY,
+                  prompt_id TEXT,
+                  version TEXT,
+                  inputs_json TEXT,
+                  output_text TEXT,
+                  cost REAL,
+                  latency_ms INTEGER,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            con.commit()
+            con.close()
+            
+            # Initialize logger (triggers migration)
             from dakora.logging import Logger
             logger = Logger(db_path)
-
-            with sqlite3.connect(db_path) as con:
+            
+            try:
+                # Verify columns were added
+                con = sqlite3.connect(db_path)
                 cursor = con.execute("PRAGMA table_info(logs)")
                 columns = {row[1] for row in cursor.fetchall()}
+                con.close()
 
                 assert "provider" in columns
                 assert "model" in columns
                 assert "tokens_in" in columns
                 assert "tokens_out" in columns
                 assert "cost_usd" in columns
+            finally:
+                # Close logger to release database file lock on Windows
+                logger.close()
+                # Force garbage collection and wait for cleanup
+                gc.collect()
+                time.sleep(0.1)
 
     def test_logger_write_with_llm_metadata(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -366,26 +389,35 @@ class TestDatabaseMigration:
             from dakora.logging import Logger
             logger = Logger(db_path)
 
-            logger.write(
-                prompt_id="test-prompt",
-                version="1.0.0",
-                inputs={"text": "test"},
-                output="test output",
-                cost=None,
-                latency_ms=1000,
-                provider="openai",
-                model="gpt-4",
-                tokens_in=100,
-                tokens_out=50,
-                cost_usd=0.05
-            )
+            try:
+                logger.write(
+                    prompt_id="test-prompt",
+                    version="1.0.0",
+                    inputs={"text": "test"},
+                    output="test output",
+                    cost=None,
+                    latency_ms=1000,
+                    provider="openai",
+                    model="gpt-4",
+                    tokens_in=100,
+                    tokens_out=50,
+                    cost_usd=0.05
+                )
 
-            with sqlite3.connect(db_path) as con:
+                # Read and verify in separate connection
+                con = sqlite3.connect(db_path)
                 cursor = con.execute("SELECT * FROM logs")
                 row = cursor.fetchone()
+                con.close()
 
                 assert row[7] == "openai"
                 assert row[8] == "gpt-4"
                 assert row[9] == 100
                 assert row[10] == 50
                 assert row[11] == 0.05
+            finally:
+                # Close logger to release database file lock on Windows
+                logger.close()
+                # Force garbage collection and wait for cleanup
+                gc.collect()
+                time.sleep(0.1)

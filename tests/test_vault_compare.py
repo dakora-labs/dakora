@@ -5,10 +5,12 @@ import yaml
 import pytest
 import sqlite3
 import asyncio
+import gc
+import time
 
-from dakora.vault import Vault, TemplateHandle
+from dakora.vault import Vault
 from dakora.llm.models import ExecutionResult, ComparisonResult
-from dakora.exceptions import ValidationError, RenderError
+from dakora.exceptions import ValidationError
 
 
 @pytest.fixture
@@ -47,7 +49,15 @@ def temp_vault_with_logging():
         config_path.write_text(yaml.safe_dump(config))
 
         vault = Vault(str(config_path))
-        yield vault, tmpdir
+        try:
+            yield vault, tmpdir
+        finally:
+            # Close vault to release database file locks on Windows
+            vault.close()
+            # Force garbage collection to release any remaining references
+            gc.collect()
+            # Small delay to allow Windows to release file locks
+            time.sleep(0.1)
 
 
 @pytest.fixture
@@ -481,7 +491,7 @@ class TestTemplateHandleCompare:
                 mock_client.compare = AsyncMock(return_value=mock_result)
                 mock_client_class.return_value = mock_client
 
-                result = asyncio.run(template.compare(
+                asyncio.run(template.compare(
                     models=["gpt-4", "claude-3-opus"],
                     name="John",
                     age=30,
