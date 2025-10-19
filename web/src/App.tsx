@@ -1,23 +1,18 @@
-import { useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from './components/layout/MainLayout';
-import { TemplatesView } from './views/TemplatesView';
-import { ExecuteView } from './views/ExecuteView';
+import { DashboardPage } from './pages/DashboardPage';
+import { PromptEditPage } from './pages/PromptEditPage';
+import { NewPromptPage } from './pages/NewPromptPage';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('templates');
-
-  const templatesView = TemplatesView();
-  const executeView = ExecuteView();
-
-  const view = activeTab === 'execute' ? executeView : templatesView;
-
   return (
-    <MainLayout
-      activeTab={activeTab}
-      onTabChange={setActiveTab}
-      sidebar={view.sidebar}
-    >
-      {view.content}
+    <MainLayout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/prompts" replace />} />
+        <Route path="/prompts" element={<DashboardPage />} />
+        <Route path="/prompts/new" element={<NewPromptPage />} />
+        <Route path="/prompt/edit" element={<PromptEditPage />} />
+      </Routes>
     </MainLayout>
   );
 }

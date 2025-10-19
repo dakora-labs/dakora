@@ -404,12 +404,21 @@ class PlaygroundServer:
         playground_dir = Path(__file__).parent.parent / "playground"
 
         if (playground_dir / "index.html").exists():
-            # Serve built React app
+            # Serve static assets
             app.mount(
-                "/",
-                StaticFiles(directory=str(playground_dir), html=True),
-                name="playground",
+                "/assets",
+                StaticFiles(directory=str(playground_dir / "assets")),
+                name="assets",
             )
+
+            # Catch-all route for SPA - serves index.html for all non-API routes
+            @app.get("/{full_path:path}")
+            async def serve_spa(full_path: str):
+                """Serve index.html for all routes (SPA fallback)."""
+                if full_path.startswith("api/"):
+                    raise HTTPException(status_code=404, detail="API endpoint not found")
+                index_file = playground_dir / "index.html"
+                return HTMLResponse(content=index_file.read_text(), status_code=200)
         else:
             # Fallback to simple HTML page
             @app.get("/", response_class=HTMLResponse)
@@ -993,11 +1002,21 @@ class DemoPlaygroundServer(PlaygroundServer):
         playground_dir = Path(__file__).parent.parent / "playground"
 
         if (playground_dir / "index.html").exists():
+            # Serve static assets
             app.mount(
-                "/",
-                StaticFiles(directory=str(playground_dir), html=True),
-                name="playground",
+                "/assets",
+                StaticFiles(directory=str(playground_dir / "assets")),
+                name="assets",
             )
+
+            # Catch-all route for SPA - serves index.html for all non-API routes
+            @app.get("/{full_path:path}")
+            async def serve_spa(full_path: str):
+                """Serve index.html for all routes (SPA fallback)."""
+                if full_path.startswith("api/"):
+                    raise HTTPException(status_code=404, detail="API endpoint not found")
+                index_file = playground_dir / "index.html"
+                return HTMLResponse(content=index_file.read_text(), status_code=200)
         else:
 
             @app.get("/", response_class=HTMLResponse)

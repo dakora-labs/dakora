@@ -23,17 +23,17 @@ export const api = {
     return handleResponse<HealthResponse>(response);
   },
 
-  async getTemplates(): Promise<string[]> {
+  async getPrompts(): Promise<string[]> {
     const response = await fetch(`${API_BASE}/templates`);
     return handleResponse<string[]>(response);
   },
 
-  async getTemplate(id: string): Promise<Template> {
+  async getPrompt(id: string): Promise<Template> {
     const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(id)}`);
     return handleResponse<Template>(response);
   },
 
-  async createTemplate(template: Omit<Template, 'inputs'> & {
+  async createPrompt(template: Omit<Template, 'inputs'> & {
     inputs: Record<string, { type: string; required: boolean; default?: unknown }>
   }): Promise<Template> {
     const response = await fetch(`${API_BASE}/templates`, {
@@ -46,7 +46,7 @@ export const api = {
     return handleResponse<Template>(response);
   },
 
-  async updateTemplate(id: string, template: Partial<Omit<Template, 'id' | 'inputs'>> & {
+  async updatePrompt(id: string, template: Partial<Omit<Template, 'id' | 'inputs'>> & {
     inputs?: Record<string, { type: string; required: boolean; default?: unknown }>
   }): Promise<Template> {
     const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(id)}`, {
@@ -59,7 +59,17 @@ export const api = {
     return handleResponse<Template>(response);
   },
 
-  async renderTemplate(id: string, request: RenderRequest): Promise<RenderResponse> {
+  async deletePrompt(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new ApiError(errorData.detail || `HTTP ${response.status}`, response.status);
+    }
+  },
+
+  async renderPrompt(id: string, request: RenderRequest): Promise<RenderResponse> {
     const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(id)}/render`, {
       method: 'POST',
       headers: {

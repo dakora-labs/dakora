@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { Play, AlertCircle, CheckCircle, FileText, Loader2, Info, Code2, Edit3, Save, X, Plus, Trash2 } from 'lucide-react';
-import { useTemplate, useRender, useUpdateTemplate } from '../hooks/useApi';
+import { usePrompt, useRender, useUpdatePrompt } from '../hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,14 +13,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import type { InputSpec } from '../types';
 
-interface TemplateEditorProps {
-  templateId: string | null;
+interface PromptEditorProps {
+  promptId: string | null;
 }
 
-export function TemplateEditor({ templateId }: TemplateEditorProps) {
-  const { template, loading, error, refetch } = useTemplate(templateId);
+export function PromptEditor({ promptId }: PromptEditorProps) {
+  const { prompt, loading, error, refetch } = usePrompt(promptId);
   const { render, loading: renderLoading, error: renderError, clearError } = useRender();
-  const { updateTemplate, loading: updateLoading, error: updateError, clearError: clearUpdateError } = useUpdateTemplate();
+  const { updatePrompt, loading: updateLoading, error: updateError, clearError: clearUpdateError } = useUpdatePrompt();
 
   const [templateContent, setTemplateContent] = useState('');
   const [inputs, setInputs] = useState<Record<string, unknown>>({});
@@ -41,15 +41,15 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
   const [newInputDefault, setNewInputDefault] = useState<string>('');
 
   useEffect(() => {
-    if (template) {
-      setTemplateContent(template.template);
-      setOriginalContent(template.template);
+    if (prompt) {
+      setTemplateContent(prompt.template);
+      setOriginalContent(prompt.template);
       setIsEditMode(false);
       setIsDirty(false);
-      setEditedInputs(template.inputs);
+      setEditedInputs(prompt.inputs);
       // Initialize inputs with defaults
       const defaultInputs: Record<string, unknown> = {};
-      Object.entries(template.inputs).forEach(([key, spec]) => {
+      Object.entries(prompt.inputs).forEach(([key, spec]) => {
         if (spec.default !== undefined) {
           defaultInputs[key] = spec.default;
         } else if (spec.required) {
@@ -77,7 +77,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
       setRenderResult('');
       setShowPreview(false);
     }
-  }, [template]);
+  }, [prompt]);
 
   useEffect(() => {
     clearError();
@@ -94,19 +94,19 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
   const handleContentChange = useCallback((value: string | undefined) => {
     const newContent = value || '';
     setTemplateContent(newContent);
-    setIsDirty(newContent !== originalContent || JSON.stringify(editedInputs) !== JSON.stringify(template?.inputs || {}));
-  }, [originalContent, editedInputs, template]);
+    setIsDirty(newContent !== originalContent || JSON.stringify(editedInputs) !== JSON.stringify(prompt?.inputs || {}));
+  }, [originalContent, editedInputs, prompt]);
 
   const handleSave = useCallback(async () => {
-    if (!template || !isDirty) return;
+    if (!prompt || !isDirty) return;
 
     try {
-      await updateTemplate(template.id, {
+      await updatePrompt(prompt.id, {
         template: templateContent,
-        description: template.description,
-        version: template.version,
+        description: prompt.description,
+        version: prompt.version,
         inputs: editedInputs,
-        metadata: template.metadata,
+        metadata: prompt.metadata,
       });
 
       setOriginalContent(templateContent);
@@ -120,7 +120,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
     } catch (error) {
       console.error('Save error:', error);
     }
-  }, [template, templateContent, editedInputs, isDirty, updateTemplate, refetch]);
+  }, [prompt, templateContent, editedInputs, isDirty, updatePrompt, refetch]);
 
   const handleCancel = useCallback(() => {
     if (isDirty) {
@@ -129,11 +129,11 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
     }
 
     setTemplateContent(originalContent);
-    setEditedInputs(template?.inputs || {});
+    setEditedInputs(prompt?.inputs || {});
     setIsDirty(false);
     setIsEditMode(false);
     clearUpdateError();
-  }, [isDirty, originalContent, template, clearUpdateError]);
+  }, [isDirty, originalContent, prompt, clearUpdateError]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -207,7 +207,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
     // Check if we need to mark as dirty
     setIsDirty(
       templateContent !== originalContent ||
-      JSON.stringify({...editedInputs, [newInputName]: newSpec}) !== JSON.stringify(template?.inputs || {})
+      JSON.stringify({...editedInputs, [newInputName]: newSpec}) !== JSON.stringify(prompt?.inputs || {})
     );
 
     // Reset dialog form
@@ -216,7 +216,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
     setNewInputRequired(true);
     setNewInputDefault('');
     setShowAddInputDialog(false);
-  }, [newInputName, newInputType, newInputRequired, newInputDefault, editedInputs, templateContent, originalContent, template]);
+  }, [newInputName, newInputType, newInputRequired, newInputDefault, editedInputs, templateContent, originalContent,prompt]);
 
   const handleRemoveInput = useCallback((inputName: string) => {
     const confirmed = window.confirm(`Are you sure you want to remove the input "${inputName}"?`);
@@ -236,9 +236,9 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
     // Check if we need to mark as dirty
     setIsDirty(
       templateContent !== originalContent ||
-      JSON.stringify(newEditedInputs) !== JSON.stringify(template?.inputs || {})
+      JSON.stringify(newEditedInputs) !== JSON.stringify(prompt?.inputs || {})
     );
-  }, [editedInputs, templateContent, originalContent, template]);
+  }, [editedInputs, templateContent, originalContent,prompt]);
 
   const handleInputSpecChange = useCallback((inputName: string, field: keyof InputSpec, value: any) => {
     setEditedInputs(prev => ({
@@ -260,15 +260,15 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
 
     setIsDirty(
       templateContent !== originalContent ||
-      JSON.stringify(updatedInputs) !== JSON.stringify(template?.inputs || {})
+      JSON.stringify(updatedInputs) !== JSON.stringify(prompt?.inputs || {})
     );
-  }, [editedInputs, templateContent, originalContent, template]);
+  }, [editedInputs, templateContent, originalContent,prompt]);
 
   const handleRender = async () => {
-    if (!template) return;
+    if (!prompt) return;
 
     try {
-      const response = await render(template.id, inputs);
+      const response = await render(prompt.id, inputs);
       setRenderResult(response.rendered);
       setShowPreview(true);
     } catch (error) {
@@ -363,15 +363,15 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
     }
   };
 
-  if (!templateId) {
+  if (!promptId) {
     return (
       <div className="flex-1 flex items-center justify-center bg-muted/10">
         <Card className="w-96 text-center">
           <CardContent className="pt-6">
             <FileText className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
-            <CardTitle className="mb-2">No Template Selected</CardTitle>
+            <CardTitle className="mb-2">No Prompt Selected</CardTitle>
             <CardDescription>
-              Select a template from the sidebar to start editing and testing
+              Select a prompt from the sidebar to start editing and testing
             </CardDescription>
           </CardContent>
         </Card>
@@ -385,8 +385,8 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
         <Card className="w-96 text-center">
           <CardContent className="pt-6">
             <Loader2 className="w-12 h-12 text-primary mx-auto mb-4 animate-spin" />
-            <CardTitle className="mb-2">Loading Template</CardTitle>
-            <CardDescription>Please wait while we load the template...</CardDescription>
+            <CardTitle className="mb-2">Loading Prompt</CardTitle>
+            <CardDescription>Please wait while we load the prompt...</CardDescription>
           </CardContent>
         </Card>
       </div>
@@ -399,7 +399,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
         <Card className="w-96 text-center">
           <CardContent className="pt-6">
             <AlertCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
-            <CardTitle className="mb-2">Error Loading Template</CardTitle>
+            <CardTitle className="mb-2">Error Loading Prompt</CardTitle>
             <CardDescription className="text-destructive">{error}</CardDescription>
           </CardContent>
         </Card>
@@ -407,7 +407,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
     );
   }
 
-  if (!template) return null;
+  if (!prompt) return null;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -416,16 +416,16 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <h1 className="text-lg md:text-xl font-semibold truncate">{template.id}</h1>
-              <Badge variant="secondary">{template.version}</Badge>
+              <h1 className="text-lg md:text-xl font-semibold truncate">{prompt.id}</h1>
+              <Badge variant="secondary">{prompt.version}</Badge>
               {isEditMode && (
                 <Badge variant="default" className="bg-blue-600">
                   {isDirty ? 'Editing (unsaved)' : 'Editing'}
                 </Badge>
               )}
             </div>
-            {template.description && (
-              <p className="text-sm text-muted-foreground">{template.description}</p>
+            {prompt.description && (
+              <p className="text-sm text-muted-foreground">{prompt.description}</p>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -490,7 +490,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Left Panel - Template & Inputs */}
+        {/* Left Panel - Prompt & Inputs */}
         <div className="flex-1 flex flex-col border-b lg:border-r lg:border-b-0 border-border">
           {/* Template Editor */}
           <div className="flex-1 bg-card">
@@ -528,7 +528,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
           <div className="flex-1 min-h-0 border-t border-border bg-muted/30 flex flex-col">
             <div className="px-4 py-3 border-b border-border bg-muted/30 flex-shrink-0">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">Template Inputs</h3>
+                <h3 className="text-sm font-medium">Prompt Inputs</h3>
                 <div className="flex items-center gap-2">
                   {Object.keys(editedInputs).length > 0 && (
                     <Badge variant="secondary" className="text-xs">
@@ -547,7 +547,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
                         <DialogHeader>
                           <DialogTitle>Add Input Parameter</DialogTitle>
                           <DialogDescription>
-                            Add a new input parameter to your template.
+                            Add a new input parameter to your prompt.
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
@@ -617,7 +617,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
                 {Object.keys(editedInputs).length === 0 ? (
                   <div className="text-center py-8">
                     <Info className="w-8 h-8 mx-auto mb-3 text-muted-foreground/50" />
-                    <p className="text-sm text-muted-foreground">No inputs defined for this template</p>
+                    <p className="text-sm text-muted-foreground">No inputs defined for this prompt</p>
                     {isEditMode && (
                       <p className="text-xs text-muted-foreground mt-2">Click "Add" to create your first input parameter</p>
                     )}
@@ -730,7 +730,7 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
                   <Play className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
                   <h3 className="text-lg font-medium mb-2">Ready to Render</h3>
                   <p className="text-sm text-muted-foreground">
-                    Fill in the template inputs and click "Render" to preview the output
+                    Fill in the prompt inputs and click "Render" to preview the output
                   </p>
                 </div>
               )}

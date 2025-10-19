@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { TemplateList } from '../components/TemplateList';
-import { useTemplate } from '../hooks/useApi';
+import { PromptList } from '../components/PromptList';
+import { usePrompt } from '../hooks/useApi';
 import { Rocket, Plus, X, Loader2, CheckCircle, AlertCircle, Copy, DollarSign, Clock, Hash } from 'lucide-react';
 import { Card, CardContent, CardTitle, CardHeader, CardDescription } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -40,7 +40,7 @@ interface ExecutionResponse {
 }
 
 export function ExecuteView() {
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [models, setModels] = useState<ModelConfig[]>([{
     id: '1',
     name: '',
@@ -52,20 +52,20 @@ export function ExecuteView() {
   const [executionResult, setExecutionResult] = useState<ExecutionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const templateData = useTemplate(selectedTemplateId);
-  const template = templateData?.template ?? null;
+  const promptData = usePrompt(selectedPromptId);
+  const prompt = promptData?.prompt ?? null;
 
   useEffect(() => {
-    if (template) {
+    if (prompt) {
       const initialInputs: Record<string, any> = {};
-      Object.entries(template.inputs).forEach(([name, spec]: [string, any]) => {
+      Object.entries(prompt.inputs).forEach(([name, spec]: [string, any]) => {
         initialInputs[name] = spec.default || '';
       });
       setInputs(initialInputs);
       setExecutionResult(null);
       setError(null);
     }
-  }, [template]);
+  }, [prompt]);
 
   const addModel = () => {
     if (models.length < 3) {
@@ -89,7 +89,7 @@ export function ExecuteView() {
   };
 
   const handleExecute = async () => {
-    if (!selectedTemplateId) {
+    if (!selectedPromptId) {
       return;
     }
 
@@ -101,7 +101,7 @@ export function ExecuteView() {
     setExecuting(true);
     setError(null);
     try {
-      const response = await fetch(`/api/templates/${selectedTemplateId}/compare`, {
+      const response = await fetch(`/api/prompts/${selectedPromptId}/compare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,20 +133,20 @@ export function ExecuteView() {
   };
 
   const sidebar = (
-    <TemplateList
-      selectedTemplate={selectedTemplateId}
-      onSelectTemplate={setSelectedTemplateId}
+    <PromptList
+      selectedPrompt={selectedPromptId}
+      onSelectPrompt={setSelectedPromptId}
     />
   );
 
-  const content = !template ? (
+  const content = !prompt ? (
     <div className="flex-1 flex items-center justify-center bg-muted/10">
       <Card className="w-full max-w-md mx-4 text-center animate-in fade-in-50 duration-500">
         <CardContent className="pt-6 pb-6">
           <Rocket className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" aria-hidden="true" />
-          <CardTitle className="mb-2">Execute Templates with LLMs</CardTitle>
+          <CardTitle className="mb-2">Execute Prompts with LLMs</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Select a template from the sidebar to execute it against one or more LLM models
+            Select a prompt from the sidebar to execute it against one or more LLM models
           </p>
         </CardContent>
       </Card>
@@ -155,23 +155,23 @@ export function ExecuteView() {
     <ScrollArea className="h-full">
       <main className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
         <div>
-          <h1 className="text-2xl font-bold">{template.id}</h1>
-          {template.description && (
-            <p className="text-sm text-muted-foreground mt-1">{template.description}</p>
+          <h1 className="text-2xl font-bold">{prompt.id}</h1>
+          {prompt.description && (
+            <p className="text-sm text-muted-foreground mt-1">{prompt.description}</p>
           )}
         </div>
 
         <Separator />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {Object.keys(template.inputs).length > 0 && (
+          {Object.keys(prompt.inputs).length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Template Inputs</CardTitle>
-                <CardDescription>Fill in the required values for your template</CardDescription>
+                <CardTitle className="text-lg">Prompt Inputs</CardTitle>
+                <CardDescription>Fill in the required values for your prompt</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {Object.entries(template.inputs).map(([name, spec]: [string, any]) => (
+                {Object.entries(prompt.inputs).map(([name, spec]: [string, any]) => (
                   <div key={name} className="space-y-2">
                     <Label htmlFor={name}>
                       {name}
