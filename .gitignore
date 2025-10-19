@@ -1,15 +1,44 @@
-# Python-generated files
+# Python
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+*.so
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 wheels/
-*.egg-info
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Virtual environments
-.venv
+.venv/
 venv/
 env/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+*.cover
+.hypothesis/
+.prof
 
 # IDEs and editors
 .idea/
@@ -17,6 +46,9 @@ env/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
+.settings/
 
 # OS-generated files
 .DS_Store
@@ -26,44 +58,116 @@ env/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Dakora user-generated files (from init command)
-dakora.yaml
-dakora.db
-*.db
-*.sqlite
-*.sqlite3
-
-# User prompt directories (but keep example prompts in repo)
-# Note: The default prompts/ folder contains examples and should be tracked
-# Users can override prompt_dir in dakora.yaml to use different folders
-
-# Development and testing files
-*.log
-logs/
-temp/
-tmp/
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
+# Environment files
 .env
 .env.local
 .env.*.local
+!.env.example
+!docker/.env.example
 
-# Build artifacts for playground
-web/dist/
-web/node_modules/
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+dakora.db
 
-# Built playground UI (auto-built from web/ source on first run)
-# Keep the directory structure but ignore built files
-playground/*
-!playground/.gitkeep
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Development scripts (keep in repo but users might create their own)
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Node.js (Studio UI)
+node_modules/
+studio/node_modules/
+studio/dist/
+studio/.cache/
+studio/.parcel-cache/
+
+# Build outputs
+studio/dist/
+packages/*/dist/
+packages/*/build/
+cli/dist/
+cli/build/
+
+# Package lock files (optional - uncomment if using npm)
+# package-lock.json
+# studio/package-lock.json
+
+# Docker
+docker/volumes/
+.dockerignore
+
+# Development and scratchpad
+.scratchpad/
 dev_*.py
 build_*.py
-.scratchpad/
 
-# Playwright MCP testing artifacts
+# Playwright/Testing
 .playwright-mcp/
+playwright-report/
+test-results/
+
+# User-specific files (from dakora init)
+dakora.yaml
+prompts/
+
+# Keep example prompts in repo
+!prompts/.gitkeep
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Windows
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Coverage reports
+coverage/
+*.lcov
+
+# TypeScript
+*.tsbuildinfo
+
+# Distribution / packaging (Python)
+.Python
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Ruff
+.ruff_cache/
+
+# UV
+.uv_cache/
