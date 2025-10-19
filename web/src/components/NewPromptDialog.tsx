@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, Loader2, X, Save } from 'lucide-react';
-import { useCreateTemplate } from '../hooks/useApi';
+import { useCreatePrompt } from '../hooks/useApi';
 import {
   Dialog,
   DialogContent,
@@ -24,11 +24,12 @@ interface InputDefinition {
   default?: string;
 }
 
-interface NewTemplateDialogProps {
-  onTemplateCreated?: (templateId: string) => void;
+interface NewPromptDialogProps {
+  onPromptCreated?: (promptId: string) => void;
+  variant?: 'default' | 'sidebar';
 }
 
-export function NewTemplateDialog({ onTemplateCreated }: NewTemplateDialogProps) {
+export function NewPromptDialog({ onPromptCreated, variant = 'default' }: NewPromptDialogProps) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -46,7 +47,7 @@ export function NewTemplateDialog({ onTemplateCreated }: NewTemplateDialogProps)
     default: ''
   });
 
-  const { createTemplate, loading, error, clearError } = useCreateTemplate();
+  const { createPrompt, loading, error, clearError } = useCreatePrompt();
 
   const resetForm = () => {
     setStep(1);
@@ -106,8 +107,8 @@ export function NewTemplateDialog({ onTemplateCreated }: NewTemplateDialogProps)
         metadata: formData.metadata
       };
 
-      await createTemplate(templateData);
-      onTemplateCreated?.(formData.id);
+      await createPrompt(templateData);
+      onPromptCreated?.(formData.id);
       handleClose();
     } catch (err) {
       console.error('Failed to create template:', err);
@@ -139,16 +140,28 @@ export function NewTemplateDialog({ onTemplateCreated }: NewTemplateDialogProps)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full" size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          New Template
-        </Button>
+        {variant === 'sidebar' ? (
+          <Button
+            variant="ghost"
+            className="w-full justify-start h-auto px-3 py-2.5 font-normal rounded-lg hover:bg-muted/50"
+          >
+            <div className="flex items-center gap-3 w-full min-w-0">
+              <Plus className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+              <span className="text-sm">Prompt</span>
+            </div>
+          </Button>
+        ) : (
+          <Button variant="outline" className="w-full" size="sm">
+            <Plus className="w-4 h-4 mr-2" />
+            New Prompt
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Template</DialogTitle>
+          <DialogTitle>Create New Prompt</DialogTitle>
           <DialogDescription>
-            Create a new prompt template with inputs and metadata.
+            Create a new prompt with inputs and metadata.
           </DialogDescription>
         </DialogHeader>
 
@@ -158,16 +171,16 @@ export function NewTemplateDialog({ onTemplateCreated }: NewTemplateDialogProps)
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Badge variant={step === 1 ? 'default' : 'secondary'}>1</Badge>
-                Template Details
+                Prompt Details
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="template-id">Template ID *</Label>
+                  <Label htmlFor="template-id">Prompt ID *</Label>
                   <Input
                     id="template-id"
-                    placeholder="my-template"
+                    placeholder="my-prompt"
                     value={formData.id}
                     onChange={(e) => setFormData({ ...formData, id: e.target.value })}
                   />
@@ -191,7 +204,7 @@ export function NewTemplateDialog({ onTemplateCreated }: NewTemplateDialogProps)
                 />
               </div>
               <div>
-                <Label htmlFor="template-content">Template Content *</Label>
+                <Label htmlFor="template-content">Prompt Content *</Label>
                 <Textarea
                   id="template-content"
                   placeholder="Enter your Jinja2 template here..."
@@ -331,12 +344,12 @@ export function NewTemplateDialog({ onTemplateCreated }: NewTemplateDialogProps)
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
+                  Creating Prompt...
                 </>
               ) : (
                 <>
                   <Save className="w-4 h-4 mr-2" />
-                  Create Template
+                  Create Prompt
                 </>
               )}
             </Button>

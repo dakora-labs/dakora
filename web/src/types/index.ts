@@ -1,4 +1,4 @@
-export interface Template {
+export interface Prompt {
   id: string;
   version: string;
   description?: string;
@@ -32,6 +32,8 @@ export interface HealthResponse {
     logging_enabled: boolean;
   };
 }
+
+export type Template = Prompt;
 
 export interface ApiError {
   detail: string;

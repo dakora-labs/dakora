@@ -7,7 +7,7 @@ interface TopBarProps {
 }
 
 const tabs = [
-  { id: 'templates', label: 'Templates', icon: FileText },
+  { id: 'prompts', label: 'Prompts', icon: FileText },
   { id: 'execute', label: 'Execute', icon: Rocket },
 ];
 
