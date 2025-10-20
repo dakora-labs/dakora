@@ -1,79 +1,79 @@
 from __future__ import annotations
-import sqlite3
 import json
 import time
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Optional, Dict, Any
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS logs (
-  id INTEGER PRIMARY KEY,
-  prompt_id TEXT,
-  version TEXT,
-  inputs_json TEXT,
-  output_text TEXT,
-  cost REAL,
-  latency_ms INTEGER,
-  provider TEXT,
-  model TEXT,
-  tokens_in INTEGER,
-  tokens_out INTEGER,
-  cost_usd REAL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
+from sqlalchemy import insert
+from sqlalchemy.engine import Engine
 
-_MIGRATION_ADD_LLM_COLUMNS = """
-ALTER TABLE logs ADD COLUMN provider TEXT;
-ALTER TABLE logs ADD COLUMN model TEXT;
-ALTER TABLE logs ADD COLUMN tokens_in INTEGER;
-ALTER TABLE logs ADD COLUMN tokens_out INTEGER;
-ALTER TABLE logs ADD COLUMN cost_usd REAL;
-"""
+from .database import create_db_engine, get_connection, logs_table
+
 
 class Logger:
-    def __init__(self, db_path: str | Path) -> None:
-        self.path = Path(db_path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        # Maintain a persistent connection to control closing explicitly (Windows file locking)
-        self._con = sqlite3.connect(self.path)
-        self._con.execute(_SCHEMA)
-        self._migrate_if_needed(self._con)
+    """Logger for execution logs using PostgreSQL"""
+
+    def __init__(self, engine: Optional[Engine] = None) -> None:
+        """
+        Initialize logger with SQLAlchemy engine.
+
+        Args:
+            engine: SQLAlchemy Engine (if None, creates new engine from DATABASE_URL)
+        """
+        self.engine = engine or create_db_engine()
 
     def close(self) -> None:
-        """Close the database connection and release file locks (critical for Windows)."""
-        try:
-            if hasattr(self, '_con') and self._con:
-                self._con.commit()
-                self._con.close()
-        except Exception:
-            pass
+        """Close the database connection pool."""
+        if hasattr(self, 'engine') and self.engine:
+            self.engine.dispose()
 
-    def _migrate_if_needed(self, con: sqlite3.Connection) -> None:
-        cursor = con.execute("PRAGMA table_info(logs)")
-        columns = {row[1] for row in cursor.fetchall()}
+    def write(
+        self,
+        prompt_id: str,
+        version: str,
+        inputs: Dict[str, Any],
+        output: str,
+        cost: float | None = None,
+        latency_ms: int | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        tokens_in: int | None = None,
+        tokens_out: int | None = None,
+        cost_usd: float | None = None,
+    ) -> None:
+        """
+        Write execution log to database.
 
-        if "provider" not in columns:
-            for statement in _MIGRATION_ADD_LLM_COLUMNS.strip().split(";"):
-                if statement.strip():
-                    try:
-                        con.execute(statement)
-                    except sqlite3.OperationalError:
-                        pass
+        Args:
+            prompt_id: Template ID
+            version: Template version
+            inputs: Input parameters (will be JSON-serialized)
+            output: LLM output text
+            cost: Deprecated (use cost_usd)
+            latency_ms: Execution latency in milliseconds
+            provider: LLM provider (e.g., "openai", "anthropic")
+            model: Model identifier (e.g., "gpt-4", "claude-3-opus")
+            tokens_in: Input tokens
+            tokens_out: Output tokens
+            cost_usd: Execution cost in USD
+        """
+        stmt = insert(logs_table).values(
+            prompt_id=prompt_id,
+            version=version,
+            inputs_json=json.dumps(inputs, ensure_ascii=False),
+            output_text=output,
+            cost=cost,
+            latency_ms=latency_ms,
+            provider=provider,
+            model=model,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            cost_usd=cost_usd,
+        )
 
-    def write(self, prompt_id: str, version: str, inputs: Dict[str, Any], output: str,
-              cost: float | None = None, latency_ms: int | None = None,
-              provider: str | None = None, model: str | None = None,
-              tokens_in: int | None = None, tokens_out: int | None = None,
-              cost_usd: float | None = None) -> None:
-          self._con.execute(
-                """INSERT INTO logs(prompt_id,version,inputs_json,output_text,cost,latency_ms,provider,model,tokens_in,tokens_out,cost_usd)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (prompt_id, version, json.dumps(inputs, ensure_ascii=False), output, cost, latency_ms,
-                 provider, model, tokens_in, tokens_out, cost_usd)
-          )
-          self._con.commit()
+        with get_connection(self.engine) as conn:
+            conn.execute(stmt)
+            conn.commit()
 
 @contextmanager
 def run(logger: Optional[Logger], prompt_id: str, version: str):

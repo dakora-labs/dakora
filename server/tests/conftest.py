@@ -23,9 +23,7 @@ def temp_project_dir():
             "registry": "local",
             "prompt_dir": "./prompts",
             "logging": {
-                "enabled": False,  # Disable logging for tests
-                "backend": "sqlite",
-                "db_path": "./dakora.db"
+                "enabled": False  # Disable logging for tests
             }
         }
 

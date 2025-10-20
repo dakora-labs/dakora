@@ -99,7 +99,7 @@ class Vault:
             raise DakoraError(f"Invalid registry type: {type(registry)}")
         
         self.renderer = Renderer()
-        self.logger = Logger(self.config["logging"]["db_path"]) if self.config.get("logging", {}).get("enabled") else None
+        self.logger = Logger() if self.config.get("logging", {}).get("enabled") else None
         self._cache: Dict[str, TemplateSpec] = {}
         self._lock = RLock()
 
@@ -124,7 +124,7 @@ class Vault:
         instance.registry = registry
         instance.config = config
         instance.renderer = Renderer()
-        instance.logger = Logger(config["logging"]["db_path"]) if config.get("logging", {}).get("enabled") else None
+        instance.logger = Logger() if config.get("logging", {}).get("enabled") else None
         instance._cache = {}
         instance._lock = RLock()
         return instance
