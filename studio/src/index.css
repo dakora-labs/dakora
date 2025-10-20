@@ -82,3 +82,10 @@
   --vscode-editor-background: hsl(var(--background)) !important;
   --vscode-editor-foreground: hsl(var(--foreground)) !important;
 }
+
+/* Hide Clerk branding badge (for development purposes only) */
+.cl-footer,
+.cl-userButtonPopoverFooter,
+.cl-modalFooter {
+  display: none !important;
+}
