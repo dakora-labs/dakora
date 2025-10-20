@@ -140,8 +140,6 @@ jobs:
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-      with:
-        driver: docker
 
     - name: Build ${{ matrix.component }} Docker image
       uses: docker/build-push-action@v5
@@ -150,3 +148,4 @@ jobs:
         file: ./${{ matrix.component }}/Dockerfile
         push: false
         tags: dakora-${{ matrix.component }}:test
+        load: true
