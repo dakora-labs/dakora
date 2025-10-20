@@ -11,37 +11,84 @@ pip install dakora-client
 ## Quick Start
 
 ```python
-from dakora_client import create_client
+from dakora_client import Dakora
 
 # Local (Docker)
-async with create_client("http://localhost:54321") as dakora:
-    # List templates
-    templates = await dakora.prompts.list()
+dakora = Dakora("http://localhost:54321")
 
-    # Get template
-    template = await dakora.prompts.get("greeting")
+# List templates
+templates = await dakora.prompts.list()
 
-    # Render template
-    result = await dakora.prompts.render(
-        "greeting",
-        inputs={"name": "Alice"}
-    )
-    print(result.rendered)
+# Get template
+template = await dakora.prompts.get("greeting")
+
+# Render template
+result = await dakora.prompts.render(
+    "greeting",
+    inputs={"name": "Alice"}
+)
+print(result.rendered)
 
 # Cloud
-async with create_client("https://api.dakora.cloud", api_key="dk_xxx") as dakora:
-    result = await dakora.prompts.render("greeting", {"name": "Bob"})
+dakora = Dakora("https://api.dakora.cloud", api_key="dk_xxx")
+result = await dakora.prompts.render("greeting", {"name": "Bob"})
+```
+
+## Usage Patterns
+
+### Simple Usage
+
+Define the client once and reuse it throughout your project:
+
+```python
+# config.py
+from dakora_client import Dakora
+
+dakora = Dakora("http://localhost:54321")
+```
+
+```python
+# somewhere_else.py
+from myapp.config import dakora
+
+async def get_templates():
+    return await dakora.prompts.list()
+```
+
+### With FastAPI
+
+Use lifespan events for proper cleanup:
+
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from dakora_client import Dakora
+
+dakora = Dakora("http://localhost:54321")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    yield
+    # Shutdown
+    await dakora.close()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/templates")
+async def list_templates():
+    return await dakora.prompts.list()
 ```
 
 ## API Reference
 
-### `create_client(url, api_key=None)`
+### `Dakora(url, api_key=None)`
 
 Create a Dakora client instance.
 
 **Parameters:**
 - `url` (str): Base URL of the Dakora API server
-- `api_key` (str, optional): API key for authentication
+- `api_key` (str, optional): API key for authentication (required for cloud)
 
 **Returns:** `Dakora` client instance
 
@@ -62,24 +109,6 @@ Render a template with inputs.
 #### `compare(template_id: str, models: List[str], inputs: dict, **params) -> CompareResult`
 
 Compare template execution across multiple LLM models.
-
-### Context Manager
-
-```python
-async with create_client(url) as dakora:
-    # Client is automatically closed
-    pass
-```
-
-Or manually:
-
-```python
-dakora = create_client(url)
-try:
-    result = await dakora.prompts.render("template", {"key": "value"})
-finally:
-    await dakora.close()
-```
 
 ## Development
 

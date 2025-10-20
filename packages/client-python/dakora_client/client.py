@@ -12,10 +12,14 @@ class Dakora:
 
     Example:
         # Local (Docker)
-        dakora = Dakora(url="http://localhost:54321")
+        from dakora_client import Dakora
+
+        dakora = Dakora("http://localhost:54321")
+        templates = await dakora.prompts.list()
 
         # Cloud
-        dakora = Dakora(url="https://api.dakora.cloud", api_key="dk_xxx")
+        dakora = Dakora("https://api.dakora.cloud", api_key="dk_xxx")
+        result = await dakora.prompts.render("greeting", {"name": "Alice"})
     """
 
     def __init__(self, url: str, api_key: str | None = None):
@@ -27,6 +31,7 @@ class Dakora:
             api_key: Optional API key for authentication (required for cloud)
         """
         self.url = url.rstrip("/")
+        self.api_key = api_key
         self._http = httpx.AsyncClient(
             base_url=self.url,
             headers={"apikey": api_key} if api_key else {},
@@ -42,25 +47,5 @@ class Dakora:
         return response.json()
 
     async def close(self):
-        """Close the HTTP client"""
+        """Close the HTTP client connection"""
         await self._http.aclose()
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
-
-
-def create_client(url: str, api_key: str | None = None) -> Dakora:
-    """
-    Factory function to create Dakora client (Supabase-style)
-
-    Args:
-        url: Base URL of the Dakora API server
-        api_key: Optional API key for authentication
-
-    Returns:
-        Dakora client instance
-    """
-    return Dakora(url=url, api_key=api_key)

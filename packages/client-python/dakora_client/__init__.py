@@ -1,6 +1,6 @@
 """Dakora Python Client SDK"""
 
-from .client import Dakora, create_client
+from .client import Dakora
 
 __version__ = "1.0.0"
-__all__ = ["Dakora", "create_client"]
+__all__ = ["Dakora"]
