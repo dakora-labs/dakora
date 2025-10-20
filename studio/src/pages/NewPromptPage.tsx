@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { api } from '@/utils/api';
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import type { InputSpec } from '@/types';
 
 type InputType = 'string' | 'number' | 'boolean' | 'array<string>' | 'object';
@@ -30,6 +30,7 @@ interface VariableConfig {
 
 export function NewPromptPage() {
   const navigate = useNavigate();
+  const { api } = useAuthenticatedApi();
   const [id, setId] = useState('');
   const [description, setDescription] = useState('');
   const [template, setTemplate] = useState('');

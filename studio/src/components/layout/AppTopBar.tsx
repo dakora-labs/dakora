@@ -1,4 +1,5 @@
-import { Settings, User } from 'lucide-react';
+import { Settings } from 'lucide-react';
+import { UserButton } from '@clerk/clerk-react';
 import { Button } from '@/components/ui/button';
 
 export function AppTopBar() {
@@ -17,9 +18,13 @@ export function AppTopBar() {
         <Button variant="ghost" size="sm" className="h-8 px-2">
           <Settings className="w-4 h-4" />
         </Button>
-        <Button variant="ghost" size="sm" className="h-8 w-8 rounded-full p-0">
-          <User className="w-4 h-4" />
-        </Button>
+        <UserButton 
+          appearance={{
+            elements: {
+              avatarBox: "w-8 h-8"
+            }
+          }}
+        />
       </div>
     </div>
   );

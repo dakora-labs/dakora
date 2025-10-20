@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { api } from '@/utils/api';
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import type { Template } from '@/types';
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { api } = useAuthenticatedApi();
   const [prompts, setPrompts] = useState<Template[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,7 @@ export function DashboardPage() {
     };
 
     loadPrompts();
-  }, []);
+  }, [api]);
 
   const filteredPrompts = prompts.filter(t =>
     t.id.toLowerCase().includes(search.toLowerCase()) ||

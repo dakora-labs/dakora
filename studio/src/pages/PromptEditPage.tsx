@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { api } from '@/utils/api';
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import type { Template, InputSpec } from '@/types';
 
 type InputType = 'string' | 'number' | 'boolean' | 'array<string>' | 'object';
@@ -31,6 +31,7 @@ interface VariableConfig {
 export function PromptEditPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { api } = useAuthenticatedApi();
   const promptId = searchParams.get('prompt');
 
   const [prompt, setPrompt] = useState<Template | null>(null);
@@ -76,7 +77,7 @@ export function PromptEditPage() {
     };
 
     loadPrompt();
-  }, [promptId, navigate]);
+  }, [promptId, navigate, api]);
 
   const handleAddVariable = () => {
     if (!newVarName.trim()) return;
