@@ -20,6 +20,10 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual environments
 .venv/
@@ -56,12 +60,20 @@ htmlcov/
 ._*
 .Spotlight-V100
 .Trashes
+.AppleDouble
+.LSOverride
 ehthumbs.db
 Thumbs.db
 desktop.ini
 
-dakora.yaml
-dakora.db
+# Windows
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
 
 # Environment files
 .env
@@ -71,13 +83,11 @@ dakora.db
 !docker/.env.example
 
 # Database files
+dakora.yaml
+dakora.db
 *.db
 *.sqlite
 *.sqlite3
-
-# User prompt directories (but keep example prompts in repo)
-# Note: The default prompts/ folder contains examples and should be tracked
-# Users can override prompt_dir in dakora.yaml to use different folders
 
 # Development and testing files
 *.log
@@ -99,13 +109,10 @@ studio/.cache/
 studio/.parcel-cache/
 
 # Build outputs
-studio/dist/
 packages/*/dist/
 packages/*/build/
 cli/dist/
 cli/build/
-
-
 
 # Package lock files (optional - uncomment if using npm)
 # package-lock.json
@@ -126,24 +133,10 @@ playwright-report/
 test-results/
 
 # User-specific files (from dakora init)
-dakora.yaml
 prompts/
 
 # Keep example prompts in repo
 !prompts/.gitkeep
-
-# macOS
-.AppleDouble
-.LSOverride
-
-# Windows
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
 
 # Coverage reports
 coverage/
@@ -151,13 +144,6 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
-
-# Distribution / packaging (Python)
-.Python
-*.manifest
-*.spec
-pip-log.txt
-pip-delete-this-directory.txt
 
 # Jupyter Notebook
 .ipynb_checkpoints
