@@ -138,14 +138,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
     - name: Build ${{ matrix.component }} Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./${{ matrix.component }}
-        file: ./${{ matrix.component }}/Dockerfile
-        push: false
-        tags: dakora-${{ matrix.component }}:test
-        load: true
+      run: |
+        docker build -t dakora-${{ matrix.component }}:test ./${{ matrix.component }}
+        echo "✅ ${{ matrix.component }} Docker image built successfully"
