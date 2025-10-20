@@ -10,6 +10,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dakora_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
@@ -33,6 +47,8 @@ jobs:
       run: uv run python validate_tests.py
 
     - name: Run ${{ matrix.test-type }} tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dakora_test
       run: uv run python server/tests/test_runner.py ${{ matrix.test-type }} --verbose
 
   smoke-test:
@@ -56,6 +72,20 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dakora_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
     - uses: actions/checkout@v4
 
@@ -74,6 +104,8 @@ jobs:
       run: uv add --dev pytest-cov
 
     - name: Run tests with coverage
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dakora_test
       run: uv run python -m pytest --cov=server/dakora_server server/tests/ --cov-report=xml --cov-report=term-missing
 
     - name: Upload coverage to Codecov
