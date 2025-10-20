@@ -345,7 +345,7 @@ class TestDatabaseMigration:
     def setup_test_db(self):
         """Create a fresh test database for each test"""
         # Get DATABASE_URL from environment or use default test database
-        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/dakora_test")
+        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/dakora")
 
         # Create test engine
         engine = create_test_engine(db_url)
