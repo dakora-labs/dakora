@@ -1,4 +1,4 @@
-# Python
+# Python-generated files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,6 +20,10 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Virtual environments
 .venv/
@@ -56,9 +60,20 @@ htmlcov/
 ._*
 .Spotlight-V100
 .Trashes
+.AppleDouble
+.LSOverride
 ehthumbs.db
 Thumbs.db
 desktop.ini
+
+# Windows
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
 
 # Environment files
 .env
@@ -68,12 +83,13 @@ desktop.ini
 !docker/.env.example
 
 # Database files
+dakora.yaml
+dakora.db
 *.db
 *.sqlite
 *.sqlite3
-dakora.db
 
-# Logs
+# Development and testing files
 *.log
 logs/
 npm-debug.log*
@@ -93,7 +109,6 @@ studio/.cache/
 studio/.parcel-cache/
 
 # Build outputs
-studio/dist/
 packages/*/dist/
 packages/*/build/
 cli/dist/
@@ -118,24 +133,10 @@ playwright-report/
 test-results/
 
 # User-specific files (from dakora init)
-dakora.yaml
 prompts/
 
 # Keep example prompts in repo
 !prompts/.gitkeep
-
-# macOS
-.AppleDouble
-.LSOverride
-
-# Windows
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
 
 # Coverage reports
 coverage/
@@ -143,13 +144,6 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
-
-# Distribution / packaging (Python)
-.Python
-*.manifest
-*.spec
-pip-log.txt
-pip-delete-this-directory.txt
 
 # Jupyter Notebook
 .ipynb_checkpoints
