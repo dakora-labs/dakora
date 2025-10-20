@@ -2,11 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Copy project files first
 COPY pyproject.toml .
-# Install with Azure support for cloud deployments
-RUN pip install --no-cache-dir -e ".[azure]"
-
 COPY dakora_server ./dakora_server
+
+# Install with Azure support for cloud deployments
+RUN pip install --no-cache-dir ".[azure]"
 
 EXPOSE 8000
 
