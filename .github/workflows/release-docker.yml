@@ -1,0 +1,101 @@
+name: Release Docker Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., 2.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        component: [server, studio]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}/${{ matrix.component }}
+        tags: |
+          type=raw,value=${{ github.event.inputs.version }}
+          type=raw,value=latest
+
+    - name: Build and push ${{ matrix.component }}
+      uses: docker/build-push-action@v5
+      with:
+        context: ./${{ matrix.component }}
+        file: ./${{ matrix.component }}/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Create git tag for Docker release
+      if: matrix.component == 'server'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "docker-v${{ github.event.inputs.version }}" -m "Docker Release v${{ github.event.inputs.version }}"
+        git push origin "docker-v${{ github.event.inputs.version }}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: "docker-v${{ github.event.inputs.version }}"
+        release_name: "Docker Images v${{ github.event.inputs.version }}"
+        body: |
+          ## Dakora Docker Images v${{ github.event.inputs.version }}
+
+          ### Images
+          - `ghcr.io/${{ github.repository }}/server:${{ github.event.inputs.version }}`
+          - `ghcr.io/${{ github.repository }}/studio:${{ github.event.inputs.version }}`
+
+          ### Usage
+          ```bash
+          # Pull images
+          docker pull ghcr.io/${{ github.repository }}/server:${{ github.event.inputs.version }}
+          docker pull ghcr.io/${{ github.repository }}/studio:${{ github.event.inputs.version }}
+
+          # Or use docker-compose.yml
+          dakora start
+          ```
+
+          ### Self-hosting
+          See docs/self-hosting.md for full instructions.
+        draft: false
+        prerelease: false

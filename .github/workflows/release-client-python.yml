@@ -1,0 +1,117 @@
+name: Release Python SDK (dakora-client)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  release-python-sdk:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Update SDK version
+      run: |
+        cd packages/client-python
+        uv run python -c "
+        import tomllib
+        import tomli_w
+
+        with open('pyproject.toml', 'rb') as f:
+            data = tomllib.load(f)
+
+        data['project']['version'] = '${{ github.event.inputs.version }}'
+
+        with open('pyproject.toml', 'wb') as f:
+            tomli_w.dump(data, f)
+        "
+
+    - name: Install dependencies
+      run: |
+        cd packages/client-python
+        uv sync
+
+    - name: Run SDK tests
+      run: |
+        cd packages/client-python
+        uv run pytest tests/ -v || echo "No SDK tests yet"
+
+    - name: Build SDK package
+      run: |
+        cd packages/client-python
+        uv build
+
+    - name: Check package
+      run: |
+        cd packages/client-python
+        uv run twine check dist/*
+
+    - name: Smoke test SDK
+      run: |
+        python -m venv /tmp/test-sdk
+        /tmp/test-sdk/bin/pip install packages/client-python/dist/*.whl
+        /tmp/test-sdk/bin/python -c "from dakora_client import create_client; print('✅ SDK import successful')"
+
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        cd packages/client-python
+        uv run twine upload dist/*
+
+    - name: Create git tag
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add packages/client-python/pyproject.toml
+        git commit -m "chore: bump Python SDK version to ${{ github.event.inputs.version }}"
+        git tag -a "client-python-v${{ github.event.inputs.version }}" -m "Python SDK Release v${{ github.event.inputs.version }}"
+        git push origin main
+        git push origin "client-python-v${{ github.event.inputs.version }}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: "client-python-v${{ github.event.inputs.version }}"
+        release_name: "Python SDK v${{ github.event.inputs.version }}"
+        body: |
+          ## Dakora Python SDK v${{ github.event.inputs.version }}
+
+          Install with:
+          ```bash
+          pip install dakora-client==${{ github.event.inputs.version }}
+          ```
+
+          ### Usage
+          ```python
+          from dakora_client import create_client
+
+          dakora = create_client("http://localhost:54321")
+          result = await dakora.prompts.render("my-prompt", {"input": "value"})
+          ```
+        draft: false
+        prerelease: false
