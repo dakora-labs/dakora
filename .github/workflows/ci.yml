@@ -33,7 +33,7 @@ jobs:
       run: uv run python validate_tests.py
 
     - name: Run ${{ matrix.test-type }} tests
-      run: uv run python tests/test_runner.py ${{ matrix.test-type }} --verbose
+      run: uv run python server/tests/test_runner.py ${{ matrix.test-type }} --verbose
 
   smoke-test:
     runs-on: ubuntu-latest
@@ -52,7 +52,7 @@ jobs:
       run: uv sync
 
     - name: Run smoke tests
-      run: uv run python tests/test_runner.py smoke --verbose
+      run: uv run python server/tests/test_runner.py smoke --verbose
 
   coverage:
     runs-on: ubuntu-latest
@@ -74,7 +74,7 @@ jobs:
       run: uv add --dev pytest-cov
 
     - name: Run tests with coverage
-      run: uv run python -m pytest --cov=dakora tests/ --cov-report=xml --cov-report=term-missing
+      run: uv run python -m pytest --cov=server/dakora_server server/tests/ --cov-report=xml --cov-report=term-missing
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5

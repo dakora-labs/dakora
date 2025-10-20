@@ -25,21 +25,21 @@ def run_tests(test_type="all", verbose=False, fast=False):
 
     if test_type == "all":
         # Run all tests
-        test_args = ["tests/"]
+        test_args = ["server/tests/"]
         if fast:
             cmd.extend(["-m", "not slow"])  # Skip slow tests in fast mode
 
     elif test_type == "unit":
         # Run unit tests (everything except integration and performance)
-        test_args = ["tests/", "-m", "not integration and not performance"]
+        test_args = ["server/tests/", "-m", "not integration and not performance"]
 
     elif test_type == "integration":
         # Run integration tests
-        test_args = ["tests/", "-m", "integration"]
+        test_args = ["server/tests/", "-m", "integration"]
 
     elif test_type == "performance":
         # Run performance tests
-        test_args = ["tests/", "-m", "performance"]
+        test_args = ["server/tests/", "-m", "performance"]
         if fast:
             # Fast mode: skip performance tests
             print("WARNING: Skipping performance tests in fast mode")
@@ -48,7 +48,7 @@ def run_tests(test_type="all", verbose=False, fast=False):
     elif test_type == "smoke":
         # Run a quick smoke test with minimal tests
         test_args = [
-            "tests/smoke_test.py",
+            "server/tests/smoke_test.py",
             "-v"
         ]
 
@@ -65,7 +65,8 @@ def run_tests(test_type="all", verbose=False, fast=False):
     # Run the tests
     try:
         # Use string path for better cross-platform compatibility
-        result = subprocess.run(cmd, cwd=str(Path(__file__).parent.parent))
+        # Run from project root (two levels up from server/tests/)
+        result = subprocess.run(cmd, cwd=str(Path(__file__).parent.parent.parent))
         return result.returncode
     except KeyboardInterrupt:
         print("\nERROR: Tests interrupted by user")
