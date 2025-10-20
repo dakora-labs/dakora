@@ -62,13 +62,13 @@ jobs:
 
     - name: Check package
       run: |
-        cd packages/client-python
+        uv pip install twine
         uv run twine check dist/*
 
     - name: Smoke test SDK
       run: |
         python -m venv /tmp/test-sdk
-        /tmp/test-sdk/bin/pip install packages/client-python/dist/*.whl
+        /tmp/test-sdk/bin/pip install dist/*.whl
         /tmp/test-sdk/bin/python -c "from dakora_client import create_client; print('✅ SDK import successful')"
 
     - name: Publish to PyPI
@@ -76,7 +76,6 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        cd packages/client-python
         uv run twine upload dist/*
 
     - name: Create git tag

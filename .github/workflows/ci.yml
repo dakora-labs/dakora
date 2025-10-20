@@ -127,7 +127,7 @@ jobs:
 
     - name: Check package with twine
       run: |
-        cd ${{ matrix.package }}
+        uv pip install twine
         uv run twine check dist/*
 
   build-docker:
@@ -140,6 +140,8 @@ jobs:
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        driver: docker
 
     - name: Build ${{ matrix.component }} Docker image
       uses: docker/build-push-action@v5
