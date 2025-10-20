@@ -65,10 +65,11 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
   - `ExecutionResult` - Single model execution result (output, tokens, cost, latency)
   - `ComparisonResult` - Multi-model comparison result
 
-**Utilities:**
+**Database & Logging:**
+- `database.py` - SQLAlchemy Core setup with PostgreSQL connection pooling, table definitions
+- `logging.py` - PostgreSQL-based execution logging (migrated from SQLite)
 - `types.py` - Type definitions (InputType, etc.)
 - `exceptions.py` - Custom exception hierarchy (DakoraError, TemplateNotFound, ValidationError, etc.)
-- `logging.py` - SQLite-based execution logging
 - `watcher.py` - File system monitoring for hot-reload
 
 **Dependencies:**
@@ -78,6 +79,9 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 - litellm - Multi-provider LLM integration
 - PyYAML - Template storage format
 - Watchdog - File system monitoring
+- SQLAlchemy - Database toolkit (Core only, no ORM)
+- Alembic - Database migration tool
+- psycopg2-binary - PostgreSQL adapter
 - Azure SDK (optional) - Cloud storage
 
 ### Client SDK (`packages/client-python/dakora_client/`)
@@ -235,6 +239,95 @@ npm run build
 # Studio development server (optional)
 cd studio
 npm run dev
+```
+
+### Database Migrations
+
+Dakora uses **Alembic** for database migrations with **SQLAlchemy Core** (not ORM) and **PostgreSQL**.
+
+**Architecture:**
+- **Local (Docker Compose)**: PostgreSQL 15 container
+- **Production (Render)**: Supabase (PostgreSQL-compatible)
+- **Migration System**: Alembic with environment-aware DATABASE_URL
+
+**Key Files:**
+- `server/dakora_server/core/database.py` - SQLAlchemy Core setup, table definitions, connection pooling
+- `server/dakora_server/core/logging.py` - Logger using PostgreSQL (replaced SQLite)
+- `server/alembic/` - Migration scripts directory
+- `server/alembic.ini` - Alembic configuration
+- `server/alembic/env.py` - Environment configuration (reads DATABASE_URL)
+- `server/entrypoint.sh` - Docker entrypoint with migration automation
+
+**How Migrations Work:**
+
+**Docker Compose (Local):**
+1. `docker-compose up` starts PostgreSQL with healthcheck
+2. API container waits for DB to be healthy
+3. `entrypoint.sh` runs `alembic upgrade head` automatically
+4. Server starts after migrations complete
+
+**Render (Production):**
+1. Push code to GitHub
+2. Render triggers deployment
+3. **Pre-deploy command** runs: `alembic upgrade head`
+4. New service version deploys only after successful migration
+5. Zero downtime, safe rollouts
+
+**Creating Migrations:**
+
+```bash
+# Create new migration
+cd server
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dakora"
+export PATH="$HOME/.local/bin:$PATH" && uv run alembic revision -m "Add users table"
+
+# Edit migration file in server/alembic/versions/
+# Add upgrade() and downgrade() logic using SQLAlchemy Core
+
+# Run migration
+export PATH="$HOME/.local/bin:$PATH" && uv run alembic upgrade head
+
+# Check current version
+export PATH="$HOME/.local/bin:$PATH" && uv run alembic current
+
+# Rollback one version
+export PATH="$HOME/.local/bin:$PATH" && uv run alembic downgrade -1
+```
+
+**Migration Best Practices:**
+- **Always test locally** before deploying to production
+- **Write downgrade()** logic for safe rollbacks
+- **Keep migrations small** and focused on single changes
+- **Never skip migrations** - they run automatically
+- **Test with empty DB** to ensure idempotency
+
+**Current Schema:**
+- `logs` table - Execution logging (prompt_id, version, inputs_json, output_text, provider, model, tokens, cost, latency)
+
+**Supabase Setup (Production):**
+1. Create Supabase project at https://supabase.com
+2. Get connection string from project settings (Database → Connection String → URI)
+3. Add to Render environment variables:
+   ```
+   DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+   ```
+4. Migrations run automatically via `preDeployCommand` in render.yaml
+
+**Troubleshooting:**
+
+```bash
+# Test database connection
+python -c "from dakora_server.core.database import create_db_engine, wait_for_db; \
+engine = create_db_engine(); print('Connected!' if wait_for_db(engine) else 'Failed')"
+
+# Check migration status
+cd server && export PATH="$HOME/.local/bin:$PATH" && uv run alembic current
+
+# View migration history
+cd server && export PATH="$HOME/.local/bin:$PATH" && uv run alembic history --verbose
+
+# Force migration (if stuck)
+cd server && export PATH="$HOME/.local/bin:$PATH" && uv run alembic stamp head
 ```
 
 ### API Key Configuration

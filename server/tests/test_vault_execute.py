@@ -3,13 +3,15 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 import yaml
 import pytest
-import sqlite3
 import gc
 import time
+import os
 
 from dakora_server.core.vault import Vault
 from dakora_server.core.llm.models import ExecutionResult
 from dakora_server.core.exceptions import ValidationError, APIKeyError, RateLimitError, ModelNotFoundError, LLMError
+from dakora_server.core.database import create_test_engine, metadata
+from dakora_server.core.logging import Logger
 
 
 @pytest.fixture
@@ -154,32 +156,30 @@ class TestTemplateHandleExecute:
         vault, tmpdir = temp_vault_with_logging
         template = vault.get("test-template")
 
+        # Mock logger to avoid database dependency in unit tests
+        mock_logger = Mock()
+
         with patch.object(template, '_llm_client', None):
-            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
-                mock_client = Mock()
-                mock_client.execute.return_value = mock_execution_result
-                mock_client_class.return_value = mock_client
+            with patch.object(vault, 'logger', mock_logger):
+                with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
+                    mock_client = Mock()
+                    mock_client.execute.return_value = mock_execution_result
+                    mock_client_class.return_value = mock_client
 
-                result = template.execute(model="gpt-4", text="Sample text")
+                    result = template.execute(model="gpt-4", text="Sample text")
 
-                assert result == mock_execution_result
+                    assert result == mock_execution_result
 
-                db_path = Path(tmpdir) / "dakora.db"
-                assert db_path.exists()
-
-                with sqlite3.connect(db_path) as con:
-                    cursor = con.execute("SELECT * FROM logs")
-                    rows = cursor.fetchall()
-                    assert len(rows) == 1
-
-                    row = rows[0]
-                    assert row[1] == "test-template"
-                    assert row[2] == "1.0.0"
-                    assert row[7] == "openai"
-                    assert row[8] == "gpt-4"
-                    assert row[9] == 100
-                    assert row[10] == 50
-                    assert row[11] == 0.05
+                    # Verify logger was called with correct parameters
+                    mock_logger.write.assert_called_once()
+                    call_args = mock_logger.write.call_args
+                    assert call_args[1]["prompt_id"] == "test-template"
+                    assert call_args[1]["version"] == "1.0.0"
+                    assert call_args[1]["provider"] == "openai"
+                    assert call_args[1]["model"] == "gpt-4"
+                    assert call_args[1]["tokens_in"] == 100
+                    assert call_args[1]["tokens_out"] == 50
+                    assert call_args[1]["cost_usd"] == 0.05
 
     def test_execute_validation_error(self, temp_vault_no_logging):
         vault = temp_vault_no_logging
@@ -337,87 +337,124 @@ class TestTemplateHandleExecute:
                 assert call_args[1]["messages"] == messages
 
 
+@pytest.mark.integration
 class TestDatabaseMigration:
-    def test_migration_adds_llm_columns(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "test.db"
+    """Integration tests for database migrations and logging (requires PostgreSQL)"""
 
-            # Create old schema
-            con = sqlite3.connect(db_path)
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS logs (
-                  id INTEGER PRIMARY KEY,
-                  prompt_id TEXT,
-                  version TEXT,
-                  inputs_json TEXT,
-                  output_text TEXT,
-                  cost REAL,
-                  latency_ms INTEGER,
-                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            con.commit()
-            con.close()
-            
-            # Initialize logger (triggers migration)
-            from dakora_server.core.logging import Logger
-            logger = Logger(db_path)
-            
+    @pytest.fixture(autouse=True)
+    def setup_test_db(self):
+        """Create a fresh test database for each test"""
+        # Get DATABASE_URL from environment or use default test database
+        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/dakora")
+
+        # Create test engine
+        engine = create_test_engine(db_url)
+
+        try:
+            # Ensure tables exist (created by migrations)
+            metadata.create_all(engine)
+
+            # Clear existing data for clean slate
+            from dakora_server.core.database import get_connection, logs_table
+            with get_connection(engine) as conn:
+                conn.execute(logs_table.delete())
+                conn.commit()
+
+            yield engine
+        finally:
+            # Cleanup: just delete rows, don't drop tables
+            from dakora_server.core.database import get_connection, logs_table
             try:
-                # Verify columns were added
-                con = sqlite3.connect(db_path)
-                cursor = con.execute("PRAGMA table_info(logs)")
-                columns = {row[1] for row in cursor.fetchall()}
-                con.close()
+                with get_connection(engine) as conn:
+                    conn.execute(logs_table.delete())
+                    conn.commit()
+            except Exception:
+                pass
+            engine.dispose()
 
-                assert "provider" in columns
-                assert "model" in columns
-                assert "tokens_in" in columns
-                assert "tokens_out" in columns
-                assert "cost_usd" in columns
-            finally:
-                # Close logger to release database file lock on Windows
-                logger.close()
-                # Force garbage collection and wait for cleanup
-                gc.collect()
-                time.sleep(0.1)
+    def test_migration_adds_llm_columns(self, setup_test_db):
+        """Test that the logs table has all required LLM columns"""
+        engine = setup_test_db
 
-    def test_logger_write_with_llm_metadata(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "test.db"
+        # Initialize logger
+        logger = Logger(engine)
 
-            from dakora_server.core.logging import Logger
-            logger = Logger(db_path)
+        try:
+            # Verify table structure by attempting to write with all columns
+            logger.write(
+                prompt_id="test-prompt",
+                version="1.0.0",
+                inputs={"text": "test"},
+                output="test output",
+                cost=None,
+                latency_ms=1000,
+                provider="openai",
+                model="gpt-4",
+                tokens_in=100,
+                tokens_out=50,
+                cost_usd=0.05
+            )
 
-            try:
-                logger.write(
-                    prompt_id="test-prompt",
-                    version="1.0.0",
-                    inputs={"text": "test"},
-                    output="test output",
-                    cost=None,
-                    latency_ms=1000,
-                    provider="openai",
-                    model="gpt-4",
-                    tokens_in=100,
-                    tokens_out=50,
-                    cost_usd=0.05
-                )
+            # Query to verify columns exist
+            from dakora_server.core.database import get_connection
+            from sqlalchemy import select, text
 
-                # Read and verify in separate connection
-                con = sqlite3.connect(db_path)
-                cursor = con.execute("SELECT * FROM logs")
-                row = cursor.fetchone()
-                con.close()
+            with get_connection(engine) as conn:
+                # Verify we can select all columns
+                result = conn.execute(
+                    text("""
+                        SELECT prompt_id, version, provider, model,
+                               tokens_in, tokens_out, cost_usd
+                        FROM logs
+                        LIMIT 1
+                    """)
+                ).fetchone()
 
-                assert row[7] == "openai"
-                assert row[8] == "gpt-4"
-                assert row[9] == 100
-                assert row[10] == 50
-                assert row[11] == 0.05
-            finally:
-                # Close logger to release database file lock on Windows
-                logger.close()
-                # Force garbage collection and wait for cleanup
-                gc.collect()
-                time.sleep(0.1)
+                assert result is not None
+                assert result[0] == "test-prompt"
+                assert result[1] == "1.0.0"
+                assert result[2] == "openai"
+                assert result[3] == "gpt-4"
+                assert result[4] == 100
+                assert result[5] == 50
+                assert result[6] == 0.05
+        finally:
+            logger.close()
+
+    def test_logger_write_with_llm_metadata(self, setup_test_db):
+        """Test that logger correctly writes LLM metadata to PostgreSQL"""
+        engine = setup_test_db
+
+        logger = Logger(engine)
+
+        try:
+            logger.write(
+                prompt_id="test-prompt",
+                version="1.0.0",
+                inputs={"text": "test"},
+                output="test output",
+                cost=None,
+                latency_ms=1000,
+                provider="openai",
+                model="gpt-4",
+                tokens_in=100,
+                tokens_out=50,
+                cost_usd=0.05
+            )
+
+            # Read and verify
+            from dakora_server.core.database import get_connection, logs_table
+            from sqlalchemy import select
+
+            with get_connection(engine) as conn:
+                result = conn.execute(select(logs_table)).fetchone()
+
+                assert result.prompt_id == "test-prompt"
+                assert result.version == "1.0.0"
+                assert result.provider == "openai"
+                assert result.model == "gpt-4"
+                assert result.tokens_in == 100
+                assert result.tokens_out == 50
+                assert result.cost_usd == 0.05
+        finally:
+            logger.close()

@@ -9,10 +9,18 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml README.md ./
 COPY dakora_server ./dakora_server
 
+# Copy Alembic configuration and migrations
+COPY alembic.ini ./
+COPY alembic ./alembic
+
+# Copy entrypoint script
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
 # Install dependencies with Azure support using uv
 RUN uv pip install --system --no-cache-dir ".[azure]"
 
 EXPOSE 8000
 
-# Use PORT env var if provided (for Render), otherwise default to 8000
-CMD uvicorn dakora_server.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Use entrypoint script for DB migrations
+ENTRYPOINT ["./entrypoint.sh"]

@@ -375,6 +375,30 @@ cd server
 uv run pytest
 ```
 
+### Database Migrations
+
+Dakora uses Alembic for database migrations with PostgreSQL. Migrations run automatically in Docker and production deployments.
+
+**Quick Commands:**
+```bash
+# Create new migration
+cd server
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dakora"
+uv run alembic revision -m "Add users table"
+
+# Apply migrations
+uv run alembic upgrade head
+
+# Check status
+uv run alembic current
+```
+
+**📖 Full Guide:** See [Database Migrations Documentation](assets/DATABASE_MIGRATIONS.md) for complete details on:
+- Creating and managing migrations
+- Testing migrations locally
+- Production deployment workflow
+- Best practices and troubleshooting
+
 ## Contributing
 
 We welcome contributions! Join our community:
