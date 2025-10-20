@@ -30,20 +30,16 @@ def main():
 
     tests = [
         (
-            "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest tests/test_init.py -v --tb=no -q",
-            "CLI init tests"
+            "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest server/tests/smoke_test.py::test_vault_operations -v --tb=no -q",
+            "Vault operations test"
         ),
         (
-            "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest tests/test_playground_server.py::TestPlaygroundServer::test_create_playground_with_config -v --tb=no -q",
-            "Playground server creation test"
+            "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest server/tests/smoke_test.py::test_error_handling -v --tb=no -q",
+            "Error handling test"
         ),
         (
-            "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest tests/test_playground_server.py::TestPlaygroundServerWithTestClient::test_health_endpoint -v --tb=no -q",
-            "Playground health endpoint test"
-        ),
-        (
-            "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest tests/test_playground_server.py::TestPlaygroundServerWithTestClient::test_template_render_endpoint -v --tb=no -q",
-            "Playground template render test"
+            "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest server/tests/test_llm_client.py::test_execute_success -v --tb=no -q",
+            "LLM client execution test"
         ),
     ]
 

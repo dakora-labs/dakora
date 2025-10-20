@@ -1,58 +1,11 @@
-[project]
-name = "dakora"
-version = "1.0.3"
-description = "A Python library for managing and rendering prompt templates with type-safe inputs, versioning, and optional logging"
-readme = "README.md"
-authors = [
-    { name = "bogdanpi", email = "bogdan@iduntechnologies.com" }
+# Dakora Monorepo - Workspace Root
+
+[tool.uv.workspace]
+members = [
+    "server",
+    "packages/client-python",
+    "cli",
 ]
-requires-python = ">=3.11"
-dependencies = [
-    "jinja2>=3.1.6",
-    "pydantic>=2.11.9",
-    "pyyaml>=6.0.2",
-    "typer>=0.19.2",
-    "watchdog>=6.0.0",
-    "fastapi>=0.104.0",
-    "uvicorn>=0.24.0",
-    "litellm>=1.0.0",
-    "python-dotenv>=1.0.0",
-]
-
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-]
-
-[project.optional-dependencies]
-azure = [
-    "azure-storage-blob>=12.19.0",
-    "azure-identity>=1.15.0",
-]
-
-[project.scripts]
-dakora = "dakora.cli:app"
-
-[project.urls]
-Homepage = "https://github.com/bogdan-pistol/dakora"
-Repository = "https://github.com/bogdan-pistol/dakora.git"
-Issues = "https://github.com/bogdan-pistol/dakora/issues"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["dakora", "playground"]
-
-[tool.hatch.build.targets.sdist]
-# Source dist includes dakora source and web/ source
-exclude = ["web/node_modules", "playground/node_modules", "playground/*.html"]
-
 
 [tool.uv]
 dev-dependencies = [
@@ -65,4 +18,5 @@ dev-dependencies = [
     "tomli-w>=1.0.0",
     "azure-storage-blob>=12.19.0",
     "azure-identity>=1.15.0",
+    "pytest-cov>=7.0.0",
 ]

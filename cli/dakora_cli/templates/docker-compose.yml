@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    container_name: dakora-api
+    ports:
+      - "${API_PORT:-54321}:8000"
+    environment:
+      - MODE=${MODE:-local}
+      - PROMPT_DIR=/app/prompts
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/dakora
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ../prompts:/app/prompts:ro
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  studio:
+    build:
+      context: ../studio
+      dockerfile: Dockerfile
+    container_name: dakora-studio
+    ports:
+      - "${STUDIO_PORT:-3000}:80"
+    environment:
+      - VITE_API_URL=http://localhost:${API_PORT:-54321}
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: dakora-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=dakora
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: dakora-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  db_data:
+    driver: local
