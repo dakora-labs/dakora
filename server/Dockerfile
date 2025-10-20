@@ -2,12 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy project files first
-COPY pyproject.toml .
+# Install uv
+RUN pip install --no-cache-dir uv
+
+# Copy project files
+COPY pyproject.toml README.md ./
 COPY dakora_server ./dakora_server
 
-# Install with Azure support for cloud deployments
-RUN pip install --no-cache-dir ".[azure]"
+# Install dependencies with Azure support using uv
+RUN uv pip install --system --no-cache-dir ".[azure]"
 
 EXPOSE 8000
 
