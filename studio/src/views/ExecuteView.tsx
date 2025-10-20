@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { PromptList } from '../components/PromptList';
 import { usePrompt } from '../hooks/useApi';
 import { Rocket, Plus, X, Loader2, CheckCircle, AlertCircle, Copy, DollarSign, Clock, Hash } from 'lucide-react';
@@ -40,6 +41,7 @@ interface ExecutionResponse {
 }
 
 export function ExecuteView() {
+  const { getToken } = useAuth();
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [models, setModels] = useState<ModelConfig[]>([{
     id: '1',
@@ -101,9 +103,19 @@ export function ExecuteView() {
     setExecuting(true);
     setError(null);
     try {
+      // Get auth token
+      const token = await getToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`/api/prompts/${selectedPromptId}/compare`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           inputs,
           models: modelNames,
