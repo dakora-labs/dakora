@@ -1,0 +1,43 @@
+# Render Blueprint - Production deployment
+services:
+  # API Service
+  - type: web
+    name: dakora-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    autoDeploy: false  # Manual deploy only
+    envVars:
+      - key: MODE
+        value: production
+      - key: DATABASE_URL
+        sync: false  # Set in Render dashboard (Supabase connection string)
+      - key: REDIS_URL
+        sync: false  # Set in Render dashboard (Upstash URL) or leave empty if not needed
+
+      # Azure Blob Storage (for prompt templates)
+      - key: AZURE_STORAGE_CONTAINER
+        sync: false  # Set in Render dashboard (e.g., "prompts")
+      - key: AZURE_STORAGE_CONNECTION_STRING
+        sync: false  # Set in Render dashboard (from Azure portal)
+      # Alternative: Use AZURE_STORAGE_ACCOUNT_URL for managed identity (not needed if using connection string)
+
+      # LLM API Keys
+      - key: OPENAI_API_KEY
+        sync: false  # Set in Render dashboard
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Set in Render dashboard
+    healthCheckPath: /health
+    plan: free
+
+  # Studio Service
+  - type: web
+    name: dakora-studio
+    runtime: docker
+    dockerfilePath: ./studio/Dockerfile
+    dockerContext: ./studio
+    autoDeploy: false  # Manual deploy only
+    envVars:
+      - key: VITE_API_URL
+        sync: false  # Set to: https://dakora-api.onrender.com (after API is deployed)
+    plan: free
