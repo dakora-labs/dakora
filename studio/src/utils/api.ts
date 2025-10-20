@@ -1,6 +1,12 @@
 import type { Template, RenderRequest, RenderResponse, HealthResponse } from '../types';
 
-const API_BASE = '/api';
+const getApiBase = () => {
+  // @ts-ignore - Vite env variable
+  const apiUrl = import.meta.env?.VITE_API_URL;
+  return apiUrl ? `${apiUrl}/api` : '/api';
+};
+
+const API_BASE = getApiBase();
 
 class ApiError extends Error {
   constructor(message: string, public status: number) {

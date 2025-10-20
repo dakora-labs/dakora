@@ -27,7 +27,7 @@ services:
         sync: false  # Set in Render dashboard
       - key: ANTHROPIC_API_KEY
         sync: false  # Set in Render dashboard
-    healthCheckPath: /health
+    healthCheckPath: /api/health
     plan: free
 
   # Studio Service
@@ -40,4 +40,5 @@ services:
     envVars:
       - key: VITE_API_URL
         sync: false  # Set to: https://dakora-api.onrender.com (after API is deployed)
+    healthCheckPath: /
     plan: free
