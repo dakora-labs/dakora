@@ -1,4 +1,4 @@
-# Python
+# Python-generated files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -60,6 +60,9 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
+dakora.yaml
+dakora.db
+
 # Environment files
 .env
 .env.local
@@ -71,9 +74,12 @@ desktop.ini
 *.db
 *.sqlite
 *.sqlite3
-dakora.db
 
-# Logs
+# User prompt directories (but keep example prompts in repo)
+# Note: The default prompts/ folder contains examples and should be tracked
+# Users can override prompt_dir in dakora.yaml to use different folders
+
+# Development and testing files
 *.log
 logs/
 npm-debug.log*
@@ -98,6 +104,8 @@ packages/*/dist/
 packages/*/build/
 cli/dist/
 cli/build/
+
+
 
 # Package lock files (optional - uncomment if using npm)
 # package-lock.json
