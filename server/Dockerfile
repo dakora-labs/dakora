@@ -14,4 +14,5 @@ RUN uv pip install --system --no-cache-dir ".[azure]"
 
 EXPOSE 8000
 
-CMD ["uvicorn", "dakora_server.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use PORT env var if provided (for Render), otherwise default to 8000
+CMD uvicorn dakora_server.main:app --host 0.0.0.0 --port ${PORT:-8000}

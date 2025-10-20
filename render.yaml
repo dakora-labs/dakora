@@ -40,4 +40,5 @@ services:
     envVars:
       - key: VITE_API_URL
         sync: false  # Set to: https://dakora-api.onrender.com (after API is deployed)
+    healthCheckPath: /
     plan: free
