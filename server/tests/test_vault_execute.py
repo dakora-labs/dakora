@@ -104,7 +104,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.return_value = mock_execution_result
                 mock_client_class.return_value = mock_client
@@ -130,7 +130,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.return_value = mock_execution_result
                 mock_client_class.return_value = mock_client
@@ -155,7 +155,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.return_value = mock_execution_result
                 mock_client_class.return_value = mock_client
@@ -193,7 +193,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.side_effect = APIKeyError("Invalid API key")
                 mock_client_class.return_value = mock_client
@@ -208,7 +208,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.side_effect = RateLimitError("Rate limit exceeded")
                 mock_client_class.return_value = mock_client
@@ -223,7 +223,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.side_effect = ModelNotFoundError("Model not found")
                 mock_client_class.return_value = mock_client
@@ -238,7 +238,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.side_effect = LLMError("Unexpected error")
                 mock_client_class.return_value = mock_client
@@ -253,7 +253,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.return_value = mock_execution_result
                 mock_client_class.return_value = mock_client
@@ -296,7 +296,7 @@ class TestTemplateHandleExecute:
         )
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.return_value = mock_result
                 mock_client_class.return_value = mock_client
@@ -317,7 +317,7 @@ class TestTemplateHandleExecute:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.execute.return_value = mock_execution_result
                 mock_client_class.return_value = mock_client

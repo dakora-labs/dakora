@@ -109,7 +109,7 @@ class MockBlobServiceClient:
 # Initialization Tests
 # ============================================================================
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_azure_registry_init_with_connection_string(mock_blob_service):
     """Test initialization with connection string"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()
@@ -125,8 +125,8 @@ def test_azure_registry_init_with_connection_string(mock_blob_service):
     mock_blob_service.from_connection_string.assert_called_once()
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
-@patch('dakora.registry.implementations.azure.DefaultAzureCredential')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.DefaultAzureCredential')
 def test_azure_registry_init_with_account_url(mock_credential, mock_blob_service):
     """Test initialization with account URL and DefaultAzureCredential"""
     mock_blob_service.return_value = MockBlobServiceClient()
@@ -143,7 +143,7 @@ def test_azure_registry_init_with_account_url(mock_credential, mock_blob_service
     mock_blob_service.assert_called_once()
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 @patch.dict('os.environ', {'AZURE_STORAGE_CONNECTION_STRING': 'test-conn-string'})
 def test_azure_registry_init_with_env_var(mock_blob_service):
     """Test initialization with environment variable"""
@@ -155,7 +155,7 @@ def test_azure_registry_init_with_env_var(mock_blob_service):
     mock_blob_service.from_connection_string.assert_called_once_with('test-conn-string')
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 @patch.dict('os.environ', {}, clear=True)
 def test_azure_registry_init_no_credentials_raises_error(mock_blob_service):
     """Test initialization without credentials raises RegistryError"""
@@ -163,7 +163,7 @@ def test_azure_registry_init_no_credentials_raises_error(mock_blob_service):
         AzureRegistry(container="test-container")
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_azure_registry_init_container_not_found(mock_blob_service):
     """Test initialization with non-existent container raises error"""
     container = MockContainerClient(exists=False)
@@ -176,7 +176,7 @@ def test_azure_registry_init_container_not_found(mock_blob_service):
         )
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_azure_registry_init_with_custom_prefix(mock_blob_service):
     """Test initialization with custom prefix"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()
@@ -192,7 +192,7 @@ def test_azure_registry_init_with_custom_prefix(mock_blob_service):
     assert registry.enable_versioning is False
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_azure_registry_init_with_empty_prefix(mock_blob_service):
     """Test initialization with empty prefix"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()
@@ -210,7 +210,7 @@ def test_azure_registry_init_with_empty_prefix(mock_blob_service):
 # Access Validation Tests
 # ============================================================================
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_validate_access_read_permission_denied(mock_blob_service):
     """Test validation fails when read access is denied"""
     from azure.core.exceptions import HttpResponseError
@@ -227,7 +227,7 @@ def test_validate_access_read_permission_denied(mock_blob_service):
         AzureRegistry(container="test-container", connection_string="test")
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_validate_access_write_permission_denied(mock_blob_service):
     """Test validation fails when write access is denied"""
     from azure.core.exceptions import HttpResponseError
@@ -248,7 +248,7 @@ def test_validate_access_write_permission_denied(mock_blob_service):
         AzureRegistry(container="test-container", connection_string="test")
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_validate_access_versioning_warning(mock_blob_service):
     """Test warning is raised when versioning is not available"""
     import warnings
@@ -281,7 +281,7 @@ def test_validate_access_versioning_warning(mock_blob_service):
 # Versioning Feature Tests
 # ============================================================================
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_list_versions_success(mock_blob_service):
     """Test listing all versions of a template"""
     container = MockContainerClient()
@@ -318,7 +318,7 @@ def test_list_versions_success(mock_blob_service):
     assert versions[1]['is_current'] is False
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_list_versions_versioning_disabled(mock_blob_service):
     """Test list_versions raises error when versioning is disabled"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()
@@ -333,7 +333,7 @@ def test_list_versions_versioning_disabled(mock_blob_service):
         registry.list_versions("test")
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_list_versions_template_not_found(mock_blob_service):
     """Test list_versions raises error when template doesn't exist"""
     container = MockContainerClient()
@@ -346,7 +346,7 @@ def test_list_versions_template_not_found(mock_blob_service):
         registry.list_versions("nonexistent")
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_load_version_success(mock_blob_service):
     """Test loading a specific version of a template"""
     container = MockContainerClient()
@@ -364,7 +364,7 @@ def test_load_version_success(mock_blob_service):
     assert spec.template == "Hello {{ name }}"
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_load_version_versioning_disabled(mock_blob_service):
     """Test load_version raises error when versioning is disabled"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()
@@ -379,7 +379,7 @@ def test_load_version_versioning_disabled(mock_blob_service):
         registry.load_version("test", "v1")
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_load_version_not_found(mock_blob_service):
     """Test load_version raises TemplateNotFound when version doesn't exist"""
     from azure.core.exceptions import ResourceNotFoundError
@@ -396,7 +396,7 @@ def test_load_version_not_found(mock_blob_service):
         registry.load_version("test", "v999")
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_restore_version_success(mock_blob_service):
     """Test restoring a previous version"""
     container = MockContainerClient()
@@ -425,7 +425,7 @@ def test_restore_version_success(mock_blob_service):
 # Network Error Handling Tests
 # ============================================================================
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_network_error_during_init(mock_blob_service):
     """Test network errors are properly handled during initialization"""
     from azure.core.exceptions import ServiceRequestError
@@ -436,7 +436,7 @@ def test_network_error_during_init(mock_blob_service):
         AzureRegistry(container="test-container", connection_string="test")
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_http_error_during_list_versions(mock_blob_service):
     """Test HTTP errors during version listing"""
     import warnings
@@ -463,7 +463,7 @@ def test_http_error_during_list_versions(mock_blob_service):
 # Template Normalization Tests
 # ============================================================================
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_load_version_strips_trailing_newlines(mock_blob_service):
     """Test that trailing newlines are stripped from templates"""
     container = MockContainerClient()
@@ -485,7 +485,7 @@ def test_load_version_strips_trailing_newlines(mock_blob_service):
 # Repr Tests
 # ============================================================================
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_repr_with_versioning_enabled(mock_blob_service):
     """Test __repr__ with versioning enabled"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()
@@ -503,7 +503,7 @@ def test_repr_with_versioning_enabled(mock_blob_service):
     assert "versioning-enabled" in repr_str
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_repr_with_versioning_disabled(mock_blob_service):
     """Test __repr__ with versioning disabled"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()
@@ -522,7 +522,7 @@ def test_repr_with_versioning_disabled(mock_blob_service):
 # Integration with Base Registry Tests
 # ============================================================================
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_azure_registry_inherits_from_base(mock_blob_service):
     """Test that AzureRegistry properly inherits base functionality"""
     container = MockContainerClient()
@@ -566,7 +566,7 @@ def test_vault_azure_config_missing_container(tmp_path: Path):
         Vault(str(cfg))
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_vault_azure_config_with_container(mock_blob_service, tmp_path: Path):
     """Test that Vault accepts Azure config with container"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()
@@ -584,7 +584,7 @@ azure_connection_string: DefaultEndpointsProtocol=https;AccountName=test;Account
     assert vault.config["azure_container"] == "test-container"
 
 
-@patch('dakora.registry.implementations.azure.BlobServiceClient')
+@patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_vault_azure_config_with_custom_prefix(mock_blob_service, tmp_path: Path):
     """Test Vault Azure config with custom prefix"""
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient()

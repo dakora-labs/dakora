@@ -133,7 +133,7 @@ class TestTemplateHandleCompare:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=mock_comparison_result)
                 mock_client_class.return_value = mock_client
@@ -161,7 +161,7 @@ class TestTemplateHandleCompare:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=mock_comparison_result)
                 mock_client_class.return_value = mock_client
@@ -184,7 +184,7 @@ class TestTemplateHandleCompare:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=mock_comparison_result)
                 mock_client_class.return_value = mock_client
@@ -255,7 +255,7 @@ class TestTemplateHandleCompare:
         )
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=partial_result)
                 mock_client_class.return_value = mock_client
@@ -306,7 +306,7 @@ class TestTemplateHandleCompare:
         )
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=failure_result)
                 mock_client_class.return_value = mock_client
@@ -352,7 +352,7 @@ class TestTemplateHandleCompare:
         )
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=single_result)
                 mock_client_class.return_value = mock_client
@@ -405,7 +405,7 @@ class TestTemplateHandleCompare:
         )
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=ordered_result)
                 mock_client_class.return_value = mock_client
@@ -424,7 +424,7 @@ class TestTemplateHandleCompare:
         template = vault.get("test-template")
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=mock_comparison_result)
                 mock_client_class.return_value = mock_client
@@ -486,7 +486,7 @@ class TestTemplateHandleCompare:
         )
 
         with patch.object(template, '_llm_client', None):
-            with patch('dakora.vault.LLMClient') as mock_client_class:
+            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
                 mock_client = Mock()
                 mock_client.compare = AsyncMock(return_value=mock_result)
                 mock_client_class.return_value = mock_client

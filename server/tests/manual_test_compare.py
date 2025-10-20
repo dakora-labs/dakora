@@ -97,7 +97,7 @@ def demo_table_output():
         failed_count=0
     )
 
-    with patch('dakora.vault.TemplateHandle.compare', return_value=mock_comparison):
+    with patch('dakora_server.core.vault.TemplateHandle.compare', return_value=mock_comparison):
         result = runner.invoke(app, [
             'compare',
             'summarizer',
@@ -150,7 +150,7 @@ def demo_verbose_output():
         failed_count=0
     )
 
-    with patch('dakora.vault.TemplateHandle.compare', return_value=mock_comparison):
+    with patch('dakora_server.core.vault.TemplateHandle.compare', return_value=mock_comparison):
         result = runner.invoke(app, [
             'compare',
             'summarizer',
@@ -214,7 +214,7 @@ def demo_with_failure():
         failed_count=1
     )
 
-    with patch('dakora.vault.TemplateHandle.compare', return_value=mock_comparison):
+    with patch('dakora_server.core.vault.TemplateHandle.compare', return_value=mock_comparison):
         result = runner.invoke(app, [
             'compare',
             'summarizer',
@@ -267,7 +267,7 @@ def demo_json_output():
         failed_count=0
     )
 
-    with patch('dakora.vault.TemplateHandle.compare', return_value=mock_comparison):
+    with patch('dakora_server.core.vault.TemplateHandle.compare', return_value=mock_comparison):
         result = runner.invoke(app, [
             'compare',
             'summarizer',
