@@ -27,7 +27,7 @@ services:
         sync: false  # Set in Render dashboard
       - key: ANTHROPIC_API_KEY
         sync: false  # Set in Render dashboard
-    healthCheckPath: /health
+    healthCheckPath: /api/health
     plan: free
 
   # Studio Service
