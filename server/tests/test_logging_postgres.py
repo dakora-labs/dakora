@@ -17,8 +17,8 @@ from dakora_server.core.database import (
 def test_db_url():
     """Get test database URL from environment or use default"""
     return os.getenv(
-        "TEST_DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/dakora_test"
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/dakora"
     )
 
 
@@ -27,18 +27,29 @@ def test_engine(test_db_url):
     """Create test engine and setup tables"""
     engine = create_test_engine(test_db_url)
 
-    # Create tables if they don't exist (for testing)
+    # Always ensure tables exist before each test
     # In production, Alembic handles this
-    if os.getenv("DATABASE_URL"):
-        metadata.create_all(engine)
+    metadata.create_all(engine)
 
-    yield engine
-
-    # Cleanup: drop tables after tests
-    if os.getenv("DATABASE_URL"):
+    # Clear any existing data for clean slate
+    try:
         with get_connection(engine) as conn:
             conn.execute(logs_table.delete())
             conn.commit()
+    except Exception:
+        # Ignore if table doesn't exist yet
+        pass
+
+    yield engine
+
+    # Cleanup: just delete rows, don't drop tables
+    try:
+        with get_connection(engine) as conn:
+            conn.execute(logs_table.delete())
+            conn.commit()
+    except Exception:
+        # Ignore cleanup errors
+        pass
 
     engine.dispose()
 
@@ -64,19 +75,10 @@ class TestLogger:
 
     def test_logger_init_without_engine(self):
         """Test Logger creates engine when none provided"""
-        # Set DATABASE_URL temporarily
-        old_url = os.getenv("DATABASE_URL")
-        os.environ["DATABASE_URL"] = "postgresql://postgres:postgres@localhost:5432/dakora_test"
-
-        try:
-            logger = Logger()
-            assert logger.engine is not None
-            logger.close()
-        finally:
-            if old_url:
-                os.environ["DATABASE_URL"] = old_url
-            else:
-                del os.environ["DATABASE_URL"]
+        # Uses DATABASE_URL from environment
+        logger = Logger()
+        assert logger.engine is not None
+        logger.close()
 
     def test_write_basic_log(self, logger, test_engine):
         """Test writing basic execution log"""

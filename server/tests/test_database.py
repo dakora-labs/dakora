@@ -17,8 +17,8 @@ from dakora_server.core.database import (
 def test_db_url():
     """Get test database URL from environment or use default"""
     return os.getenv(
-        "TEST_DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/dakora_test"
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/dakora"
     )
 
 
@@ -66,7 +66,7 @@ class TestDatabaseConnection:
     def test_create_db_engine(self):
         """Test engine creation with default settings"""
         engine = create_db_engine(
-            "postgresql://postgres:postgres@localhost:5432/dakora_test"
+            "postgresql://postgres:postgres@localhost:5432/dakora"
         )
         assert engine is not None
         assert engine.pool.size() == 5  # Default pool size

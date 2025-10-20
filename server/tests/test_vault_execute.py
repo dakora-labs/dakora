@@ -351,14 +351,25 @@ class TestDatabaseMigration:
         engine = create_test_engine(db_url)
 
         try:
-            # Drop and recreate tables for clean slate
-            metadata.drop_all(engine)
+            # Ensure tables exist (created by migrations)
             metadata.create_all(engine)
+
+            # Clear existing data for clean slate
+            from dakora_server.core.database import get_connection, logs_table
+            with get_connection(engine) as conn:
+                conn.execute(logs_table.delete())
+                conn.commit()
 
             yield engine
         finally:
-            # Cleanup
-            metadata.drop_all(engine)
+            # Cleanup: just delete rows, don't drop tables
+            from dakora_server.core.database import get_connection, logs_table
+            try:
+                with get_connection(engine) as conn:
+                    conn.execute(logs_table.delete())
+                    conn.commit()
+            except Exception:
+                pass
             engine.dispose()
 
     def test_migration_adds_llm_columns(self, setup_test_db):

@@ -183,33 +183,34 @@ class TestTemplateHandleCompare:
         vault, tmpdir = temp_vault_with_logging
         template = vault.get("test-template")
 
+        # Mock logger to avoid database dependency in unit tests
+        mock_logger = Mock()
+
         with patch.object(template, '_llm_client', None):
-            with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
-                mock_client = Mock()
-                mock_client.compare = AsyncMock(return_value=mock_comparison_result)
-                mock_client_class.return_value = mock_client
+            with patch.object(vault, 'logger', mock_logger):
+                with patch('dakora_server.core.vault.LLMClient') as mock_client_class:
+                    mock_client = Mock()
+                    mock_client.compare = AsyncMock(return_value=mock_comparison_result)
+                    mock_client_class.return_value = mock_client
 
-                result = asyncio.run(template.compare(
-                    models=["gpt-4", "claude-3-opus", "gemini-pro"],
-                    text="Sample text"
-                ))
+                    result = asyncio.run(template.compare(
+                        models=["gpt-4", "claude-3-opus", "gemini-pro"],
+                        text="Sample text"
+                    ))
 
-                assert result == mock_comparison_result
+                    assert result == mock_comparison_result
 
-                db_path = Path(tmpdir) / "dakora.db"
-                assert db_path.exists()
+                    # Verify logger was called 3 times (once per model)
+                    assert mock_logger.write.call_count == 3
 
-                with sqlite3.connect(db_path) as con:
-                    cursor = con.execute("SELECT * FROM logs")
-                    rows = cursor.fetchall()
-                    assert len(rows) == 3
-
-                    assert rows[0][7] == "openai"
-                    assert rows[0][8] == "gpt-4"
-                    assert rows[1][7] == "anthropic"
-                    assert rows[1][8] == "claude-3-opus"
-                    assert rows[2][7] == "google"
-                    assert rows[2][8] == "gemini-pro"
+                    # Verify each model's results were logged
+                    calls = mock_logger.write.call_args_list
+                    assert calls[0][1]["model"] == "gpt-4"
+                    assert calls[0][1]["provider"] == "openai"
+                    assert calls[1][1]["model"] == "claude-3-opus"
+                    assert calls[1][1]["provider"] == "anthropic"
+                    assert calls[2][1]["model"] == "gemini-pro"
+                    assert calls[2][1]["provider"] == "google"
 
     def test_compare_partial_failure(self, temp_vault_no_logging):
         vault = temp_vault_no_logging
