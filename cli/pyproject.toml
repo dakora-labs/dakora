@@ -4,7 +4,7 @@ version = "2.0.0"
 description = "Dakora Platform CLI - AI Control Plane for Prompt Management"
 readme = "README.md"
 authors = [
-    { name = "bogdanpi", email = "bogdan@iduntechnologies.com" }
+    { name = "bogdanpi", email = "bogdan@dakora.io" }
 ]
 requires-python = ">=3.11"
 dependencies = [
