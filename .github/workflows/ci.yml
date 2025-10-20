@@ -127,8 +127,8 @@ jobs:
 
     - name: Check package with twine
       run: |
-        uv pip install twine
-        uv run twine check dist/*
+        uv tool install twine
+        uv tool run twine check dist/*
 
   build-docker:
     runs-on: ubuntu-latest
@@ -150,5 +150,3 @@ jobs:
         file: ./${{ matrix.component }}/Dockerfile
         push: false
         tags: dakora-${{ matrix.component }}:test
-        cache-from: type=gha
-        cache-to: type=gha,mode=max

@@ -62,8 +62,8 @@ jobs:
 
     - name: Check package
       run: |
-        uv pip install twine
-        uv run twine check dist/*
+        uv tool install twine
+        uv tool run twine check dist/*
 
     - name: Smoke test SDK
       run: |
@@ -76,7 +76,7 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        uv run twine upload dist/*
+        uv tool run twine upload dist/*
 
     - name: Create git tag
       run: |
