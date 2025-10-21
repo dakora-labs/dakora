@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from dakora_server.main import app
-from dakora_server.config import get_vault
+from dakora_server.auth import get_user_vault
 from dakora_server.core.vault import Vault
 
 
@@ -50,7 +50,7 @@ def test_delete_template_endpoint_success(test_vault_with_template: tuple[Vault,
     vault, prompts_dir = test_vault_with_template
     
     # Override dependency
-    app.dependency_overrides[get_vault] = lambda: vault
+    app.dependency_overrides[get_user_vault] = lambda: vault
     
     try:
         client = TestClient(app)
@@ -85,7 +85,7 @@ def test_delete_template_endpoint_not_found(test_vault_with_template: tuple[Vaul
     """Test deleting non-existent template returns 404"""
     vault, _ = test_vault_with_template
     
-    app.dependency_overrides[get_vault] = lambda: vault
+    app.dependency_overrides[get_user_vault] = lambda: vault
     
     try:
         client = TestClient(app)
@@ -103,7 +103,7 @@ def test_delete_template_endpoint_other_templates_unaffected(test_vault_with_tem
     """Test that deleting one template doesn't affect others"""
     vault, prompts_dir = test_vault_with_template
     
-    app.dependency_overrides[get_vault] = lambda: vault
+    app.dependency_overrides[get_user_vault] = lambda: vault
     
     try:
         client = TestClient(app)
@@ -136,7 +136,7 @@ def test_delete_template_cache_invalidation_via_api(test_vault_with_template: tu
     """Test that API delete invalidates vault cache"""
     vault, _ = test_vault_with_template
     
-    app.dependency_overrides[get_vault] = lambda: vault
+    app.dependency_overrides[get_user_vault] = lambda: vault
     
     try:
         client = TestClient(app)
@@ -161,7 +161,7 @@ def test_delete_then_recreate_template(test_vault_with_template: tuple[Vault, Pa
     """Test that a template can be recreated after deletion"""
     vault, _ = test_vault_with_template
     
-    app.dependency_overrides[get_vault] = lambda: vault
+    app.dependency_overrides[get_user_vault] = lambda: vault
     
     try:
         client = TestClient(app)
@@ -217,7 +217,7 @@ def test_delete_template_idempotency() -> None:
         )
         
         vault = Vault(prompt_dir=str(prompts_dir))
-        app.dependency_overrides[get_vault] = lambda: vault
+        app.dependency_overrides[get_user_vault] = lambda: vault
         
         try:
             client = TestClient(app)

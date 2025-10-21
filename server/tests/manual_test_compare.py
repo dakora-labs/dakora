@@ -10,8 +10,8 @@ from pathlib import Path
 import yaml
 from unittest.mock import patch
 from typer.testing import CliRunner
-from dakora.cli import app
-from dakora.llm.models import ExecutionResult, ComparisonResult
+from dakora_cli.main import app
+from dakora_server.core.llm.models import ExecutionResult, ComparisonResult
 
 runner = CliRunner()
 
@@ -22,7 +22,9 @@ def setup_test_project():
     prompts_dir = tmpdir / "prompts"
     prompts_dir.mkdir()
 
-    test_template = {
+    from typing import Any
+
+    test_template: dict[str, Any] = {
         "id": "summarizer",
         "version": "1.0.0",
         "description": "Summarize text",
@@ -37,7 +39,7 @@ def setup_test_project():
 
     (prompts_dir / "summarizer.yaml").write_text(yaml.safe_dump(test_template))
 
-    config = {
+    config: dict[str, Any] = {
         "registry": "local",
         "prompt_dir": str(prompts_dir),
         "logging": {
@@ -88,13 +90,15 @@ def demo_table_output():
         )
     ]
 
+    # total_time_ms should reflect max latency across results
     mock_comparison = ComparisonResult(
         results=mock_results,
         total_cost_usd=0.0095,
         total_tokens_in=450,
         total_tokens_out=237,
         successful_count=3,
-        failed_count=0
+        failed_count=0,
+        total_time_ms=max(r.latency_ms for r in mock_results),
     )
 
     with patch('dakora_server.core.vault.TemplateHandle.compare', return_value=mock_comparison):
@@ -147,7 +151,8 @@ def demo_verbose_output():
         total_tokens_in=300,
         total_tokens_out=155,
         successful_count=2,
-        failed_count=0
+        failed_count=0,
+        total_time_ms=max(r.latency_ms for r in mock_results),
     )
 
     with patch('dakora_server.core.vault.TemplateHandle.compare', return_value=mock_comparison):
@@ -211,7 +216,8 @@ def demo_with_failure():
         total_tokens_in=300,
         total_tokens_out=162,
         successful_count=2,
-        failed_count=1
+        failed_count=1,
+        total_time_ms=max(r.latency_ms for r in mock_results),
     )
 
     with patch('dakora_server.core.vault.TemplateHandle.compare', return_value=mock_comparison):
@@ -264,7 +270,8 @@ def demo_json_output():
         total_tokens_in=300,
         total_tokens_out=155,
         successful_count=2,
-        failed_count=0
+        failed_count=0,
+        total_time_ms=max(r.latency_ms for r in mock_results),
     )
 
     with patch('dakora_server.core.vault.TemplateHandle.compare', return_value=mock_comparison):

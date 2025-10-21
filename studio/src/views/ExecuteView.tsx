@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuthToken } from '@/utils/auth';
 import { PromptList } from '../components/PromptList';
 import { usePrompt } from '../hooks/useApi';
 import { Rocket, Plus, X, Loader2, CheckCircle, AlertCircle, Copy, DollarSign, Clock, Hash } from 'lucide-react';
@@ -41,7 +41,7 @@ interface ExecutionResponse {
 }
 
 export function ExecuteView() {
-  const { getToken } = useAuth();
+  const { getToken } = useAuthToken();
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [models, setModels] = useState<ModelConfig[]>([{
     id: '1',

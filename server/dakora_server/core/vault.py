@@ -180,7 +180,7 @@ class Vault:
                 ) from e
             return AzureRegistry(
                 container=str(config["azure_container"]),
-                prefix=str(config.get("azure_prefix", "prompts/")),
+                prefix=str(config.get("azure_prefix", "")),
                 connection_string=config.get("azure_connection_string"),
                 account_url=config.get("azure_account_url"),
             )
