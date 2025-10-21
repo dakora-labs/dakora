@@ -1,11 +1,10 @@
 """Clerk webhook handlers for user lifecycle events."""
 
-import hmac
-import hashlib
 from typing import Any
 from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.engine import Engine
+from svix.webhooks import Webhook, WebhookVerificationError
 
 from ..config import settings
 from ..core.database import create_db_engine, get_connection, users_table
@@ -20,44 +19,27 @@ class ClerkWebhookEvent(BaseModel):
     data: dict[str, Any]
 
 
-def verify_clerk_signature(payload: bytes, headers: dict[str, str]) -> bool:
-    """Verify Clerk webhook signature.
+def verify_clerk_signature(payload: bytes, headers: dict[str, str]) -> dict[str, Any]:
+    """Verify Clerk webhook signature using Svix library.
 
     Args:
         payload: Raw request body bytes
         headers: Request headers
 
     Returns:
-        True if signature is valid, False otherwise
+        Parsed webhook payload as dict
+
+    Raises:
+        WebhookVerificationError: If signature verification fails
     """
     if not settings.clerk_webhook_secret:
         # If no webhook secret configured, skip verification (development only)
-        return True
+        import json
+        return json.loads(payload)
 
-    signature = headers.get("svix-signature")
-    if not signature:
-        return False
-
-    # Clerk uses Svix for webhooks, signature format: "v1,signature"
-    # Extract the actual signature value
-    sig_parts = {}
-    for part in signature.split(" "):
-        if "," in part:
-            key, value = part.split(",", 1)
-            sig_parts[key] = value
-
-    expected_signature = sig_parts.get("v1")
-    if not expected_signature:
-        return False
-
-    # Compute HMAC-SHA256
-    computed = hmac.new(
-        settings.clerk_webhook_secret.encode(),
-        payload,
-        hashlib.sha256
-    ).hexdigest()
-
-    return hmac.compare_digest(computed, expected_signature)
+    # Use official Svix library for verification
+    wh = Webhook(settings.clerk_webhook_secret)
+    return wh.verify(payload, headers)
 
 
 def get_db_engine() -> Engine:
@@ -89,13 +71,12 @@ async def clerk_webhook(
     # Read raw body for signature verification
     body = await request.body()
 
-    # Verify webhook signature
-    if not verify_clerk_signature(body, dict(request.headers)):
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
-
-    # Parse event
-    event_data = await request.json()
-    event = ClerkWebhookEvent(**event_data)
+    # Verify webhook signature and get parsed payload
+    try:
+        event_data = verify_clerk_signature(body, dict(request.headers))
+        event = ClerkWebhookEvent(**event_data)
+    except WebhookVerificationError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid webhook signature: {str(e)}")
 
     # Handle user.created event
     if event.type == "user.created":
