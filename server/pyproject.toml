@@ -22,6 +22,7 @@ dependencies = [
     "alembic>=1.13.0",
     "psycopg2-binary>=2.9.0",
     "pyjwt[crypto]>=2.8.0",
+    "svix>=1.77.0,<2.0.0",
 ]
 
 [project.optional-dependencies]
