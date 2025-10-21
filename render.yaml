@@ -30,6 +30,14 @@ services:
         sync: false  # Set in Render dashboard
       - key: ANTHROPIC_API_KEY
         sync: false  # Set in Render dashboard
+
+      # Authentication (Clerk)
+      - key: AUTH_ENABLED
+        value: "true"  # Set to "false" for no-auth mode
+      - key: CLERK_JWT_ISSUER
+        sync: false  # Set in Render dashboard (from Clerk dashboard)
+      - key: CLERK_JWKS_URL
+        sync: false  # Set in Render dashboard (from Clerk dashboard)
     healthCheckPath: /api/health
     plan: free
 
@@ -43,5 +51,9 @@ services:
     envVars:
       - key: VITE_API_URL
         sync: false  # Set to: https://dakora-api.onrender.com (after API is deployed)
+      - key: VITE_AUTH_REQUIRED
+        value: "true"  # Set to "false" for no-auth mode
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false  # Set in Render dashboard (from Clerk dashboard)
     healthCheckPath: /
     plan: free

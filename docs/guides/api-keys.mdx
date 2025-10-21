@@ -1,9 +1,26 @@
 ---
-title: API Keys Setup
-description: 'Configure API keys for LLM providers'
+title: API Keys
+description: 'Configure API keys for LLM providers and Dakora authentication'
 ---
 
 ## Overview
+
+This guide covers two types of API keys in Dakora:
+
+1. **LLM Provider Keys** - For executing templates with external AI models (OpenAI, Anthropic, etc.)
+2. **Dakora API Keys** - For authenticating programmatic access to Dakora APIs (see [Authentication Guide](/guides/authentication))
+
+## Dakora API Keys
+
+For authentication and API access, see the [Authentication Guide](/guides/authentication#api-key-authentication).
+
+Dakora API keys allow you to:
+- Authenticate API requests without browser login
+- Access Dakora APIs from external services
+- Implement service-to-service communication
+- Control access at the project level
+
+## LLM Provider API Keys
 
 Dakora uses LiteLLM to execute templates against 100+ LLM providers. Each provider requires an API key.
 

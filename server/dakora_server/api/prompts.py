@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Response
 from ..core.vault import Vault
 from ..core.model import InputSpec
 from ..core.exceptions import TemplateNotFound, ValidationError
-from ..config import get_vault
+from ..auth import get_user_vault
 from .schemas import (
     TemplateResponse,
     CreateTemplateRequest,
@@ -16,8 +16,8 @@ router = APIRouter(prefix="/api/templates", tags=["templates"])
 
 
 @router.get("", response_model=List[str])
-async def list_templates(vault: Vault = Depends(get_vault)):
-    """List all available template IDs."""
+async def list_templates(vault: Vault = Depends(get_user_vault)):
+    """List all available template IDs for the authenticated user."""
     try:
         return list(vault.list())
     except Exception as e:
@@ -25,7 +25,7 @@ async def list_templates(vault: Vault = Depends(get_vault)):
 
 
 @router.get("/{template_id}", response_model=TemplateResponse)
-async def get_template(template_id: str, vault: Vault = Depends(get_vault)):
+async def get_template(template_id: str, vault: Vault = Depends(get_user_vault)):
     """Get a specific template with all its details."""
     try:
         template = vault.get(template_id)
@@ -56,9 +56,9 @@ async def get_template(template_id: str, vault: Vault = Depends(get_vault)):
 
 @router.post("", response_model=TemplateResponse)
 async def create_template(
-    request: CreateTemplateRequest, vault: Vault = Depends(get_vault)
+    request: CreateTemplateRequest, vault: Vault = Depends(get_user_vault)
 ):
-    """Create a new template and save it to the filesystem."""
+    """Create a new template and save it to the user's storage."""
     try:
         if not request.id or request.id.strip() == "":
             raise HTTPException(status_code=422, detail="Template ID cannot be empty")
@@ -121,9 +121,9 @@ async def create_template(
 
 @router.put("/{template_id}", response_model=TemplateResponse)
 async def update_template(
-    template_id: str, request: UpdateTemplateRequest, vault: Vault = Depends(get_vault)
+    template_id: str, request: UpdateTemplateRequest, vault: Vault = Depends(get_user_vault)
 ):
-    """Update an existing template and save it to the filesystem."""
+    """Update an existing template in the user's storage."""
     try:
         try:
             current_template = vault.get(template_id)
@@ -200,9 +200,9 @@ async def update_template(
 
 @router.delete("/{template_id}", status_code=204)
 async def delete_template(
-    template_id: str, vault: Vault = Depends(get_vault)
+    template_id: str, vault: Vault = Depends(get_user_vault)
 ):
-    """Delete a template from the registry.
+    """Delete a template from the user's storage.
     
     For Azure registries with versioning enabled, this marks the current version
     as deleted but preserves version history. The template will no longer appear

@@ -13,6 +13,10 @@ services:
       - PROMPT_DIR=/app/prompts
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/dakora
       - REDIS_URL=redis://redis:6379
+      # Authentication configuration
+      - AUTH_ENABLED=${AUTH_ENABLED:-false}
+      - CLERK_JWT_ISSUER=${CLERK_JWT_ISSUER}
+      - CLERK_JWKS_URL=${CLERK_JWKS_URL}
     volumes:
       - ../prompts:/app/prompts:ro
     depends_on:
@@ -26,11 +30,13 @@ services:
     build:
       context: ../studio
       dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:${API_PORT:-54321}
+        - VITE_AUTH_REQUIRED=${VITE_AUTH_REQUIRED:-false}
+        - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
     container_name: dakora-studio
     ports:
       - "${STUDIO_PORT:-3000}:80"
-    environment:
-      - VITE_API_URL=http://localhost:${API_PORT:-54321}
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped

@@ -1,6 +1,8 @@
 import { Settings } from 'lucide-react';
-import { UserButton } from '@clerk/clerk-react';
 import { Button } from '@/components/ui/button';
+import { UserButton } from '@clerk/clerk-react';
+
+const AUTH_REQUIRED = import.meta.env.VITE_AUTH_REQUIRED !== 'false';
 
 export function AppTopBar() {
   return (
@@ -18,13 +20,15 @@ export function AppTopBar() {
         <Button variant="ghost" size="sm" className="h-8 px-2">
           <Settings className="w-4 h-4" />
         </Button>
-        <UserButton 
-          appearance={{
-            elements: {
-              avatarBox: "w-8 h-8"
-            }
-          }}
-        />
+        {AUTH_REQUIRED && (
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "w-8 h-8"
+              }
+            }}
+          />
+        )}
       </div>
     </div>
   );
