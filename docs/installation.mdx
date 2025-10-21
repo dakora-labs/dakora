@@ -91,7 +91,7 @@ Set environment variables for authentication:
 
 ```bash
 # Enable authentication
-AUTH_ENABLED=true
+AUTH_REQUIRED=true
 
 # Get from Clerk Dashboard: https://dashboard.clerk.com → API Keys
 CLERK_JWT_ISSUER=https://your-domain.clerk.accounts.prod.liveblocks.io
@@ -104,7 +104,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/dakora
 For development without authentication:
 
 ```bash
-AUTH_ENABLED=false
+AUTH_REQUIRED=false
 ```
 
 See the [Authentication Guide](/guides/authentication) for detailed setup instructions.

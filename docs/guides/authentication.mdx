@@ -14,13 +14,13 @@ Dakora supports multiple authentication methods to protect your API endpoints an
 The system prioritizes authentication in the following order:
 1. API Key (if provided in `X-API-Key` header)
 2. JWT Token (if provided in `Authorization: Bearer` header)
-3. Development Mode (if `AUTH_ENABLED=false`)
+3. Development Mode (if `AUTH_REQUIRED=false`)
 
 ## Authentication Modes
 
 ### Production Mode (Auth Enabled)
 
-When `AUTH_REQUIRED=true` (or `AUTH_ENABLED=true` on backend):
+When `AUTH_REQUIRED=true` (or `AUTH_REQUIRED=true` on backend):
 - All API endpoints require authentication
 - Users must be signed in via Clerk or provide an API key
 - Multi-tenant architecture with user and project scoping
@@ -83,7 +83,7 @@ Set environment variables in your backend `.env` or deployment:
 
 ```bash
 # Enable authentication
-AUTH_ENABLED=true
+AUTH_REQUIRED=true
 
 # Clerk JWT configuration
 CLERK_JWT_ISSUER=https://YOUR-CLERK-DOMAIN.clerk.accounts.prod.liveblocks.io
@@ -96,7 +96,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/dakora
 ### Disable Authentication (Development)
 
 ```bash
-AUTH_ENABLED=false
+AUTH_REQUIRED=false
 ```
 
 ## API Key Authentication
@@ -245,7 +245,7 @@ const templates = await client.get('/api/templates');
 - Verify your API key is correct (if using API key auth)
 - Check that your JWT token hasn't expired (if using Clerk)
 - Ensure `X-API-Key` or `Authorization` header is set
-- Verify `AUTH_ENABLED` is `true` in backend configuration
+- Verify `AUTH_REQUIRED` is `true` in backend configuration
 
 ### 403 Forbidden
 
@@ -300,7 +300,7 @@ headers = {"Authorization": "Bearer <token>"}
 response = client.get("/api/templates", headers=headers)
 assert response.status_code == 200
 
-# Without auth (should fail if AUTH_ENABLED=true)
+# Without auth (should fail if AUTH_REQUIRED=true)
 response = client.get("/api/templates")
 assert response.status_code == 401
 ```
@@ -340,7 +340,7 @@ curl -H "X-API-Key: invalid" http://localhost:8000/api/templates
     **Solutions:**
     - Check `X-API-Key` is set correctly (if using API key)
     - Verify JWT token hasn't expired (if using Clerk)
-    - Ensure `AUTH_ENABLED=true` in backend config
+    - Ensure `AUTH_REQUIRED=true` in backend config
     - Check browser console for token errors
   </Accordion>
 
