@@ -1,0 +1,141 @@
+{
+  "folders": [
+    {
+      "name": "Dakora Root",
+      "path": "."
+    },
+    {
+      "name": "Server",
+      "path": "server"
+    },
+    {
+      "name": "Studio",
+      "path": "studio"
+    },
+    {
+      "name": "CLI",
+      "path": "cli"
+    },
+    {
+      "name": "Docs",
+      "path": "docs"
+    },
+    {
+      "name": "Client SDK",
+      "path": "packages/client-python"
+    }
+  ],
+  "settings": {
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+      "${workspaceFolder:server}/tests"
+    ],
+    "python.terminal.activateEnvironment": false,
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/.pytest_cache": true,
+      "**/.ruff_cache": true
+    },
+    "typescript.tsdk": "${workspaceFolder:Studio}/node_modules/typescript/lib"
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "ms-toolsai.jupyter",
+      "charliermarsh.ruff",
+      "ms-azuretools.vscode-docker",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode"
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "backend: uv sync",
+        "type": "shell",
+        "command": "uv",
+        "args": [
+          "sync"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "backend: dev server",
+        "type": "shell",
+        "command": "uvicorn",
+        "args": [
+          "dakora_server.main:app",
+          "--reload",
+          "--port",
+          "8000"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder:Server}"
+        },
+        "isBackground": true,
+        "problemMatcher": []
+      },
+      {
+        "label": "backend: pytest",
+        "type": "shell",
+        "command": "uv",
+        "args": [
+          "run",
+          "pytest"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "problemMatcher": [
+          "$python"
+        ]
+      },
+      {
+        "label": "frontend: install deps",
+        "type": "shell",
+        "command": "npm",
+        "args": [
+          "install"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder:Studio}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "frontend: dev server",
+        "type": "shell",
+        "command": "npm",
+        "args": [
+          "run",
+          "dev"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder:Studio}"
+        },
+        "isBackground": true,
+        "problemMatcher": []
+      },
+      {
+        "label": "frontend: lint",
+        "type": "shell",
+        "command": "npm",
+        "args": [
+          "run",
+          "lint"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder:Studio}"
+        },
+        "problemMatcher": [
+          "$eslint-stylish"
+        ]
+      }
+    ]
+  }
+}

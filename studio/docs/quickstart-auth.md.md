@@ -45,7 +45,7 @@ If you want to enable authentication on the backend API:
 
 ```bash
 # In .env or environment variables
-AUTH_ENABLED=true
+AUTH_REQUIRED=true
 CLERK_JWT_ISSUER=https://your-domain.clerk.accounts.prod.liveblocks.io
 CLERK_JWKS_URL=https://your-domain.clerk.accounts.prod.liveblocks.io/.well-known/jwks.json
 DATABASE_URL=postgresql://user:password@localhost:5432/dakora
@@ -74,7 +74,7 @@ uvicorn dakora_server.main:app --reload --port 8000
 
 | Variable | Required | Example | Notes |
 |----------|----------|---------|-------|
-| `AUTH_ENABLED` | Yes | `true` or `false` | Set to `false` for dev mode |
+| `AUTH_REQUIRED` | Yes | `true` or `false` | Set to `false` for dev mode |
 | `CLERK_JWT_ISSUER` | If auth enabled | `https://...clerk.accounts.prod.liveblocks.io` | Get from Clerk Dashboard |
 | `CLERK_JWKS_URL` | If auth enabled | `https://.../.well-known/jwks.json` | Get from Clerk Dashboard |
 | `DATABASE_URL` | If auth enabled | `postgresql://...` | For storing authenticated data |
@@ -98,7 +98,7 @@ Set in both frontend and backend `.env`:
 
 ```bash
 VITE_AUTH_REQUIRED=false
-AUTH_ENABLED=false
+VITE_AUTH_REQUIRED=false
 ```
 
 - All endpoints are public
@@ -111,7 +111,7 @@ Set in both frontend and backend `.env`:
 
 ```bash
 VITE_AUTH_REQUIRED=true
-AUTH_ENABLED=true
+VITE_AUTH_REQUIRED=true
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_YOUR_KEY
 CLERK_JWT_ISSUER=https://your-domain.clerk.accounts.prod.liveblocks.io
 CLERK_JWKS_URL=https://your-domain.clerk.accounts.prod.liveblocks.io/.well-known/jwks.json
@@ -151,7 +151,7 @@ API key generation and management endpoints are in development. See [Authenticat
 **API returns 401?**
 
 - Backend might not have auth enabled
-- Check `AUTH_ENABLED` in backend `.env`
+- Check `AUTH_REQUIRED` in backend `.env`
 - Verify database is configured if auth enabled
 
 **Token expired?**

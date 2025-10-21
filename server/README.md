@@ -32,11 +32,11 @@ uvicorn dakora_server.main:app --reload --port 8000
 
 Authentication configuration (see [Authentication Guide](/guides/authentication)):
 
-- `AUTH_ENABLED` - Enable authentication (default: `false`)
+- `AUTH_REQUIRED` - Enable authentication (default: `false`)
   - `true` - Require authentication for all endpoints
   - `false` - Allow public access (development mode)
 
-**Clerk JWT Configuration** (required when `AUTH_ENABLED=true`):
+**Clerk JWT Configuration** (required when `AUTH_REQUIRED=true`):
 
 - `CLERK_JWT_ISSUER` - Clerk JWT issuer URL
   - Example: `https://your-domain.clerk.accounts.prod.liveblocks.io`
