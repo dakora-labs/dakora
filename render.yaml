@@ -32,7 +32,7 @@ services:
         sync: false  # Set in Render dashboard
 
       # Authentication (Clerk)
-      - key: AUTH_ENABLED
+      - key: AUTH_REQUIRED
         value: "true"  # Set to "false" for no-auth mode
       - key: CLERK_JWT_ISSUER
         sync: false  # Set in Render dashboard (from Clerk dashboard)
