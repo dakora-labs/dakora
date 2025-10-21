@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .api import prompts, render, models, health
+from .api import prompts, render, models, health, webhooks
 
 
 def create_app() -> FastAPI:
@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
     app.include_router(render.router)
     app.include_router(models.router)
     app.include_router(health.router)
+    app.include_router(webhooks.router)
 
     studio_dir = Path(__file__).parent.parent.parent / "studio" / "dist"
 

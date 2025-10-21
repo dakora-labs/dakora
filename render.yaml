@@ -38,6 +38,8 @@ services:
         sync: false  # Set in Render dashboard (from Clerk dashboard)
       - key: CLERK_JWKS_URL
         sync: false  # Set in Render dashboard (from Clerk dashboard)
+      - key: CLERK_WEBHOOK_SECRET
+        sync: false  # Set in Render dashboard (from Clerk dashboard > Webhooks)
     healthCheckPath: /api/health
     plan: free
 
