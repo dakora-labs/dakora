@@ -44,7 +44,27 @@ except Exception:
         return _FallbackPlayground(host=host, port=port or 3000, vault=vault)
 
 
-from typing import Generator
+from typing import Generator, Any
+
+
+@pytest.fixture(autouse=True)
+def mock_settings_prompt_dir(monkeypatch: pytest.MonkeyPatch) -> Generator[Any, Any, Any]:
+    """Override settings.prompt_dir to use a temporary directory for all tests.
+    
+    This fixture runs automatically for all tests and ensures that tests
+    don't try to write to /app which may not have permissions in CI environments.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        monkeypatch.setenv("PROMPT_DIR", tmpdir)
+        monkeypatch.setattr("dakora_server.config.settings.prompt_dir", tmpdir)
+        # Reset the vault instance so next access creates a new one
+        import dakora_server.config
+        dakora_server.config._vault_instance = None  # type: ignore[attr-defined]
+        try:
+            yield
+        finally:
+            # Clean up after test
+            dakora_server.config._vault_instance = None  # type: ignore[attr-defined]
 
 
 @pytest.fixture
