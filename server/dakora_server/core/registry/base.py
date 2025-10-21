@@ -6,7 +6,7 @@ from ..model import TemplateSpec
 class Registry(ABC):
     """Base template registry interface.
     
-    All registries support reading (list_ids, load) and writing (save) templates.
+    All registries support reading (list_ids, load), writing (save), and deleting templates.
     """
     
     @abstractmethod
@@ -17,3 +17,6 @@ class Registry(ABC):
 
     @abstractmethod
     def save(self, spec: TemplateSpec) -> None: ...
+
+    @abstractmethod
+    def delete(self, template_id: str) -> None: ...

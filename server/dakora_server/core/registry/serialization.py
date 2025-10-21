@@ -37,6 +37,15 @@ def _q(s: str) -> str:
 
 
 def render_yaml(spec: TemplateSpec, original_text: Optional[str]) -> str:
+    """Render a TemplateSpec to YAML format.
+
+    Args:
+        spec: The template specification to render
+        original_text: Optional original YAML text to preserve metadata
+
+    Returns:
+        YAML string representation of the template
+    """
     original: Dict[str, Any] | None = None
     if original_text:
         try:
@@ -44,8 +53,12 @@ def render_yaml(spec: TemplateSpec, original_text: Optional[str]) -> str:
         except Exception:  # pragma: no cover
             original = None
 
-    orig_inputs = original.get("inputs", {}) if isinstance(original, dict) else {}
-    orig_metadata = original.get("metadata", {}) if isinstance(original, dict) else {}
+    orig_inputs: Dict[str, Any] = (
+        original.get("inputs", {}) if isinstance(original, dict) else {}
+    )
+    orig_metadata: Dict[str, Any] = (
+        original.get("metadata", {}) if isinstance(original, dict) else {}
+    )
 
     lines: list[str] = []
     lines.append(f"id: {spec.id}")
@@ -65,7 +78,7 @@ def render_yaml(spec: TemplateSpec, original_text: Optional[str]) -> str:
     # Note: For multiline templates, YAML block scalar (|) automatically adds a trailing newline.
     # The load logic will normalize this by stripping trailing newlines to preserve the original intent.
     tmpl = spec.template or ""
-    if '\n' not in tmpl:
+    if "\n" not in tmpl:
         # Single-line template: keep inline without quotes if safe
         if _needs_quote(tmpl):
             lines.append(f"template: {_q(tmpl)}")
@@ -74,10 +87,10 @@ def render_yaml(spec: TemplateSpec, original_text: Optional[str]) -> str:
     else:
         # Multiline template: use block scalar format
         # Ensure template ends with newline for proper YAML block scalar formatting
-        if not tmpl.endswith('\n'):
-            tmpl += '\n'
-        lines.append('template: |')
-        for line in tmpl.split('\n')[:-1]:
+        if not tmpl.endswith("\n"):
+            tmpl += "\n"
+        lines.append("template: |")
+        for line in tmpl.split("\n")[:-1]:
             lines.append(f"  {line}" if line else "")
 
     # Inputs
@@ -94,17 +107,21 @@ def render_yaml(spec: TemplateSpec, original_text: Optional[str]) -> str:
                 else:
                     lines.append(f"    default: {inp.default}")
             if name in orig_inputs:
-                for k, v in orig_inputs[name].items():
-                    if k in {"type", "required", "default"}:
-                        continue
-                    if isinstance(v, str):
-                        lines.append(f"    {k}: {_q(v)}")
-                    else:
-                        lines.append(f"    {k}: {v}")
+                orig_input_item: Any = orig_inputs[name]
+                if isinstance(orig_input_item, dict):
+                    # Type ignore for iterating over Any dict with unknown key/value types
+                    for k, v in orig_input_item.items():  # type: ignore[attr-defined]
+                        k_str: str = str(k)  # type: ignore[arg-type]
+                        if k_str in {"type", "required", "default"}:
+                            continue
+                        if isinstance(v, str):
+                            lines.append(f"    {k_str}: {_q(v)}")
+                        else:
+                            lines.append(f"    {k_str}: {v}")
 
     # Metadata
     merged_meta: Dict[str, Any] = {}
-    if orig_metadata and isinstance(orig_metadata, dict):
+    if orig_metadata:
         merged_meta.update(orig_metadata)
     merged_meta.update(spec.metadata)
 
@@ -117,9 +134,10 @@ def render_yaml(spec: TemplateSpec, original_text: Optional[str]) -> str:
         for key in ordering:
             if key not in merged_meta:
                 continue
-            val = merged_meta[key]
+            val: Any = merged_meta[key]
             if key in {"tags", "use_cases"} and isinstance(val, (list, tuple)):
-                items = ", ".join(_q(str(x)) for x in val)
+                # Type ignore for iteration over Any list/tuple
+                items: str = ", ".join(_q(str(x)) for x in val)  # type: ignore[attr-defined]
                 lines.append(f"  {key}: [{items}]")
             elif isinstance(val, str):
                 if _needs_quote(val):

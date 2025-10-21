@@ -50,3 +50,14 @@ class StorageBackend(Protocol):
             True if file exists, False otherwise
         """
         ...
+    
+    def delete(self, name: str) -> None:
+        """Delete a template file.
+        
+        Args:
+            name: Relative file path/name to delete
+            
+        Raises:
+            FileNotFoundError or equivalent if file doesn't exist
+        """
+        ...

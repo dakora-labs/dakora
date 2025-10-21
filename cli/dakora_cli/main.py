@@ -170,6 +170,72 @@ metadata:
 
 
 @app.command()
+def delete(
+    template_id: str = typer.Argument(..., help="Template ID to delete"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    api_url: str = typer.Option(
+        os.getenv("DAKORA_URL", "http://localhost:54321"),
+        "--api-url",
+        help="Dakora API URL"
+    ),
+):
+    """Delete a template from the registry
+    
+    This will permanently delete the template from the prompt registry.
+    Use with caution as this action cannot be undone (unless versioning is enabled).
+    """
+    # Confirmation prompt
+    if not yes:
+        typer.echo(f"Template: {template_id}")
+        typer.echo(f"API: {api_url}")
+        typer.echo("")
+        confirm = typer.confirm(
+            f"Are you sure you want to delete '{template_id}'?",
+            default=False
+        )
+        if not confirm:
+            typer.echo("Deletion cancelled")
+            raise typer.Exit(0)
+    
+    # Make DELETE request
+    import httpx
+    
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.delete(
+                f"{api_url}/api/templates/{template_id}",
+                headers={"Accept": "application/json"}
+            )
+            
+            if response.status_code == 204:
+                typer.secho(f"✓ Template '{template_id}' deleted successfully", fg=typer.colors.GREEN, bold=True)
+            elif response.status_code == 404:
+                typer.secho(f"Error: Template '{template_id}' not found", fg=typer.colors.RED, bold=True)
+                raise typer.Exit(1)
+            else:
+                # Try to parse error message
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("detail", f"HTTP {response.status_code}")
+                except:
+                    error_msg = f"HTTP {response.status_code}"
+                
+                typer.secho(f"Error: Failed to delete template - {error_msg}", fg=typer.colors.RED, bold=True)
+                raise typer.Exit(1)
+                
+    except httpx.ConnectError:
+        typer.secho(f"Error: Cannot connect to Dakora API at {api_url}", fg=typer.colors.RED, bold=True)
+        typer.echo("Make sure the Dakora server is running (try: dakora start)")
+        raise typer.Exit(1)
+    except httpx.TimeoutException:
+        typer.secho("Error: Request timed out", fg=typer.colors.RED, bold=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.secho(f"Error: {str(e)}", fg=typer.colors.RED, bold=True)
+        raise typer.Exit(1)
+
+
+@app.command()
 def link(url: str = typer.Argument(..., help="Cloud Dakora instance URL")):
     """Link to cloud Dakora instance"""
     api_key = typer.prompt("Enter API key", hide_input=True)
