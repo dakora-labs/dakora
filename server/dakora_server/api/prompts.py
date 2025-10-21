@@ -54,7 +54,7 @@ async def get_template(template_id: str, vault: Vault = Depends(get_vault)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/", response_model=TemplateResponse)
+@router.post("", response_model=TemplateResponse)
 async def create_template(
     request: CreateTemplateRequest, vault: Vault = Depends(get_vault)
 ):
@@ -71,7 +71,8 @@ async def create_template(
         except TemplateNotFound:
             pass
 
-        inputs_dict = {}
+        # Build inputs dict for the TemplateSpec
+        inputs_dict: Dict[str, InputSpec] = {}
         for input_name, input_data in request.inputs.items():
             inputs_dict[input_name] = InputSpec(
                 type=input_data.get("type", "string"),
