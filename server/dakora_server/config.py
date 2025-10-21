@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Authentication settings
     clerk_jwt_issuer: str | None = None  # e.g., "https://your-domain.clerk.accounts.dev"
     clerk_jwks_url: str | None = None  # e.g., "https://your-domain.clerk.accounts.dev/.well-known/jwks.json"
+    clerk_webhook_secret: str | None = None  # Clerk webhook signing secret
     auth_required: bool = False  # Set to True to enforce authentication
 
     class Config:

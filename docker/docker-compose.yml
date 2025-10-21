@@ -14,9 +14,10 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/dakora
       - REDIS_URL=redis://redis:6379
       # Authentication configuration
-      - AUTH_ENABLED=${AUTH_ENABLED:-false}
+      - AUTH_REQUIRED=${AUTH_REQUIRED:-false}
       - CLERK_JWT_ISSUER=${CLERK_JWT_ISSUER}
       - CLERK_JWKS_URL=${CLERK_JWKS_URL}
+      - CLERK_WEBHOOK_SECRET=${CLERK_WEBHOOK_SECRET}
     volumes:
       - ../prompts:/app/prompts:ro
     depends_on:

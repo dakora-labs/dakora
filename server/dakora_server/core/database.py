@@ -17,6 +17,7 @@ from sqlalchemy import (
     DateTime,
     text,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
@@ -40,6 +41,17 @@ logs_table = Table(
     Column("tokens_out", Integer),
     Column("cost_usd", Float),  # type: ignore[misc]
     Column("created_at", DateTime, server_default=text("CURRENT_TIMESTAMP")),
+)
+
+# Users table definition (SQLAlchemy Core)
+users_table = Table(
+    "users",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("clerk_user_id", String(255), nullable=False, unique=True, index=True),
+    Column("email", String(255), nullable=False),
+    Column("name", String(255), nullable=True),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
 )
 
 
