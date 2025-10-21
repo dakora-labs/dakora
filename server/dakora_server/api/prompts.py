@@ -1,7 +1,7 @@
 """Template/Prompts API routes"""
 
 from typing import List, Dict
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response
 from ..core.vault import Vault
 from ..core.model import InputSpec
 from ..core.exceptions import TemplateNotFound, ValidationError
@@ -196,3 +196,59 @@ async def update_template(
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{template_id}", status_code=204)
+async def delete_template(
+    template_id: str, vault: Vault = Depends(get_vault)
+):
+    """Delete a template from the registry.
+    
+    For Azure registries with versioning enabled, this marks the current version
+    as deleted but preserves version history. The template will no longer appear
+    in listings or be loadable, but previous versions remain accessible through
+    the versioning API.
+    
+    For local registries, the template file is permanently deleted.
+    
+    Args:
+        template_id: The ID of the template to delete
+        
+    Returns:
+        204 No Content on success
+        
+    Raises:
+        404: Template not found
+        500: Deletion failed
+    """
+    try:
+        # First check if template exists
+        try:
+            vault.get(template_id)
+        except TemplateNotFound:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Template '{template_id}' not found"
+            )
+        
+        # Delete the template
+        vault.registry.delete(template_id)
+        
+        # Invalidate cache
+        vault.invalidate_cache()
+        
+        # Return 204 No Content (standard for successful DELETE)
+        return Response(status_code=204)
+        
+    except HTTPException:
+        raise
+    except TemplateNotFound:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Template '{template_id}' not found"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to delete template: {str(e)}"
+        )

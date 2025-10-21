@@ -69,6 +69,18 @@ class PromptsAPI:
         response.raise_for_status()
         return TemplateInfo(**response.json())
 
+    async def delete(self, template_id: str) -> None:
+        """Delete a template
+        
+        Args:
+            template_id: The template ID to delete
+            
+        Raises:
+            httpx.HTTPStatusError: If template not found (404) or deletion fails
+        """
+        response = await self._http.delete(f"/api/templates/{template_id}")
+        response.raise_for_status()
+
     async def render(
         self, template_id: str, inputs: Dict[str, Any] | None = None
     ) -> RenderResult:

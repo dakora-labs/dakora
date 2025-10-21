@@ -106,3 +106,23 @@ class AzureBlobBackend:
             return True
         except Exception:
             return False
+
+    def delete(self, name: str) -> None:  # pragma: no cover
+        """Delete a blob from Azure storage.
+        
+        When versioning is enabled on the container, this marks the current version
+        as deleted but preserves all previous versions. The blob will no longer appear
+        in standard list operations, but version history remains accessible through
+        the Azure versioning API.
+        
+        Without versioning, the blob is permanently deleted (unless container-level
+        soft delete is enabled, which is an Azure storage account setting).
+        
+        Args:
+            name: Relative blob name
+            
+        Raises:
+            Exception: If blob doesn't exist or deletion fails
+        """
+        blob = self._container.get_blob_client(self._full(name))
+        blob.delete_blob()

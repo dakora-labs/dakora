@@ -68,3 +68,17 @@ class LocalFSBackend:
             True if file exists, False otherwise
         """
         return (self.root / name).exists()
+
+    def delete(self, name: str) -> None:
+        """Delete a file from local filesystem.
+        
+        Args:
+            name: Relative file path
+            
+        Raises:
+            FileNotFoundError: If file doesn't exist
+        """
+        path = self.root / name
+        if not path.exists():
+            raise FileNotFoundError(f"File not found: {name}")
+        path.unlink()

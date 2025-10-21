@@ -147,3 +147,47 @@ class TemplateRegistry(Registry):
             self.backend.write_text(filename, text)
         except Exception as e:  # pragma: no cover
             raise RegistryError(f"Failed to save template '{spec.id}': {e}") from e
+
+    def delete(self, template_id: str) -> None:  # type: ignore[override]
+        """Delete a template from storage.
+        
+        First attempts direct lookup using naming convention ({id}.yaml or {id}.yml).
+        Falls back to scanning all files if direct lookup fails.
+        
+        Args:
+            template_id: The template ID to delete
+            
+        Raises:
+            TemplateNotFound: If template doesn't exist
+            RegistryError: If deletion fails
+        """
+        # Try direct lookup first (fast path)
+        candidates = [f"{template_id}.yaml", f"{template_id}.yml"]
+        deleted = False
+        
+        for candidate in candidates:
+            if self.backend.exists(candidate):
+                try:
+                    self.backend.delete(candidate)
+                    deleted = True
+                    break
+                except Exception as e:
+                    raise RegistryError(f"Failed to delete template '{template_id}': {e}") from e
+        
+        if not deleted:
+            # Fallback: scan all files to find the template (slow path for backwards compatibility)
+            for name in self.backend.list():
+                if not name.endswith(('.yaml', '.yml')):
+                    continue
+                # Check if this file contains the template we want to delete
+                spec = self._load_and_normalize(name, expected_id=template_id)
+                if spec is not None:
+                    try:
+                        self.backend.delete(name)
+                        deleted = True
+                        break
+                    except Exception as e:
+                        raise RegistryError(f"Failed to delete template '{template_id}': {e}") from e
+        
+        if not deleted:
+            raise TemplateNotFound(template_id)
