@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from ..core.vault import Vault
 from ..core.exceptions import TemplateNotFound, ValidationError, RenderError
-from ..config import get_vault
+from ..auth import get_user_vault
 from .schemas import RenderRequest, RenderResponse
 
 router = APIRouter(prefix="/api/templates", tags=["render"])
@@ -11,9 +11,9 @@ router = APIRouter(prefix="/api/templates", tags=["render"])
 
 @router.post("/{template_id}/render", response_model=RenderResponse)
 async def render_template(
-    template_id: str, request: RenderRequest, vault: Vault = Depends(get_vault)
+    template_id: str, request: RenderRequest, vault: Vault = Depends(get_user_vault)
 ):
-    """Render a template with provided inputs."""
+    """Render a template with provided inputs from the user's storage."""
     try:
         template = vault.get(template_id)
         rendered = template.render(**request.inputs)

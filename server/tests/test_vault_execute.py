@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from typing import Any, Generator
 from unittest.mock import Mock, patch
 import yaml
 import pytest
@@ -15,12 +16,12 @@ from dakora_server.core.logging import Logger
 
 
 @pytest.fixture
-def temp_vault_with_logging():
+def temp_vault_with_logging() -> Generator[tuple[Vault, str], None, None]:
     with tempfile.TemporaryDirectory() as tmpdir:
         prompts_dir = Path(tmpdir) / "prompts"
         prompts_dir.mkdir()
 
-        test_template = {
+        test_template: dict[str, Any] = {
             "id": "test-template",
             "version": "1.0.0",
             "description": "Test template for execution",
@@ -36,7 +37,7 @@ def temp_vault_with_logging():
         template_path = prompts_dir / "test-template.yaml"
         template_path.write_text(yaml.safe_dump(test_template))
 
-        config = {
+        config: dict[str, Any] = {
             "registry": "local",
             "prompt_dir": str(prompts_dir),
             "logging": {
@@ -62,12 +63,12 @@ def temp_vault_with_logging():
 
 
 @pytest.fixture
-def temp_vault_no_logging():
+def temp_vault_no_logging() -> Generator[Vault, None, None]:
     with tempfile.TemporaryDirectory() as tmpdir:
         prompts_dir = Path(tmpdir) / "prompts"
         prompts_dir.mkdir()
 
-        test_template = {
+        test_template: dict[str, Any] = {
             "id": "test-template",
             "version": "1.0.0",
             "description": "Test template for execution",
@@ -88,7 +89,7 @@ def temp_vault_no_logging():
 
 
 @pytest.fixture
-def mock_execution_result():
+def mock_execution_result() -> ExecutionResult:
     return ExecutionResult(
         output="This is a summary of the text.",
         provider="openai",
@@ -101,7 +102,11 @@ def mock_execution_result():
 
 
 class TestTemplateHandleExecute:
-    def test_execute_basic_success(self, temp_vault_no_logging, mock_execution_result):
+    def test_execute_basic_success(
+        self, 
+        temp_vault_no_logging: Vault, 
+        mock_execution_result: ExecutionResult
+    ) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
@@ -127,7 +132,11 @@ class TestTemplateHandleExecute:
                 assert call_args[0][0] == "Summarize this text: Sample text to summarize"
                 assert call_args[0][1] == "gpt-4"
 
-    def test_execute_with_llm_params(self, temp_vault_no_logging, mock_execution_result):
+    def test_execute_with_llm_params(
+        self, 
+        temp_vault_no_logging: Vault, 
+        mock_execution_result: ExecutionResult
+    ) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
@@ -152,8 +161,12 @@ class TestTemplateHandleExecute:
                 assert call_args[1]["max_tokens"] == 100
                 assert call_args[1]["top_p"] == 0.9
 
-    def test_execute_with_logging(self, temp_vault_with_logging, mock_execution_result):
-        vault, tmpdir = temp_vault_with_logging
+    def test_execute_with_logging(
+        self, 
+        temp_vault_with_logging: tuple[Vault, str], 
+        mock_execution_result: ExecutionResult
+    ) -> None:
+        vault, _ = temp_vault_with_logging  # tmpdir not used in this test
         template = vault.get("test-template")
 
         # Mock logger to avoid database dependency in unit tests
@@ -181,14 +194,14 @@ class TestTemplateHandleExecute:
                     assert call_args[1]["tokens_out"] == 50
                     assert call_args[1]["cost_usd"] == 0.05
 
-    def test_execute_validation_error(self, temp_vault_no_logging):
+    def test_execute_validation_error(self, temp_vault_no_logging: Vault) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
         with pytest.raises(ValidationError):
             template.execute(model="gpt-4")
 
-    def test_execute_api_key_error(self, temp_vault_no_logging):
+    def test_execute_api_key_error(self, temp_vault_no_logging: Vault) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
@@ -203,7 +216,7 @@ class TestTemplateHandleExecute:
 
                 assert "Invalid API key" in str(exc_info.value)
 
-    def test_execute_rate_limit_error(self, temp_vault_no_logging):
+    def test_execute_rate_limit_error(self, temp_vault_no_logging: Vault) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
@@ -218,7 +231,7 @@ class TestTemplateHandleExecute:
 
                 assert "Rate limit exceeded" in str(exc_info.value)
 
-    def test_execute_model_not_found_error(self, temp_vault_no_logging):
+    def test_execute_model_not_found_error(self, temp_vault_no_logging: Vault) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
@@ -233,7 +246,7 @@ class TestTemplateHandleExecute:
 
                 assert "Model not found" in str(exc_info.value)
 
-    def test_execute_llm_error(self, temp_vault_no_logging):
+    def test_execute_llm_error(self, temp_vault_no_logging: Vault) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
@@ -248,7 +261,11 @@ class TestTemplateHandleExecute:
 
                 assert "Unexpected error" in str(exc_info.value)
 
-    def test_execute_client_reuse(self, temp_vault_no_logging, mock_execution_result):
+    def test_execute_client_reuse(
+        self, 
+        temp_vault_no_logging: Vault, 
+        mock_execution_result: ExecutionResult
+    ) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
@@ -264,11 +281,11 @@ class TestTemplateHandleExecute:
                 assert mock_client_class.call_count == 1
                 assert mock_client.execute.call_count == 2
 
-    def test_execute_with_complex_template(self, temp_vault_no_logging):
+    def test_execute_with_complex_template(self, temp_vault_no_logging: Vault) -> None:
         vault = temp_vault_no_logging
 
-        prompts_dir = Path(vault.config["prompt_dir"])
-        complex_template = {
+        prompts_dir = Path(vault.config["prompt_dir"])  # type: ignore[index]
+        complex_template: dict[str, Any] = {
             "id": "complex-template",
             "version": "1.0.0",
             "description": "Complex template",
@@ -312,7 +329,11 @@ class TestTemplateHandleExecute:
                 assert "Name: John, Age: 30, City: Unknown" in call_args[0][0]
                 assert call_args[1]["temperature"] == 0.5
 
-    def test_execute_with_messages_param(self, temp_vault_no_logging, mock_execution_result):
+    def test_execute_with_messages_param(
+        self, 
+        temp_vault_no_logging: Vault, 
+        mock_execution_result: ExecutionResult
+    ) -> None:
         vault = temp_vault_no_logging
         template = vault.get("test-template")
 
@@ -347,8 +368,17 @@ class TestDatabaseMigration:
         # Get DATABASE_URL from environment or use default test database
         db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/dakora")
 
-        # Create test engine
-        engine = create_test_engine(db_url)
+        # Try to create test engine and skip if database is not available
+        try:
+            engine = create_test_engine(db_url)
+            
+            # Test connection
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                
+        except Exception as e:
+            pytest.skip(f"PostgreSQL database not available: {str(e)}")
 
         try:
             # Ensure tables exist (created by migrations)
@@ -372,7 +402,7 @@ class TestDatabaseMigration:
                 pass
             engine.dispose()
 
-    def test_migration_adds_llm_columns(self, setup_test_db):
+    def test_migration_adds_llm_columns(self, setup_test_db: Any) -> None:  # type: ignore[misc]
         """Test that the logs table has all required LLM columns"""
         engine = setup_test_db
 
@@ -397,7 +427,7 @@ class TestDatabaseMigration:
 
             # Query to verify columns exist
             from dakora_server.core.database import get_connection
-            from sqlalchemy import select, text
+            from sqlalchemy import text
 
             with get_connection(engine) as conn:
                 # Verify we can select all columns
@@ -421,7 +451,7 @@ class TestDatabaseMigration:
         finally:
             logger.close()
 
-    def test_logger_write_with_llm_metadata(self, setup_test_db):
+    def test_logger_write_with_llm_metadata(self, setup_test_db: Any) -> None:  # type: ignore[misc]
         """Test that logger correctly writes LLM metadata to PostgreSQL"""
         engine = setup_test_db
 
@@ -449,12 +479,13 @@ class TestDatabaseMigration:
             with get_connection(engine) as conn:
                 result = conn.execute(select(logs_table)).fetchone()
 
-                assert result.prompt_id == "test-prompt"
-                assert result.version == "1.0.0"
-                assert result.provider == "openai"
-                assert result.model == "gpt-4"
-                assert result.tokens_in == 100
-                assert result.tokens_out == 50
-                assert result.cost_usd == 0.05
+                assert result is not None
+                assert result.prompt_id == "test-prompt"  # type: ignore[union-attr]
+                assert result.version == "1.0.0"  # type: ignore[union-attr]
+                assert result.provider == "openai"  # type: ignore[union-attr]
+                assert result.model == "gpt-4"  # type: ignore[union-attr]
+                assert result.tokens_in == 100  # type: ignore[union-attr]
+                assert result.tokens_out == 50  # type: ignore[union-attr]
+                assert result.cost_usd == 0.05  # type: ignore[union-attr]
         finally:
             logger.close()

@@ -2,7 +2,7 @@
 
 import pytest
 import os
-from sqlalchemy import text, select
+from sqlalchemy import text
 from dakora_server.core.database import (
     create_db_engine,
     create_test_engine,

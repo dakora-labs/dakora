@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 import os
-from typing import Optional
+from typing import Optional, Any
 from contextlib import contextmanager
 
 from sqlalchemy import (
@@ -17,6 +17,7 @@ from sqlalchemy import (
     DateTime,
     text,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
@@ -32,14 +33,25 @@ logs_table = Table(
     Column("version", String(50)),
     Column("inputs_json", Text),
     Column("output_text", Text),
-    Column("cost", Float),
+    Column("cost", Float),  # type: ignore[misc]
     Column("latency_ms", Integer),
     Column("provider", String(50)),
     Column("model", String(100)),
     Column("tokens_in", Integer),
     Column("tokens_out", Integer),
-    Column("cost_usd", Float),
+    Column("cost_usd", Float),  # type: ignore[misc]
     Column("created_at", DateTime, server_default=text("CURRENT_TIMESTAMP")),
+)
+
+# Users table definition (SQLAlchemy Core)
+users_table = Table(
+    "users",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("clerk_user_id", String(255), nullable=False, unique=True, index=True),
+    Column("email", String(255), nullable=False),
+    Column("name", String(255), nullable=True),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
 )
 
 
@@ -54,7 +66,7 @@ def get_database_url() -> str:
     return database_url
 
 
-def create_db_engine(database_url: Optional[str] = None, **kwargs) -> Engine:
+def create_db_engine(database_url: Optional[str] = None, **kwargs: Any) -> Engine:
     """
     Create SQLAlchemy engine with connection pooling.
 
@@ -68,12 +80,12 @@ def create_db_engine(database_url: Optional[str] = None, **kwargs) -> Engine:
     url = database_url or get_database_url()
 
     # Default engine options for production reliability
-    engine_options = {
+    engine_options: dict[str, Any] = {
         "pool_pre_ping": True,  # Verify connections before using
-        "pool_recycle": 3600,   # Recycle connections after 1 hour
-        "pool_size": 5,         # Connection pool size
-        "max_overflow": 10,     # Max overflow connections
-        "echo": False,          # Set to True for SQL debugging
+        "pool_recycle": 3600,  # Recycle connections after 1 hour
+        "pool_size": 5,  # Connection pool size
+        "max_overflow": 10,  # Max overflow connections
+        "echo": False,  # Set to True for SQL debugging
     }
 
     # Allow override of defaults
@@ -140,10 +152,14 @@ def wait_for_db(engine: Engine, max_retries: int = 30, retry_interval: int = 1) 
             return True
         except Exception as e:
             if attempt < max_retries - 1:
-                print(f"Database not ready (attempt {attempt + 1}/{max_retries}), retrying in {retry_interval}s...")
+                print(
+                    f"Database not ready (attempt {attempt + 1}/{max_retries}), retrying in {retry_interval}s..."
+                )
                 time.sleep(retry_interval)
             else:
-                print(f"Failed to connect to database after {max_retries} attempts: {e}")
+                print(
+                    f"Failed to connect to database after {max_retries} attempts: {e}"
+                )
                 return False
 
     return False

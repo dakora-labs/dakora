@@ -17,12 +17,15 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 ### Server (`server/dakora_server/`)
 
 **Main Entry Point:**
+
 - `main.py` - FastAPI application factory with CORS middleware, API routes, and Studio static file serving
 
 **Configuration:**
+
 - `config.py` - Pydantic settings with environment variables, vault singleton pattern
 
 **API Routes (`api/`):**
+
 - `prompts.py` - Template CRUD operations (list, get, create, update)
 - `render.py` - Template rendering endpoint
 - `models.py` - Multi-model comparison endpoint (`/api/templates/{id}/compare`)
@@ -32,6 +35,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 **Core Business Logic (`core/`):**
 
 **Vault System:**
+
 - `vault.py` - Main Vault class with thread-safe caching (RLock), registry integration, template management
 - Supports multiple initialization patterns:
   - Direct registry injection: `Vault(LocalRegistry("./prompts"))`
@@ -39,6 +43,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
   - Legacy config file: `Vault.from_config("promptvault.yaml")`
 
 **Template System:**
+
 - `model.py` - Pydantic models for templates:
   - `TemplateSpec` - Template definition with id, version, description, template, inputs, metadata
   - `InputSpec` - Input field specification with type validation and coercion
@@ -46,6 +51,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 - `renderer.py` - Jinja2-based template rendering with custom filters
 
 **Registry System (`registry/`):**
+
 - `base.py` - Abstract Registry protocol
 - `core.py` - TemplateRegistry with pluggable storage backends
 - `backends/` - Storage backend implementations:
@@ -58,6 +64,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 - `serialization.py` - YAML parsing and rendering utilities
 
 **LLM Integration (`llm/`):**
+
 - `client.py` - LLMClient using litellm for multi-provider LLM support
   - `execute()` - Synchronous single model execution
   - `_execute_async()` - Asynchronous execution with error handling
@@ -66,6 +73,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
   - `ComparisonResult` - Multi-model comparison result
 
 **Database & Logging:**
+
 - `database.py` - SQLAlchemy Core setup with PostgreSQL connection pooling, table definitions
 - `logging.py` - PostgreSQL-based execution logging (migrated from SQLite)
 - `types.py` - Type definitions (InputType, etc.)
@@ -73,6 +81,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 - `watcher.py` - File system monitoring for hot-reload
 
 **Dependencies:**
+
 - FastAPI + Uvicorn - Web framework
 - Pydantic - Data validation
 - Jinja2 - Template rendering
@@ -89,6 +98,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 **Package:** `dakora-client` (published to PyPI)
 
 **Structure:**
+
 - `client.py` - Main `Dakora` class with async HTTP client (httpx)
 - `prompts.py` - `PromptsAPI` class with methods:
   - `list()` - List all template IDs
@@ -100,6 +110,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 - `types.py` - Data models (TemplateInfo, RenderResult, CompareResult)
 
 **Usage Example:**
+
 ```python
 from dakora_client import Dakora
 
@@ -122,6 +133,7 @@ comparison = await dakora.prompts.compare(
 **Package:** `dakora` (published to PyPI)
 
 **Commands:**
+
 - `dakora start` - Start platform via Docker Compose (defaults to detached mode)
 - `dakora stop` - Stop platform
 - `dakora init` - Initialize new project with example templates
@@ -129,6 +141,7 @@ comparison = await dakora.prompts.compare(
 - `dakora version` - Show CLI version
 
 **Features:**
+
 - Auto-detects docker-compose.yml in multiple locations
 - Falls back to embedded template if no local compose file found
 - Creates example template on init
@@ -136,6 +149,7 @@ comparison = await dakora.prompts.compare(
 ### Studio (`studio/`)
 
 **Tech Stack:**
+
 - React 18 + TypeScript
 - Vite - Build tool
 - React Router - Client-side routing
@@ -143,7 +157,8 @@ comparison = await dakora.prompts.compare(
 - Tailwind CSS - Styling
 
 **Structure:**
-```
+
+```text
 studio/src/
 ├── App.tsx                  # Main app with routing
 ├── components/
@@ -170,6 +185,7 @@ studio/src/
 ```
 
 **Build Process:**
+
 - Runs `npm run build` in studio/
 - Outputs to `studio/dist/`
 - Server serves static files from dist/ in production
@@ -178,12 +194,14 @@ studio/src/
 ### Docker (`docker/`)
 
 **Services:**
+
 - `api` - Dakora server (port 54321)
 - `studio` - Studio UI via nginx (port 3000)
 - `db` - PostgreSQL 15
 - `redis` - Redis 7
 
 **Configuration:**
+
 - `.env.example` - Environment template
 - Default ports: API (54321), Studio (3000)
 - Volumes: prompts directory mounted read-only
@@ -246,11 +264,13 @@ npm run dev
 Dakora uses **Alembic** for database migrations with **SQLAlchemy Core** (not ORM) and **PostgreSQL**.
 
 **Architecture:**
+
 - **Local (Docker Compose)**: PostgreSQL 15 container
 - **Production (Render)**: Supabase (PostgreSQL-compatible)
 - **Migration System**: Alembic with environment-aware DATABASE_URL
 
 **Key Files:**
+
 - `server/dakora_server/core/database.py` - SQLAlchemy Core setup, table definitions, connection pooling
 - `server/dakora_server/core/logging.py` - Logger using PostgreSQL (replaced SQLite)
 - `server/alembic/` - Migration scripts directory
@@ -261,12 +281,14 @@ Dakora uses **Alembic** for database migrations with **SQLAlchemy Core** (not OR
 **How Migrations Work:**
 
 **Docker Compose (Local):**
+
 1. `docker-compose up` starts PostgreSQL with healthcheck
 2. API container waits for DB to be healthy
 3. `entrypoint.sh` runs `alembic upgrade head` automatically
 4. Server starts after migrations complete
 
 **Render (Production):**
+
 1. Push code to GitHub
 2. Render triggers deployment
 3. **Pre-deploy command** runs: `alembic upgrade head`
@@ -295,6 +317,7 @@ export PATH="$HOME/.local/bin:$PATH" && uv run alembic downgrade -1
 ```
 
 **Migration Best Practices:**
+
 - **Always test locally** before deploying to production
 - **Write downgrade()** logic for safe rollbacks
 - **Keep migrations small** and focused on single changes
@@ -302,15 +325,19 @@ export PATH="$HOME/.local/bin:$PATH" && uv run alembic downgrade -1
 - **Test with empty DB** to ensure idempotency
 
 **Current Schema:**
+
 - `logs` table - Execution logging (prompt_id, version, inputs_json, output_text, provider, model, tokens, cost, latency)
 
 **Supabase Setup (Production):**
-1. Create Supabase project at https://supabase.com
+
+1. Create [Supabase](https://supabase.com) project
 2. Get connection string from project settings (Database → Connection String → URI)
 3. Add to Render environment variables:
-   ```
-   DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
-   ```
+
+    ```text
+    DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres
+    ```
+
 4. Migrations run automatically via `preDeployCommand` in render.yaml
 
 **Troubleshooting:**
@@ -335,14 +362,17 @@ cd server && export PATH="$HOME/.local/bin:$PATH" && uv run alembic stamp head
 Dakora integrates with LLM providers for model execution and comparison.
 
 **Setup:**
+
 1. Create `.env` file in project root
 2. Add required API keys:
+
 ```bash
 OPENAI_API_KEY="sk-..."
 ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 **Supported Providers:**
+
 - OpenAI (GPT-3.5, GPT-4)
 - Anthropic (Claude)
 - Any provider supported by litellm
@@ -371,6 +401,7 @@ metadata:
 ```
 
 **Input Types:**
+
 - `string` - Text values
 - `number` - Numeric values (int or float)
 - `boolean` - true/false values
@@ -378,6 +409,7 @@ metadata:
 - `object` - Dictionary/object values
 
 **Template Features:**
+
 - Jinja2 syntax for logic and loops
 - Custom filters: `yaml`, `default`
 - Type coercion and validation on render
@@ -401,6 +433,7 @@ comparison = await template.compare(
 ```
 
 **Comparison Features:**
+
 - Parallel execution for speed
 - Error handling per model
 - Token usage and cost tracking
@@ -422,6 +455,7 @@ vault = Vault(AzureRegistry(
 ```
 
 **Features:**
+
 - Connection string or DefaultAzureCredential support
 - Automatic YAML file discovery
 - Same API as local registry
@@ -440,11 +474,13 @@ watcher.start()
 ## Testing Strategy
 
 **Test Organization:**
+
 - `server/tests/` - All server tests
 - Test categories: unit, integration, performance
 - Manual tests for LLM functionality (require API keys)
 
 **Key Test Files:**
+
 - `test_vault_execute.py` - LLM execution tests
 - `test_vault_compare.py` - Multi-model comparison tests
 - `test_llm_client.py` - LLM client unit tests
@@ -452,6 +488,7 @@ watcher.start()
 - `conftest.py` - Pytest fixtures
 
 **Running Specific Tests:**
+
 ```bash
 # LLM execution tests (requires API keys)
 export PATH="$HOME/.local/bin:$PATH" && uv run python -m pytest server/tests/test_llm_client.py::test_execute_success -v
@@ -462,16 +499,23 @@ export PATH="$HOME/.local/bin:$PATH" && uv run python -m pytest server/tests/ -v
 
 ## Code Style Guidelines
 
-- Type hints throughout for better IDE support
-- Minimal comments - code should be self-documenting
-- Custom exception hierarchy for clear error messages
-- Pydantic for all data validation
-- Thread-safe operations where needed (vault caching)
-- Async/await for I/O operations (LLM calls, HTTP)
+### Python Code
+
+1. **Type Hints**: Always use type hints for function parameters and return values for better IDE support
+2. **Async/Await**: Use async/await patterns for I/O operations (LLM calls, HTTP, database)
+3. **Pydantic Models**: Use Pydantic v2 models for data validation and settings
+4. **Docstrings**: Use Google-style docstrings for functions and classes
+5. **Imports**: Group imports (standard library, third-party, local)
+6. **Error Handling**: Use FastAPI's HTTPException for API errors; custom exception hierarchy (DakoraError, TemplateNotFound, ValidationError) for business logic
+7. **Configuration**: Use Pydantic Settings for environment-based config
+8. **Thread Safety**: Implement thread-safe operations where needed (e.g., vault caching with RLock)
+9. **Code Clarity**: Write self-documenting code with clear naming; minimize inline comments
+10. **Formatting**: Format Python code with Black using the repo `pyproject.toml` configuration (line length 88, Python 3.11 targets)
+11. **Static Analysis**: Keep Pylance diagnostics clean—resolve missing type hints, `Any` leaks, and other warnings surfaced by Pylance-equivalent type checkers
 
 ## Project Structure
 
-```
+```text
 dakora/                         # Monorepo root
 ├── server/                     # Platform backend
 │   ├── dakora_server/
@@ -558,6 +602,7 @@ logging:
 ```
 
 **Configuration Options:**
+
 - `registry` - Registry type (local or azure)
 - `prompt_dir` - Path to templates directory (local registry)
 - `logging.enabled` - Enable execution logging
@@ -569,10 +614,12 @@ logging:
 Three separate packages are published:
 
 1. **dakora** (CLI) - PyPI
+
    - Minimal dependencies (typer only)
    - Commands for managing platform
 
 2. **dakora-client** (Python SDK) - PyPI
+
    - Dependencies: httpx, pydantic
    - Full API client library
 
@@ -583,6 +630,7 @@ Three separate packages are published:
 ## CI/CD
 
 GitHub Actions workflows:
+
 - `.github/workflows/ci.yml` - Tests and validation
 - `.github/workflows/release-cli.yml` - Publish CLI to PyPI
 - `.github/workflows/release-client-python.yml` - Publish client to PyPI
@@ -591,6 +639,7 @@ GitHub Actions workflows:
 ## Future Enhancements
 
 **Planned:**
+
 - TypeScript SDK (`@dakora/client`)
 - Go SDK (`dakora-go`)
 - Cloud hosting platform

@@ -120,7 +120,7 @@ def test_azure_registry_init_with_connection_string(mock_blob_service):
     )
     
     assert registry.container_name == "test-container"
-    assert registry.prefix == "prompts/"
+    assert registry.prefix == ""
     assert registry.enable_versioning is True
     mock_blob_service.from_connection_string.assert_called_once()
 
@@ -283,27 +283,29 @@ def test_validate_access_versioning_warning(mock_blob_service):
 
 @patch('dakora_server.core.registry.implementations.azure.BlobServiceClient')
 def test_list_versions_success(mock_blob_service):
-    """Test listing all versions of a template"""
-    container = MockContainerClient()
-    
-    # Create mock versions
-    blob1 = MockBlob("prompts/test.yaml", version_id="v1", 
+    """Test list_versions returns all versions in newest-first order"""
+    container = MockContainerClient(versioning_enabled=True)
+    blob1 = MockBlob("test.yaml", version_id="v1", 
                      last_modified=datetime(2024, 1, 1, tzinfo=timezone.utc), is_current=False)
-    blob2 = MockBlob("prompts/test.yaml", version_id="v2",
+    blob2 = MockBlob("test.yaml", version_id="v2",
                      last_modified=datetime(2024, 1, 2, tzinfo=timezone.utc), is_current=True)
     
-    container.blobs = {
-        "prompts/test.yaml": blob1,
-        "prompts/test.yaml_v2": blob2
-    }
+    # Store blob in container's blobs dictionary
+    container.blobs["test.yaml"] = blob1  # Will be replaced, but keep for name reference
     
     # Override list_blobs method to return versions
-    original_list = container.list_blobs
-    
     def mock_list_blobs(name_starts_with=None, include=None, max_results=None):
-        if include and 'versions' in include:
+        if include and 'versions' in include and name_starts_with == "test.yaml":
+            # Return all versions of the blob
             return [blob1, blob2]
-        return original_list(name_starts_with, include, max_results)
+        elif name_starts_with and not include:
+            # Regular non-versioned list
+            blobs = []
+            for name, blob in container.blobs.items():
+                if name.startswith(name_starts_with):
+                    blobs.append(blob)
+            return blobs
+        return []
     
     container.list_blobs = mock_list_blobs  # type: ignore
     mock_blob_service.from_connection_string.return_value = MockBlobServiceClient(container)

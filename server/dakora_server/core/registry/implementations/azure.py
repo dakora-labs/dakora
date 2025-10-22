@@ -53,7 +53,7 @@ class AzureRegistry(TemplateRegistry):
     def __init__(
         self,
         container: str,
-        prefix: str = "prompts/",
+        prefix: str = "",
         connection_string: Optional[str] = None,
         account_url: Optional[str] = None,
         enable_versioning: bool = True,
@@ -62,7 +62,7 @@ class AzureRegistry(TemplateRegistry):
         
         Args:
             container: Azure storage container name
-            prefix: Prefix for blob paths (default: "prompts/")
+            prefix: Prefix for blob paths (default: "")
             connection_string: Azure storage connection string
             account_url: Azure storage account URL (uses DefaultAzureCredential)
             enable_versioning: If True, leverages blob versioning (requires container versioning enabled)

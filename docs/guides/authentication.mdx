@@ -1,0 +1,383 @@
+---
+title: Authentication
+description: 'Set up and use authentication with Dakora'
+---
+
+## Overview
+
+Dakora supports multiple authentication methods to protect your API endpoints and manage access control:
+
+1. **JWT Authentication** - Clerk-based user authentication for web applications
+2. **API Key Authentication** - For programmatic access and integrations
+3. **Development Mode** - No authentication (for local development)
+
+The system prioritizes authentication in the following order:
+1. API Key (if provided in `X-API-Key` header)
+2. JWT Token (if provided in `Authorization: Bearer` header)
+3. Development Mode (if `AUTH_REQUIRED=false`)
+
+## Authentication Modes
+
+### Production Mode (Auth Enabled)
+
+When `AUTH_REQUIRED=true` (or `AUTH_REQUIRED=true` on backend):
+- All API endpoints require authentication
+- Users must be signed in via Clerk or provide an API key
+- Multi-tenant architecture with user and project scoping
+- Endpoints return `401 Unauthorized` for missing/invalid credentials
+
+### Development Mode (No Auth)
+
+When `AUTH_REQUIRED=false`:
+- All API endpoints are public (no authentication required)
+- Ideal for local development and testing
+- All requests treated as default user with default project scoping
+- No Clerk setup needed
+
+## Frontend Setup (Clerk JWT)
+
+### Step 1: Get Clerk Publishable Key
+
+1. Go to [Clerk Dashboard](https://dashboard.clerk.com)
+2. Create an application (or use existing)
+3. Navigate to **API Keys**
+4. Copy your **Publishable Key** (starts with `pk_test_` or `pk_live_`)
+
+### Step 2: Configure Environment Variables
+
+Create `studio/.env.local`:
+
+```bash
+# Enable authentication
+VITE_AUTH_REQUIRED=true
+
+# Clerk configuration
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_YOUR_KEY_HERE
+
+# API configuration
+VITE_API_URL=http://localhost:8000
+```
+
+<Info>
+  For development without authentication, set `VITE_AUTH_REQUIRED=false` to skip Clerk setup.
+</Info>
+
+### Step 3: Run Frontend
+
+```bash
+cd studio
+npm install
+npm run dev
+```
+
+The frontend will:
+- Show Clerk sign-in/sign-up when `AUTH_REQUIRED=true`
+- Automatically add auth tokens to API requests
+- Allow public access when `AUTH_REQUIRED=false`
+
+## Backend Setup
+
+### Enable Authentication
+
+Set environment variables in your backend `.env` or deployment:
+
+```bash
+# Enable authentication
+AUTH_REQUIRED=true
+
+# Clerk JWT configuration
+CLERK_JWT_ISSUER=https://YOUR-CLERK-DOMAIN.clerk.accounts.prod.liveblocks.io
+CLERK_JWKS_URL=https://YOUR-CLERK-DOMAIN.clerk.accounts.prod.liveblocks.io/.well-known/jwks.json
+
+# Database (required for API key storage)
+DATABASE_URL=postgresql://user:password@localhost:5432/dakora
+```
+
+### Disable Authentication (Development)
+
+```bash
+AUTH_REQUIRED=false
+```
+
+## API Key Authentication
+
+<Info>
+  **Note:** API key database models and management endpoints are currently in development.
+</Info>
+
+### Generating API Keys
+
+<Tabs>
+  <Tab title="Frontend (Coming Soon)">
+    In the frontend UI:
+    1. Navigate to Settings → API Keys
+    2. Click "Generate New Key"
+    3. Copy and save the key (shown only once)
+    4. Use in API requests
+  </Tab>
+
+  <Tab title="Backend (Manual)">
+    Generate a key manually and store in database:
+
+    ```python
+    # This is manual for now; UI support coming soon
+    import secrets
+    api_key = secrets.token_urlsafe(32)
+    ```
+  </Tab>
+</Tabs>
+
+### Using API Keys
+
+Add your API key to request headers:
+
+<CodeGroup>
+
+```bash curl
+curl -X GET http://localhost:8000/api/templates \
+  -H "X-API-Key: your-api-key-here"
+```
+
+```python Python
+import requests
+
+headers = {
+    "X-API-Key": "your-api-key-here"
+}
+
+response = requests.get(
+    "http://localhost:8000/api/templates",
+    headers=headers
+)
+```
+
+```typescript TypeScript
+const apiKey = "your-api-key-here";
+
+const response = await fetch("http://localhost:8000/api/templates", {
+  headers: {
+    "X-API-Key": apiKey,
+  },
+});
+```
+
+</CodeGroup>
+
+### API Key Best Practices
+
+<AccordionGroup>
+  <Accordion title="Store Keys Securely">
+    Never commit API keys to version control. Use environment variables:
+
+    ```bash
+    DAKORA_API_KEY=your-api-key
+    ```
+
+    Access in code:
+    ```python
+    import os
+    api_key = os.environ.get("DAKORA_API_KEY")
+    ```
+  </Accordion>
+
+  <Accordion title="Rotate Keys Regularly">
+    Generate new keys periodically and revoke old ones to maintain security.
+  </Accordion>
+
+  <Accordion title="Use Separate Keys">
+    Create different API keys for different services or environments (dev, staging, production).
+  </Accordion>
+
+  <Accordion title="Monitor Usage">
+    Track which API keys are being used and when. Disable unused keys.
+  </Accordion>
+
+  <Accordion title="Scope to Projects">
+    Limit API keys to specific projects when possible to reduce blast radius if compromised.
+  </Accordion>
+</AccordionGroup>
+
+## JWT Authentication (Clerk)
+
+### How It Works
+
+1. **User Signs In** - User authenticates with Clerk
+2. **JWT Generated** - Clerk issues a JWT token
+3. **Token Sent** - Frontend adds token to request headers
+4. **Token Verified** - Backend verifies JWT signature with Clerk's public key
+5. **Request Processed** - If valid, request is processed with user context
+
+### Making Authenticated Requests
+
+The frontend automatically handles JWT injection via the `createApiClient()` function:
+
+```typescript
+import { createApiClient } from '@/utils/api';
+
+// With authentication
+const client = await createApiClient();
+
+// Automatically includes: Authorization: Bearer <token>
+const templates = await client.get('/api/templates');
+```
+
+### Session Persistence
+
+<Info>
+  Clerk SDK automatically handles session persistence:
+  - Tokens stored securely in localStorage
+  - Tokens refreshed before expiration
+  - Session restored on page reload
+  - Works across browser tabs
+</Info>
+
+## Error Handling
+
+### 401 Unauthorized
+
+```json
+{
+  "detail": "Unauthorized - No valid authentication provided"
+}
+```
+
+**Solutions:**
+- Verify your API key is correct (if using API key auth)
+- Check that your JWT token hasn't expired (if using Clerk)
+- Ensure `X-API-Key` or `Authorization` header is set
+- Verify `AUTH_REQUIRED` is `true` in backend configuration
+
+### 403 Forbidden
+
+```json
+{
+  "detail": "Forbidden - User does not have access to this resource"
+}
+```
+
+**Solutions:**
+- Verify you have access to the project
+- Check that the resource belongs to your project scope
+- Ensure your user role has appropriate permissions
+
+## Multi-Tenancy & Scoping
+
+When authentication is enabled, requests are scoped by:
+
+- **User ID** - From JWT token (Clerk) or API key owner
+- **Project ID** - Stored with user or API key
+
+This means:
+- Users only see their own templates and resources
+- Projects are isolated by default
+- Cross-tenant access is prevented automatically
+
+Example:
+
+```python
+# Storage is automatically scoped
+storage_prefix = f"users/{user_id}/projects/{project_id}"
+# Templates stored at: users/user123/projects/proj456/templates/...
+```
+
+## Testing with Authentication
+
+### Using TestClient (Backend)
+
+```python
+from fastapi.testclient import TestClient
+from dakora_server.main import app
+
+client = TestClient(app)
+
+# With API Key
+headers = {"X-API-Key": "test-key"}
+response = client.get("/api/templates", headers=headers)
+assert response.status_code == 200
+
+# With JWT Token
+headers = {"Authorization": "Bearer <token>"}
+response = client.get("/api/templates", headers=headers)
+assert response.status_code == 200
+
+# Without auth (should fail if AUTH_REQUIRED=true)
+response = client.get("/api/templates")
+assert response.status_code == 401
+```
+
+### Using cURL (Manual)
+
+```bash
+# Health check (public, no auth needed)
+curl http://localhost:8000/api/health
+
+# With API Key
+curl -H "X-API-Key: your-key" http://localhost:8000/api/templates
+
+# With Bearer Token
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/templates
+
+# Invalid key
+curl -H "X-API-Key: invalid" http://localhost:8000/api/templates
+# Returns: 401 Unauthorized
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Frontend shows 'Authenticate' but no sign-in modal">
+    **Issue**: Clerk not configured properly
+
+    **Solution:**
+    1. Verify `VITE_CLERK_PUBLISHABLE_KEY` is set in `studio/.env.local`
+    2. Ensure key is correct (check Clerk dashboard)
+    3. Restart dev server: `npm run dev`
+  </Accordion>
+
+  <Accordion title="API requests return 401 Unauthorized">
+    **Issue**: Authentication failed
+
+    **Solutions:**
+    - Check `X-API-Key` is set correctly (if using API key)
+    - Verify JWT token hasn't expired (if using Clerk)
+    - Ensure `AUTH_REQUIRED=true` in backend config
+    - Check browser console for token errors
+  </Accordion>
+
+  <Accordion title="Can't access own templates after login">
+    **Issue**: Multi-tenancy scoping issue
+
+    **Solution:**
+    - Verify database stores templates under user scope
+    - Check user ID matches between frontend and backend
+    - Ensure project ID is properly set in Clerk custom claims
+  </Accordion>
+
+  <Accordion title="Backend doesn't validate Clerk tokens">
+    **Issue**: `CLERK_JWT_ISSUER` or `CLERK_JWKS_URL` not set
+
+    **Solution:**
+    1. Get values from Clerk dashboard
+    2. Set in backend `.env`
+    3. Restart backend server
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="API Keys Guide"
+    icon="key"
+    href="/guides/api-keys"
+  >
+    Detailed API key management
+  </Card>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get started with Dakora
+  </Card>
+</CardGroup>

@@ -6,9 +6,7 @@ import tempfile
 from pathlib import Path
 import yaml
 import sys
-import os
-import gc
-import time
+from typing import Any
 
 # Add parent directory to path to import dakora_server
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,7 +24,8 @@ def test_vault_operations():
 
         # Create test template
         # NOTE: Filename MUST match template ID for the new registry convention
-        template_data = {
+
+        template_data: dict[str, Any] = {
             "id": "test_template",
             "version": "1.0.0",
             "description": "A test template",
@@ -91,7 +90,7 @@ def test_error_handling():
                 print("✅ Template not found error works")
 
             # Test validation error
-            template_data = {
+            template_data: dict[str, Any] = {
                 "id": "validation_test",
                 "version": "1.0.0",
                 "template": "Hello {{ name }}!",
