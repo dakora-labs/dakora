@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { FileText, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,17 +10,20 @@ import type { Template } from '@/types';
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { api } = useAuthenticatedApi();
+  const { projectSlug } = useParams<{ projectSlug: string }>();
+  const { api, projectId, contextLoading } = useAuthenticatedApi();
   const [prompts, setPrompts] = useState<Template[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (contextLoading || !projectId) return;
+
     const loadPrompts = async () => {
       try {
-        const promptIds = await api.getPrompts();
+        const promptIds = await api.getPrompts(projectId);
         const promptData = await Promise.all(
-          promptIds.map(id => api.getPrompt(id))
+          promptIds.map(id => api.getPrompt(projectId, id))
         );
         setPrompts(promptData);
       } catch (error) {
@@ -31,7 +34,7 @@ export function DashboardPage() {
     };
 
     loadPrompts();
-  }, [api]);
+  }, [api, projectId, contextLoading]);
 
   const filteredPrompts = prompts.filter(t =>
     t.id.toLowerCase().includes(search.toLowerCase()) ||
@@ -43,7 +46,7 @@ export function DashboardPage() {
       <div className="border-b border-border bg-card px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-semibold">Prompts</h1>
-          <Button onClick={() => navigate('/prompts/new')}>
+          <Button onClick={() => navigate(`/project/${projectSlug}/prompts/new`)}>
             <Plus className="w-4 h-4 mr-2" />
             New Prompt
           </Button>
@@ -73,7 +76,7 @@ export function DashboardPage() {
               <Card
                 key={prompt.id}
                 className="p-4 hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => navigate(`/prompt/edit?prompt=${prompt.id}`)}
+                onClick={() => navigate(`/project/${projectSlug}/prompt/edit?prompt=${prompt.id}`)}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">

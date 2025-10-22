@@ -14,11 +14,15 @@ from pathlib import Path
 from typing import Generator
 import pytest
 import jwt
+from uuid import UUID
 from fastapi.testclient import TestClient
 
 from dakora_server.main import app
-from dakora_server.auth import AuthContext
+from dakora_server.auth import AuthContext, get_project_vault, validate_project_access
 from dakora_server.core.vault import Vault
+from dakora_server.core.prompt_manager import PromptManager
+from dakora_server.core.database import create_db_engine
+from dakora_server.api.project_prompts import get_prompt_manager
 
 
 # ============================================================================
@@ -27,12 +31,20 @@ from dakora_server.core.vault import Vault
 
 
 @pytest.fixture
-def test_vault_with_template() -> Generator[tuple[Vault, Path], None, None]:
+def test_vault_with_template(test_project_id: str) -> Generator[tuple[Vault, Path], None, None]:
     """Create a test vault with a sample template"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        prompts_dir = Path(tmpdir)
+    from dakora_server.core.database import create_db_engine, get_connection, prompts_table
+    from sqlalchemy import insert
+    from datetime import datetime
 
-        # Create test template
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_dir = Path(tmpdir)
+
+        # Create project-scoped directory
+        prompts_dir = base_dir / "projects" / test_project_id
+        prompts_dir.mkdir(parents=True)
+
+        # Create test template in project directory
         template = prompts_dir / "test-template.yaml"
         template.write_text(
             "id: test-template\n"
@@ -45,7 +57,25 @@ def test_vault_with_template() -> Generator[tuple[Vault, Path], None, None]:
             "    required: true\n"
         )
 
-        vault = Vault(prompt_dir=str(prompts_dir))
+        vault = Vault(prompt_dir=str(base_dir))
+
+        # Insert template into database
+        engine = create_db_engine()
+        with get_connection(engine) as conn:
+            conn.execute(
+                insert(prompts_table).values(
+                    {
+                        "project_id": UUID(test_project_id),
+                        "prompt_id": "test-template",
+                        "storage_path": f"projects/{test_project_id}/test-template.yaml",
+                        "version": "1.0.0",
+                        "description": "Test template for auth",
+                        "last_updated_at": datetime.utcnow(),
+                    }
+                )
+            )
+            conn.commit()
+
         yield vault, prompts_dir
 
 
@@ -118,16 +148,26 @@ class TestProtectedEndpointsWithAPIKey:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test listing templates with API key"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        # Create prompt manager with scoped vault
+        def mock_prompt_manager():
+            engine = create_db_engine()
+            return PromptManager(scoped_vault.registry, engine, UUID(test_project_id))
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
+        app.dependency_overrides[get_prompt_manager] = mock_prompt_manager
 
         try:
             response = client.get(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={"X-API-Key": "test-key-123"},
             )
             assert response.status_code == 200
@@ -140,16 +180,20 @@ class TestProtectedEndpointsWithAPIKey:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test getting a specific template with API key"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             response = client.get(
-                "/api/templates/test-template",
+                f"/api/projects/{test_project_id}/prompts/test-template",
                 headers={"X-API-Key": "my-api-key"},
             )
             assert response.status_code == 200
@@ -163,16 +207,20 @@ class TestProtectedEndpointsWithAPIKey:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test creating a template with API key"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             response = client.post(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={"X-API-Key": "api-key-create"},
                 json={
                     "id": "new-template",
@@ -182,7 +230,7 @@ class TestProtectedEndpointsWithAPIKey:
                     "inputs": {"var": {"type": "string", "required": True}},
                 },
             )
-            assert response.status_code == 200
+            assert response.status_code == 201
             data = response.json()
             assert data["id"] == "new-template"
         finally:
@@ -192,24 +240,28 @@ class TestProtectedEndpointsWithAPIKey:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test deleting a template with API key"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             # Verify template exists
             response = client.get(
-                "/api/templates/test-template",
+                f"/api/projects/{test_project_id}/prompts/test-template",
                 headers={"X-API-Key": "api-key"},
             )
             assert response.status_code == 200
 
             # Delete with API key
             response = client.delete(
-                "/api/templates/test-template",
+                f"/api/projects/{test_project_id}/prompts/test-template",
                 headers={"X-API-Key": "api-key-delete"},
             )
             assert response.status_code == 204
@@ -229,19 +281,23 @@ class TestProtectedEndpointsWithJWT:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test listing templates with JWT token"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             payload = {"sub": "user123", "email": "user@example.com"}
             token = jwt.encode(payload, "secret", algorithm="HS256")
 
             response = client.get(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert response.status_code == 200
@@ -254,19 +310,23 @@ class TestProtectedEndpointsWithJWT:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test getting a template with JWT token"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             payload = {"sub": "user456", "org": "acme"}
             token = jwt.encode(payload, "secret", algorithm="HS256")
 
             response = client.get(
-                "/api/templates/test-template",
+                f"/api/projects/{test_project_id}/prompts/test-template",
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert response.status_code == 200
@@ -279,19 +339,23 @@ class TestProtectedEndpointsWithJWT:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test creating a template with JWT token"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             payload = {"sub": "user789", "role": "admin"}
             token = jwt.encode(payload, "secret", algorithm="HS256")
 
             response = client.post(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={"Authorization": f"Bearer {token}"},
                 json={
                     "id": "jwt-created-template",
@@ -301,7 +365,7 @@ class TestProtectedEndpointsWithJWT:
                     "inputs": {"content": {"type": "string", "required": True}},
                 },
             )
-            assert response.status_code == 200
+            assert response.status_code == 201
             data = response.json()
             assert data["id"] == "jwt-created-template"
         finally:
@@ -311,12 +375,13 @@ class TestProtectedEndpointsWithJWT:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
     ):
         """Test JWT token with project_id claim for multi-tenancy"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        app.dependency_overrides[get_project_vault] = lambda: vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             payload = {
@@ -326,7 +391,7 @@ class TestProtectedEndpointsWithJWT:
             token = jwt.encode(payload, "secret", algorithm="HS256")
 
             response = client.get(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert response.status_code == 200
@@ -346,15 +411,19 @@ class TestProtectedEndpointsNoAuth:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test listing templates without authentication"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
-            response = client.get("/api/templates")
+            response = client.get(f"/api/projects/{test_project_id}/prompts")
             assert response.status_code == 200
             templates = response.json()
             assert "test-template" in templates
@@ -365,15 +434,19 @@ class TestProtectedEndpointsNoAuth:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test getting a template without authentication"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
-            response = client.get("/api/templates/test-template")
+            response = client.get(f"/api/projects/{test_project_id}/prompts/test-template")
             assert response.status_code == 200
             data = response.json()
             assert data["id"] == "test-template"
@@ -384,16 +457,20 @@ class TestProtectedEndpointsNoAuth:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test creating a template without authentication"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             response = client.post(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 json={
                     "id": "no-auth-template",
                     "version": "1.0.0",
@@ -402,7 +479,7 @@ class TestProtectedEndpointsNoAuth:
                     "inputs": {},
                 },
             )
-            assert response.status_code == 200
+            assert response.status_code == 201
             data = response.json()
             assert data["id"] == "no-auth-template"
         finally:
@@ -412,15 +489,19 @@ class TestProtectedEndpointsNoAuth:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test deleting a template without authentication"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
-            response = client.delete("/api/templates/test-template")
+            response = client.delete(f"/api/projects/{test_project_id}/prompts/test-template")
             assert response.status_code == 204
         finally:
             app.dependency_overrides.clear()
@@ -499,12 +580,16 @@ class TestAuthMethodPriority:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
+        scoped_vault_for_project,
     ):
         """Test that API key has priority over JWT token"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        scoped_vault = scoped_vault_for_project(vault)
+
+        app.dependency_overrides[get_project_vault] = lambda: scoped_vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             api_key = "priority-api-key"
@@ -513,7 +598,7 @@ class TestAuthMethodPriority:
 
             # Send both API key and JWT - API key should win
             response = client.get(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={
                     "X-API-Key": api_key,
                     "Authorization": f"Bearer {token}",
@@ -538,17 +623,18 @@ class TestErrorHandling:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
     ):
         """Test handling of malformed Bearer token"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        app.dependency_overrides[get_project_vault] = lambda: vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             # Token is not valid JWT
             response = client.get(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={"Authorization": "Bearer not-a-valid-jwt-token"},
             )
             # Should either handle gracefully or return error
@@ -561,18 +647,19 @@ class TestErrorHandling:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
     ):
         """Test that non-Bearer schemes fall through to no-auth"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        app.dependency_overrides[get_project_vault] = lambda: vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             token = jwt.encode({"sub": "user"}, "secret", algorithm="HS256")
             # Using Basic scheme instead of Bearer
             response = client.get(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={"Authorization": f"Basic {token}"},
             )
             # Should fall through to no-auth mode and work
@@ -584,17 +671,18 @@ class TestErrorHandling:
         self,
         client: TestClient,
         test_vault_with_template: tuple[Vault, Path],
+        test_project_id: str,
     ):
         """Test handling of empty API key header"""
-        from dakora_server.auth import get_user_vault
 
         vault, _ = test_vault_with_template
-        app.dependency_overrides[get_user_vault] = lambda: vault
+        app.dependency_overrides[get_project_vault] = lambda: vault
+        app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
 
         try:
             # Empty API key still creates auth context
             response = client.get(
-                "/api/templates",
+                f"/api/projects/{test_project_id}/prompts",
                 headers={"X-API-Key": ""},
             )
             # Should handle and still work

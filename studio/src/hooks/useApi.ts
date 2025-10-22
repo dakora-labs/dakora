@@ -2,23 +2,25 @@ import { useState, useEffect, useCallback } from 'react';
 import { api, ApiError } from '../utils/api';
 import type { Template } from '../types';
 
-export function usePrompts() {
+export function usePrompts(projectId: string | undefined) {
   const [prompts, setPrompts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPrompts = useCallback(async () => {
+    if (!projectId) return;
+
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getPrompts();
+      const data = await api.getPrompts(projectId);
       setPrompts(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch prompts');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     fetchPrompts();
@@ -27,16 +29,18 @@ export function usePrompts() {
   return { prompts, loading, error, refetch: fetchPrompts };
 }
 
-export function usePrompt(id: string | null) {
+export function usePrompt(projectId: string | undefined, id: string | null) {
   const [prompt, setPrompt] = useState<Template | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPrompt = useCallback(async (promptId: string) => {
+    if (!projectId) return;
+
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getPrompt(promptId);
+      const data = await api.getPrompt(projectId, promptId);
       setPrompt(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch prompt');
@@ -44,7 +48,7 @@ export function usePrompt(id: string | null) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     if (id) {
@@ -83,15 +87,19 @@ export function useExamples() {
   return { examples, loading, error };
 }
 
-export function useRender() {
+export function useRender(projectId: string | undefined) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const render = useCallback(async (promptId: string, inputs: Record<string, unknown>) => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const response = await api.renderPrompt(promptId, { inputs });
+      const response = await api.renderPrompt(projectId, promptId, { inputs });
       return response;
     } catch (err) {
       const errorMessage = err instanceof ApiError
@@ -104,22 +112,26 @@ export function useRender() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   return { render, loading, error, clearError: () => setError(null) };
 }
 
-export function useCreatePrompt() {
+export function useCreatePrompt(projectId: string | undefined) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const createPrompt = useCallback(async (template: Omit<Template, 'inputs'> & {
     inputs: Record<string, { type: string; required: boolean; default?: unknown }>
   }) => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const response = await api.createPrompt(template);
+      const response = await api.createPrompt(projectId, template);
       return response;
     } catch (err) {
       const errorMessage = err instanceof ApiError
@@ -132,22 +144,26 @@ export function useCreatePrompt() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   return { createPrompt, loading, error, clearError: () => setError(null) };
 }
 
-export function useUpdatePrompt() {
+export function useUpdatePrompt(projectId: string | undefined) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const updatePrompt = useCallback(async (id: string, template: Partial<Omit<Template, 'id' | 'inputs'>> & {
     inputs?: Record<string, { type: string; required: boolean; default?: unknown }>
   }) => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const response = await api.updatePrompt(id, template);
+      const response = await api.updatePrompt(projectId, id, template);
       return response;
     } catch (err) {
       const errorMessage = err instanceof ApiError
@@ -160,7 +176,7 @@ export function useUpdatePrompt() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   return { updatePrompt, loading, error, clearError: () => setError(null) };
 }
