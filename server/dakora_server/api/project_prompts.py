@@ -3,12 +3,13 @@
 from typing import List, Dict
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Depends, Response
+from sqlalchemy.engine import Engine
 
 from ..core.vault import Vault
 from ..core.model import InputSpec, TemplateSpec
 from ..core.exceptions import TemplateNotFound, ValidationError
 from ..core.prompt_manager import PromptManager
-from ..core.database import create_db_engine
+from ..core.database import get_engine
 from ..auth import validate_project_access, get_project_vault
 from .schemas import (
     TemplateResponse,
@@ -26,17 +27,18 @@ router = APIRouter(
 def get_prompt_manager(
     project_id: UUID = Depends(validate_project_access),
     vault: Vault = Depends(get_project_vault),
+    engine: Engine = Depends(get_engine),
 ) -> PromptManager:
     """Get a PromptManager instance for the project.
 
     Args:
         project_id: Validated project UUID
         vault: Project-scoped vault instance
+        engine: Global database engine
 
     Returns:
         PromptManager instance
     """
-    engine = create_db_engine()
     return PromptManager(vault.registry, engine, project_id)
 
 

@@ -168,7 +168,7 @@ def get_user_vault(
 
 
 async def validate_project_access(
-    project_id: UUID = Path(..., description="Project UUID"),
+    project_id: str = Path(..., description="Project ID or slug"),
     auth_ctx: AuthContext = Depends(get_auth_context),
 ) -> UUID:
     """Validate that the authenticated user has access to the project.
@@ -177,22 +177,38 @@ async def validate_project_access(
     For production: Validate workspace membership.
 
     Args:
-        project_id: Project UUID from path parameter
+        project_id: Project UUID or "default" slug from path parameter
         auth_ctx: Authentication context
 
     Returns:
-        project_id if access is granted
+        project_id UUID if access is granted
 
     Raises:
         HTTPException: 403 if user lacks access, 404 if project not found
     """
+    # Handle no-auth mode with "default" project slug
+    if auth_ctx.auth_method == "none" and project_id == "default":
+        # Return a dummy UUID for the default project in no-auth mode
+        # This allows the vault to use the project_id in storage paths
+        from uuid import uuid5, NAMESPACE_DNS
+        return uuid5(NAMESPACE_DNS, "default-project")
+    
+    # Try to parse as UUID
+    try:
+        project_uuid = UUID(project_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=422, 
+            detail=f"Invalid project ID format. Expected UUID, got: {project_id}"
+        )
+    
     engine = create_db_engine()
 
     with get_connection(engine) as conn:
         # Check if project exists
         project_result = conn.execute(
             select(projects_table.c.id, projects_table.c.workspace_id).where(
-                projects_table.c.id == project_id
+                projects_table.c.id == project_uuid
             )
         ).fetchone()
 
@@ -203,7 +219,7 @@ async def validate_project_access(
 
         # In development mode (no auth), skip membership check
         if auth_ctx.auth_method == "none":
-            return project_id
+            return project_uuid
 
         # Get user from database using clerk_user_id
         user_result = conn.execute(
@@ -231,7 +247,7 @@ async def validate_project_access(
                 detail="You do not have access to this project"
             )
 
-        return project_id
+        return project_uuid
 
 
 def get_project_vault(

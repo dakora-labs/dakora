@@ -8,13 +8,16 @@ import { NewPromptPage } from './pages/NewPromptPage';
 import { PromptLibraryPage } from './pages/PromptLibraryPage';
 import { NewPromptPartPage } from './pages/NewPromptPartPage';
 import { PromptPartPage } from './pages/PromptPartPage';
+import { FEATURES } from './config/features';
 import { ProjectRedirect } from './components/ProjectRedirect';
+import { UserContextProvider } from './contexts/UserContext';
 
 function App() {
   if (AUTH_REQUIRED) {
     return (
       <>
         <SignedIn>
+        <UserContextProvider>
           <MainLayout>
             <Routes>
               <Route path="/" element={<ProjectRedirect />} />
@@ -26,6 +29,7 @@ function App() {
               <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
             </Routes>
           </MainLayout>
+          </UserContextProvider>
         </SignedIn>
         <SignedOut>
           <RedirectToSignIn />
@@ -36,6 +40,7 @@ function App() {
 
   // Auth disabled: use default project for local dev
   return (
+      <UserContextProvider>
     <MainLayout>
       <Routes>
         <Route path="/" element={<Navigate to="/project/default/prompts" replace />} />
@@ -47,6 +52,7 @@ function App() {
         <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
       </Routes>
     </MainLayout>
+    </UserContextProvider>
   );
 }
 
