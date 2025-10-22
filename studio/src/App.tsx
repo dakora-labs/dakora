@@ -44,21 +44,23 @@ function App() {
 
   // Auth disabled: use default project for local dev
   return (
-    <MainLayout>
-      <Routes>
-        <Route path="/" element={<Navigate to="/project/default/prompts" replace />} />
-        <Route path="/project/:projectSlug/prompts" element={<DashboardPage />} />
-        <Route path="/project/:projectSlug/prompts/new" element={<NewPromptPage />} />
-        <Route path="/project/:projectSlug/prompt/edit" element={<PromptEditPage />} />
-         {FEATURES.PROMPT_PARTS && (
-          <>
-            <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
-            <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
-            <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
-          </>
-        )}
-      </Routes>
-    </MainLayout>
+    <UserContextProvider>
+      <MainLayout>
+        <Routes>
+          <Route path="/" element={<Navigate to="/project/default/prompts" replace />} />
+          <Route path="/project/:projectSlug/prompts" element={<DashboardPage />} />
+          <Route path="/project/:projectSlug/prompts/new" element={<NewPromptPage />} />
+          <Route path="/project/:projectSlug/prompt/edit" element={<PromptEditPage />} />
+          {FEATURES.PROMPT_PARTS && (
+            <>
+              <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
+              <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
+              <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
+            </>
+          )}
+        </Routes>
+      </MainLayout>
+    </UserContextProvider>
   );
 }
 
