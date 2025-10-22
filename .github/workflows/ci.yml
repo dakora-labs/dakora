@@ -59,6 +59,20 @@ jobs:
 
   smoke-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dakora
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
     - uses: actions/checkout@v4
 
@@ -73,7 +87,15 @@ jobs:
     - name: Install dependencies
       run: uv sync
 
+    - name: Run database migrations
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dakora
+      working-directory: ./server
+      run: uv run alembic upgrade head
+
     - name: Run smoke tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dakora
       run: uv run python server/tests/test_runner.py smoke --verbose
 
   coverage:
