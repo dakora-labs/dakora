@@ -5,6 +5,10 @@ import { MainLayout } from './components/layout/MainLayout';
 import { DashboardPage } from './pages/DashboardPage';
 import { PromptEditPage } from './pages/PromptEditPage';
 import { NewPromptPage } from './pages/NewPromptPage';
+import { PromptLibraryPage } from './pages/PromptLibraryPage';
+import { NewPromptPartPage } from './pages/NewPromptPartPage';
+import { PromptPartPage } from './pages/PromptPartPage';
+import { FEATURES } from './config/features';
 
 function App() {
   if (AUTH_REQUIRED) {
@@ -17,6 +21,13 @@ function App() {
               <Route path="/prompts" element={<DashboardPage />} />
               <Route path="/prompts/new" element={<NewPromptPage />} />
               <Route path="/prompt/edit" element={<PromptEditPage />} />
+              {FEATURES.PROMPT_PARTS && (
+              <>
+                <Route path="/library" element={<PromptLibraryPage />} />
+                <Route path="/library/new" element={<NewPromptPartPage />} />
+                <Route path="/library/part" element={<PromptPartPage />} />
+              </>
+            )}
             </Routes>
           </MainLayout>
         </SignedIn>
@@ -35,6 +46,13 @@ function App() {
         <Route path="/prompts" element={<DashboardPage />} />
         <Route path="/prompts/new" element={<NewPromptPage />} />
         <Route path="/prompt/edit" element={<PromptEditPage />} />
+         {FEATURES.PROMPT_PARTS && (
+          <>
+            <Route path="/library" element={<PromptLibraryPage />} />
+            <Route path="/library/new" element={<NewPromptPartPage />} />
+            <Route path="/library/part" element={<PromptPartPage />} />
+          </>
+        )}
       </Routes>
     </MainLayout>
   );
