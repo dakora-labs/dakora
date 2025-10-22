@@ -9,12 +9,15 @@ Supports multiple authentication methods:
 
 import jwt
 from typing import Optional, cast
-from fastapi import Depends, Header, HTTPException
+from uuid import UUID
+from fastapi import Depends, Header, HTTPException, Path
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from .config import get_vault, settings
 from .core.vault import Vault
 from .core.registry import Registry
+from .core.database import create_db_engine, get_connection, projects_table, workspaces_table, workspace_members_table, users_table
 
 
 class AuthContext(BaseModel):
@@ -156,10 +159,109 @@ def get_user_vault(
         base_vault.registry.with_prefix(prefix)  # type: ignore[attr-defined]
     )
 
-    # Create a new Vault with the scoped registry but shared logger/renderer
-    # This avoids creating multiple logger instances and keeps resource usage low
+    # Create a new Vault with the scoped registry
+    # Logger is shared across vaults and uses PostgreSQL (no db_path needed)
     return Vault(
         scoped_registry,
         logging_enabled=base_vault.logger is not None,
-        logging_db_path=base_vault.config.get("logging", {}).get("db_path", "./dakora.db"),
+    )
+
+
+async def validate_project_access(
+    project_id: UUID = Path(..., description="Project UUID"),
+    auth_ctx: AuthContext = Depends(get_auth_context),
+) -> UUID:
+    """Validate that the authenticated user has access to the project.
+
+    For MVP: Auto-resolve to user's default project in development mode.
+    For production: Validate workspace membership.
+
+    Args:
+        project_id: Project UUID from path parameter
+        auth_ctx: Authentication context
+
+    Returns:
+        project_id if access is granted
+
+    Raises:
+        HTTPException: 403 if user lacks access, 404 if project not found
+    """
+    engine = create_db_engine()
+
+    with get_connection(engine) as conn:
+        # Check if project exists
+        project_result = conn.execute(
+            select(projects_table.c.id, projects_table.c.workspace_id).where(
+                projects_table.c.id == project_id
+            )
+        ).fetchone()
+
+        if not project_result:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        workspace_id = project_result[1]
+
+        # In development mode (no auth), skip membership check
+        if auth_ctx.auth_method == "none":
+            return project_id
+
+        # Get user from database using clerk_user_id
+        user_result = conn.execute(
+            select(users_table.c.id).where(
+                users_table.c.clerk_user_id == auth_ctx.user_id
+            )
+        ).fetchone()
+
+        if not user_result:
+            raise HTTPException(status_code=403, detail="User not found")
+
+        user_db_id = user_result[0]
+
+        # Check workspace membership
+        membership_result = conn.execute(
+            select(workspace_members_table.c.role).where(
+                workspace_members_table.c.workspace_id == workspace_id,
+                workspace_members_table.c.user_id == user_db_id
+            )
+        ).fetchone()
+
+        if not membership_result:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have access to this project"
+            )
+
+        return project_id
+
+
+def get_project_vault(
+    project_id: UUID = Depends(validate_project_access),
+    base_vault: Vault = Depends(get_vault),
+) -> Vault:
+    """Get a project-scoped vault instance.
+
+    Creates a new Vault with a scoped registry that only accesses the project's
+    storage prefix. This provides storage-level isolation at the project level.
+
+    Args:
+        project_id: Project UUID (validated by validate_project_access)
+        base_vault: Base vault instance from get_vault
+
+    Returns:
+        Vault instance scoped to the project's storage prefix
+    """
+    # Create project-scoped storage prefix
+    prefix = f"projects/{project_id}"
+
+    # Create a scoped registry
+    scoped_registry = cast(
+        Registry,
+        base_vault.registry.with_prefix(prefix)  # type: ignore[attr-defined]
+    )
+
+    # Create a new Vault with the scoped registry
+    # Logger uses PostgreSQL (no db_path needed)
+    return Vault(
+        scoped_registry,
+        logging_enabled=base_vault.logger is not None,
     )

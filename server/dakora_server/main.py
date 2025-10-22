@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .api import prompts, render, models, health, webhooks
+from .api import prompts, render, models, health, webhooks, project_prompts
 
 
 def create_app() -> FastAPI:
@@ -23,6 +23,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # New project-scoped routes (preferred)
+    app.include_router(project_prompts.router)
+
+    # Legacy routes (deprecated, kept for backward compatibility)
     app.include_router(prompts.router)
     app.include_router(render.router)
     app.include_router(models.router)

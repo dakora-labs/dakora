@@ -15,9 +15,10 @@ from sqlalchemy import (
     Text,
     Float,
     DateTime,
+    ForeignKey,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
@@ -52,6 +53,56 @@ users_table = Table(
     Column("email", String(255), nullable=False),
     Column("name", String(255), nullable=True),
     Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+)
+
+# Workspaces table definition (SQLAlchemy Core)
+workspaces_table = Table(
+    "workspaces",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("slug", String(63), nullable=False, unique=True, index=True),
+    Column("name", String(255), nullable=False),
+    Column("type", String(20), nullable=False),
+    Column("owner_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+)
+
+# Workspace members table definition (SQLAlchemy Core)
+workspace_members_table = Table(
+    "workspace_members",
+    metadata,
+    Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("role", String(20), nullable=False),
+    Column("joined_at", DateTime, server_default=text("NOW()"), nullable=False),
+)
+
+# Projects table definition (SQLAlchemy Core)
+projects_table = Table(
+    "projects",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("slug", String(63), nullable=False),
+    Column("name", String(255), nullable=False),
+    Column("description", Text, nullable=True),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("updated_at", DateTime, server_default=text("NOW()"), nullable=False),
+)
+
+# Prompts table definition (SQLAlchemy Core)
+prompts_table = Table(
+    "prompts",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("prompt_id", String(255), nullable=False),
+    Column("version", String(50), nullable=False),
+    Column("description", Text, nullable=True),
+    Column("storage_path", Text, nullable=False),
+    Column("last_updated_at", DateTime, server_default=text("NOW()"), nullable=False, index=True),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("metadata", JSONB, nullable=True),
 )
 
 
