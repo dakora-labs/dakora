@@ -138,7 +138,7 @@ def create_db_engine(database_url: Optional[str] = None, **kwargs: Any) -> Engin
     engine_options: dict[str, Any] = {
         "pool_pre_ping": True,  # Verify connections before using
         "pool_recycle": 3600,  # Recycle connections after 1 hour
-        "pool_size": 20,  # Increased from 5 for better concurrency
+        "pool_size": 5,  # Connection pool size
         "max_overflow": 10,  # Max overflow connections
         "echo": False,  # Set to True for SQL debugging
     }
