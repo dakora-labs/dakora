@@ -18,8 +18,15 @@ def generate_slug(name: str) -> str:
     Returns:
         URL-safe slug (lowercase, alphanumeric + hyphens)
     """
-    # Extract first name if multiple words
-    first_name = name.split()[0] if name else "user"
+    if not name or not name.strip():
+        return "user"
+
+    # Extract first name if multiple words (for workspace slug purposes)
+    parts = name.split()
+    if not parts:
+        return "user"
+
+    first_name = parts[0]
 
     # Convert to lowercase and replace spaces/special chars with hyphens
     slug = re.sub(r'[^a-z0-9]+', '-', first_name.lower())

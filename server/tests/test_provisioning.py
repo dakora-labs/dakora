@@ -73,8 +73,8 @@ class TestHelperFunctions:
 
     def test_generate_slug_special_chars(self):
         """Test slug generation handles special characters."""
-        assert generate_slug("José García") == "jos-garc-a"
-        assert generate_slug("François-Pierre") == "fran-ois-pierre"
+        assert generate_slug("José García") == "jos"  # Only first name
+        assert generate_slug("François-Pierre") == "fran-ois-pierre"  # Hyphenated first name
 
     def test_generate_slug_empty(self):
         """Test slug generation with empty string."""
