@@ -5,13 +5,15 @@ and their default project context.
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.engine import Engine
 
 from ..auth import get_auth_context, AuthContext
 from ..core.database import (
-    create_db_engine,
+    get_engine,
     get_connection,
     users_table,
     workspaces_table,
@@ -21,6 +23,25 @@ from ..core.provisioning import get_or_create_workspace
 
 
 router = APIRouter(prefix="/api/me", tags=["user"])
+
+
+# Simple in-memory cache for user context (1 minute TTL)
+# Short TTL to balance performance with data freshness
+_user_context_cache: dict[str, tuple[datetime, "UserContextResponse"]] = {}
+CACHE_TTL = timedelta(minutes=1)  # Reduced from 5 to 1 minute
+
+
+def invalidate_user_context_cache(user_id: str) -> None:
+    """Invalidate cache for a specific user.
+    
+    Call this when:
+    - User profile is updated
+    - User is added/removed from workspace
+    - Project is renamed or deleted
+    """
+    if user_id in _user_context_cache:
+        del _user_context_cache[user_id]
+        print(f"🗑️ Cache invalidated for user {user_id[:8]}...")
 
 
 class UserContextResponse(BaseModel):
@@ -37,6 +58,8 @@ class UserContextResponse(BaseModel):
 @router.get("/context", response_model=UserContextResponse)
 async def get_user_context(
     auth_ctx: AuthContext = Depends(get_auth_context),
+    engine: Engine = Depends(get_engine),
+    x_bypass_cache: Optional[str] = Header(None),
 ) -> UserContextResponse:
     """Get the authenticated user's default project.
 
@@ -45,6 +68,8 @@ async def get_user_context(
 
     Args:
         auth_ctx: Authentication context from JWT or API key
+        engine: Global database engine
+        x_bypass_cache: Set to "true" to bypass cache (for admin operations)
 
     Returns:
         UserContextResponse with project details
@@ -52,8 +77,13 @@ async def get_user_context(
     Raises:
         HTTPException: 401 if not authenticated, 500 for database errors
     """
-    engine = create_db_engine()
-
+    # Check cache first (unless bypass requested)
+    cache_key = auth_ctx.user_id
+    if x_bypass_cache != "true" and cache_key in _user_context_cache:
+        cached_time, cached_data = _user_context_cache[cache_key]
+        if datetime.utcnow() - cached_time < CACHE_TTL:
+            return cached_data
+    
     with get_connection(engine) as conn:
         # Get user from database using clerk_user_id
         user_result = conn.execute(
@@ -81,6 +111,7 @@ async def get_user_context(
 
         if not workspace_result:
             # Lazy provisioning: create workspace and project on first access
+            # DON'T cache this - user might refresh during onboarding
             workspace_id, project_id = get_or_create_workspace(
                 engine, user_db_id, name, email
             )
@@ -93,6 +124,18 @@ async def get_user_context(
                     projects_table.c.name,
                 ).where(projects_table.c.id == project_id)
             ).fetchone()
+            
+            # Return immediately without caching (new user)
+            if project_result:
+                project_id, project_slug, project_name = project_result
+                return UserContextResponse(
+                    user_id=clerk_user_id,
+                    email=email,
+                    name=name,
+                    project_id=str(project_id),
+                    project_slug=project_slug,
+                    project_name=project_name,
+                )
         else:
             workspace_id = workspace_result[0]
 
@@ -114,7 +157,7 @@ async def get_user_context(
 
         project_id, project_slug, project_name = project_result
 
-        return UserContextResponse(
+        result = UserContextResponse(
             user_id=clerk_user_id,
             email=email,
             name=name,
@@ -122,3 +165,8 @@ async def get_user_context(
             project_slug=project_slug,
             project_name=project_name,
         )
+        
+        # Cache the result
+        _user_context_cache[cache_key] = (datetime.utcnow(), result)
+        
+        return result

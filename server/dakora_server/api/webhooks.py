@@ -7,8 +7,9 @@ from sqlalchemy.engine import Engine
 from svix.webhooks import Webhook, WebhookVerificationError
 
 from ..config import settings
-from ..core.database import create_db_engine, get_connection, users_table
+from ..core.database import get_engine, get_connection, users_table
 from ..core.provisioning import provision_workspace_and_project
+from .me import invalidate_user_context_cache
 
 
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
@@ -45,7 +46,7 @@ def verify_clerk_signature(payload: bytes, headers: dict[str, str]) -> dict[str,
 
 def get_db_engine() -> Engine:
     """Dependency for database engine."""
-    return create_db_engine()
+    return get_engine()
 
 
 @router.post("/clerk")
@@ -141,6 +142,9 @@ async def clerk_webhook(
                     )
 
                     conn.commit()
+                    
+                    # Invalidate cache for new user (though unlikely to exist)
+                    invalidate_user_context_cache(clerk_user_id)
 
                     return {
                         "status": "success",
@@ -162,6 +166,34 @@ async def clerk_webhook(
                 status_code=500,
                 detail=f"Database error: {str(e)}"
             )
+
+    # Handle user.updated event
+    if event.type == "user.updated":
+        user_data = event.data
+        clerk_user_id = user_data.get("id")
+        
+        if clerk_user_id:
+            # Invalidate cache so next request gets fresh data
+            invalidate_user_context_cache(clerk_user_id)
+            return {
+                "status": "success",
+                "message": "User updated, cache invalidated",
+                "user_id": clerk_user_id
+            }
+
+    # Handle user.deleted event
+    if event.type == "user.deleted":
+        user_data = event.data
+        clerk_user_id = user_data.get("id")
+        
+        if clerk_user_id:
+            # Invalidate cache for deleted user
+            invalidate_user_context_cache(clerk_user_id)
+            return {
+                "status": "success",
+                "message": "User deleted, cache invalidated",
+                "user_id": clerk_user_id
+            }
 
     # Ignore other event types
     return {"status": "success", "message": f"Event {event.type} received but not processed"}

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 import os
+import time
+import logging
 from typing import Optional, Any
 from contextlib import contextmanager
 
@@ -21,6 +23,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
+
+logger = logging.getLogger(__name__)
 
 
 metadata = MetaData()
@@ -134,7 +138,7 @@ def create_db_engine(database_url: Optional[str] = None, **kwargs: Any) -> Engin
     engine_options: dict[str, Any] = {
         "pool_pre_ping": True,  # Verify connections before using
         "pool_recycle": 3600,  # Recycle connections after 1 hour
-        "pool_size": 5,  # Connection pool size
+        "pool_size": 20,  # Increased from 5 for better concurrency
         "max_overflow": 10,  # Max overflow connections
         "echo": False,  # Set to True for SQL debugging
     }
@@ -143,6 +147,28 @@ def create_db_engine(database_url: Optional[str] = None, **kwargs: Any) -> Engin
     engine_options.update(kwargs)
 
     return create_engine(url, **engine_options)
+
+
+# Global engine instance - created once and reused across all requests
+_global_engine: Optional[Engine] = None
+
+
+def get_engine() -> Engine:
+    """
+    Get or create the global database engine instance.
+    
+    This function ensures we reuse the same connection pool across all requests
+    instead of creating a new engine (and pool) for each request.
+    
+    Returns:
+        Global SQLAlchemy Engine instance
+    """
+    global _global_engine
+    
+    if _global_engine is None:
+        _global_engine = create_db_engine()
+    
+    return _global_engine
 
 
 def create_test_engine(database_url: str) -> Engine:
@@ -165,7 +191,7 @@ def create_test_engine(database_url: str) -> Engine:
 @contextmanager
 def get_connection(engine: Engine):
     """
-    Context manager for database connections.
+    Context manager for database connections with timing logging.
 
     Usage:
         with get_connection(engine) as conn:
@@ -194,8 +220,6 @@ def wait_for_db(engine: Engine, max_retries: int = 30, retry_interval: int = 1) 
     Returns:
         True if database is ready, False otherwise
     """
-    import time
-
     for attempt in range(max_retries):
         try:
             with get_connection(engine) as conn:
