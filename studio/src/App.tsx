@@ -8,7 +8,6 @@ import { NewPromptPage } from './pages/NewPromptPage';
 import { PromptLibraryPage } from './pages/PromptLibraryPage';
 import { NewPromptPartPage } from './pages/NewPromptPartPage';
 import { PromptPartPage } from './pages/PromptPartPage';
-import { FEATURES } from './config/features';
 import { ProjectRedirect } from './components/ProjectRedirect';
 import { UserContextProvider } from './contexts/UserContext';
 
