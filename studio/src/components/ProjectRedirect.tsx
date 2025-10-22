@@ -1,34 +1,15 @@
-import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { useUserContext } from '@/contexts/UserContext';
 
 /**
  * Redirects authenticated users to their default project.
- * Fetches user context from /api/me/context and redirects to /project/{project_slug}/prompts
+ * Uses UserContext to get project_slug and redirects to /project/{project_slug}/prompts
  */
 export function ProjectRedirect() {
-  const { api, isLoaded } = useAuthenticatedApi();
-  const [projectSlug, setProjectSlug] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { userContext, loading, error } = useUserContext();
 
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    const fetchUserContext = async () => {
-      try {
-        const context = await api.getUserContext();
-        setProjectSlug(context.project_slug);
-      } catch (err) {
-        console.error('Failed to fetch user context:', err);
-        setError('Failed to load project');
-      }
-    };
-
-    fetchUserContext();
-  }, [api, isLoaded]);
-
-  // Show loading state while auth loads
-  if (!isLoaded) {
+  // Show loading state while fetching context
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading...</p>
@@ -40,13 +21,13 @@ export function ProjectRedirect() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="text-destructive">{error}</p>
+        <p className="text-destructive">Failed to load project</p>
       </div>
     );
   }
 
   // Show loading while fetching project
-  if (!projectSlug) {
+  if (!userContext?.project_slug) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">Loading project...</p>
@@ -55,5 +36,5 @@ export function ProjectRedirect() {
   }
 
   // Redirect to project-scoped route
-  return <Navigate to={`/project/${projectSlug}/prompts`} replace />;
+  return <Navigate to={`/project/${userContext.project_slug}/prompts`} replace />;
 }
