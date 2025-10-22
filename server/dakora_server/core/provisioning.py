@@ -76,6 +76,9 @@ def provision_workspace_and_project(
     """
     from .database import metadata
 
+    # Reflect tables from database (needed for tables created by migrations)
+    metadata.reflect(bind=conn)
+
     # Get table references (will be defined by migration)
     workspaces_table = metadata.tables['workspaces']
     workspace_members_table = metadata.tables['workspace_members']
