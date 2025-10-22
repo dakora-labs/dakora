@@ -45,6 +45,104 @@ except Exception:
 
 
 from typing import Generator, Any
+from uuid import uuid4, UUID
+
+
+@pytest.fixture(scope="module")
+def test_project_id() -> Generator[str, None, None]:
+    """Generate a test project UUID and create required database records.
+
+    Module-scoped so all tests in a module share the same project/workspace/user.
+    """
+    from dakora_server.core.database import (
+        create_db_engine,
+        get_connection,
+        users_table,
+        workspaces_table,
+        projects_table,
+        prompts_table,
+    )
+    from sqlalchemy import insert, delete
+
+    project_id = uuid4()
+    user_id = uuid4()
+    workspace_id = uuid4()
+
+    engine = create_db_engine()
+
+    with get_connection(engine) as conn:
+        conn.execute(
+            insert(users_table).values(
+                id=user_id,
+                clerk_user_id="test_user_clerk_id",
+                email="test@example.com",
+            )
+        )
+
+        conn.execute(
+            insert(workspaces_table).values(
+                id=workspace_id,
+                slug="test-workspace",
+                name="Test Workspace",
+                type="personal",
+                owner_id=user_id,
+            )
+        )
+
+        conn.execute(
+            insert(projects_table).values(
+                id=project_id,
+                workspace_id=workspace_id,
+                slug="test-project",
+                name="Test Project",
+                description="Test project for tests",
+            )
+        )
+        conn.commit()
+
+    yield str(project_id)
+
+    with get_connection(engine) as conn:
+        conn.execute(delete(prompts_table).where(prompts_table.c.project_id == project_id))
+        conn.execute(delete(projects_table).where(projects_table.c.id == project_id))
+        conn.execute(delete(workspaces_table).where(workspaces_table.c.id == workspace_id))
+        conn.execute(delete(users_table).where(users_table.c.id == user_id))
+        conn.commit()
+
+
+@pytest.fixture(autouse=True)
+def cleanup_prompts(test_project_id: str) -> Generator[None, None, None]:
+    """Clean up prompts after each test to prevent interference."""
+    yield
+
+    from dakora_server.core.database import (
+        create_db_engine,
+        get_connection,
+        prompts_table,
+    )
+    from sqlalchemy import delete
+
+    engine = create_db_engine()
+    with get_connection(engine) as conn:
+        conn.execute(delete(prompts_table).where(prompts_table.c.project_id == UUID(test_project_id)))
+        conn.commit()
+
+
+@pytest.fixture
+def scoped_vault_for_project(test_project_id: str):
+    """Helper function to create a project-scoped vault from a base vault."""
+    def _scope_vault(base_vault: Vault) -> Vault:
+        """Scope a vault to a specific project."""
+        from typing import cast
+        from dakora_server.core.registry import Registry
+
+        scoped_registry = cast(
+            Registry,
+            base_vault.registry.with_prefix(f"projects/{test_project_id}")  # type: ignore[attr-defined]
+        )
+        return Vault(scoped_registry, logging_enabled=False)
+
+    return _scope_vault
 
 
 @pytest.fixture(autouse=True)
