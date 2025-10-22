@@ -1,4 +1,4 @@
-import type { Template, RenderRequest, RenderResponse, HealthResponse } from '../types';
+import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest } from '../types';
 
 interface UserContext {
   user_id: string;
@@ -144,6 +144,76 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         headers: authHeaders,
       });
       return handleResponse<Template[]>(response);
+    },
+
+    async getPromptParts(projectId: string): Promise<PartListResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/parts`, {
+        headers: authHeaders,
+      });
+      return handleResponse<PartListResponse>(response);
+    },
+
+    async getPromptPart(projectId: string, partId: string): Promise<PromptPart> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/parts/${encodeURIComponent(partId)}`, {
+        headers: authHeaders,
+      });
+      return handleResponse<PromptPart>(response);
+    },
+
+    async createPromptPart(projectId: string, part: CreatePartRequest): Promise<PromptPart> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/parts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(part),
+      });
+      return handleResponse<PromptPart>(response);
+    },
+
+    async updatePromptPart(projectId: string, partId: string, part: UpdatePartRequest): Promise<PromptPart> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/parts/${encodeURIComponent(partId)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(part),
+      });
+      return handleResponse<PromptPart>(response);
+    },
+
+    async deletePromptPart(projectId: string, partId: string): Promise<void> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/parts/${encodeURIComponent(partId)}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new ApiError(errorData.detail || `HTTP ${response.status}`, response.status);
+      }
+    },
+
+    async renderPreview(projectId: string, id: string): Promise<RenderResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(id)}/render`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          inputs: {},
+          resolve_includes_only: true
+        }),
+      });
+      return handleResponse<RenderResponse>(response);
     },
   };
 }

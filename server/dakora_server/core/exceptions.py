@@ -32,3 +32,7 @@ class ModelNotFoundError(LLMError):
 
 class RegistryError(DakoraError):
     pass
+
+
+class PartNotFound(DakoraError):
+    pass

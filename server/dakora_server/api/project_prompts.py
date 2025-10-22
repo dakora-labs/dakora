@@ -15,6 +15,8 @@ from .schemas import (
     TemplateResponse,
     CreateTemplateRequest,
     UpdateTemplateRequest,
+    RenderRequest,
+    RenderResponse,
 )
 
 router = APIRouter(
@@ -230,6 +232,62 @@ async def update_prompt(
         raise
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{prompt_id}/render", response_model=RenderResponse)
+async def render_prompt(
+    prompt_id: str,
+    request: RenderRequest,
+    project_id: UUID = Depends(validate_project_access),
+    manager: PromptManager = Depends(get_prompt_manager),
+):
+    """Render a prompt template with variables.
+
+    This endpoint resolves {% include %} directives by loading prompt parts
+    from the database and renders Jinja2 templates with provided input variables.
+
+    Args:
+        prompt_id: The ID of the prompt to render
+        request: Render request with input variables
+        project_id: Validated project UUID
+        manager: PromptManager instance
+
+    Returns:
+        RenderResponse with rendered template text
+
+    Raises:
+        404: Prompt not found
+        400: Validation or rendering error
+        500: Internal server error
+    """
+    try:
+        from ..core.renderer import Renderer
+
+        template = manager.load(prompt_id)
+        spec = template if isinstance(template, TemplateSpec) else template.spec
+
+        engine = create_db_engine()
+        renderer = Renderer(engine=engine, project_id=project_id)
+
+        if request.resolve_includes_only:
+            # Only resolve includes, keep variables as placeholders
+            rendered = renderer.resolve_includes(spec.template)
+        else:
+            # Full render with variable substitution
+            rendered = renderer.render(spec.template, request.inputs)
+
+        return RenderResponse(rendered=rendered, inputs_used=request.inputs)
+
+    except TemplateNotFound:
+        raise HTTPException(
+            status_code=404, detail=f"Prompt '{prompt_id}' not found"
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

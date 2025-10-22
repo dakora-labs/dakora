@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class RenderRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
+    resolve_includes_only: bool = Field(default=False, description="If True, only resolve {% include %} directives but leave {{ variables }} as-is")
 
 
 class CreateTemplateRequest(BaseModel):
