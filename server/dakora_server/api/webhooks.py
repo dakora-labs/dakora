@@ -8,6 +8,7 @@ from svix.webhooks import Webhook, WebhookVerificationError
 
 from ..config import settings
 from ..core.database import create_db_engine, get_connection, users_table
+from ..core.provisioning import provision_workspace_and_project
 
 
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
@@ -125,19 +126,28 @@ async def clerk_webhook(
 
                 if result is None:
                     # Insert new user
-                    conn.execute(
+                    user_result = conn.execute(
                         users_table.insert().values(
                             clerk_user_id=clerk_user_id,
                             email=primary_email,
                             name=full_name,
-                        )
+                        ).returning(users_table.c.id)
                     )
+                    user_id = user_result.fetchone()[0]
+
+                    # Auto-provision workspace and default project
+                    workspace_id, project_id = provision_workspace_and_project(
+                        conn, user_id, full_name, primary_email
+                    )
+
                     conn.commit()
 
                     return {
                         "status": "success",
-                        "message": "User created",
-                        "user_id": clerk_user_id
+                        "message": "User created with workspace and project",
+                        "user_id": clerk_user_id,
+                        "workspace_id": str(workspace_id),
+                        "project_id": str(project_id)
                     }
                 else:
                     # User already exists (webhook replay or duplicate)

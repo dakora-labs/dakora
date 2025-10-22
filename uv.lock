@@ -603,7 +603,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
-    { name = "svix", specifier = ">=1.0.0" },
+    { name = "svix", specifier = ">=1.77.0,<2.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
     { name = "watchdog", specifier = ">=6.0.0" },
 ]
