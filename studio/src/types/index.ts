@@ -38,3 +38,39 @@ export type Template = Prompt;
 export interface ApiError {
   detail: string;
 }
+
+export interface PromptPart {
+  id: string;
+  part_id: string;
+  category: string;
+  name: string;
+  description?: string;
+  content: string;
+  tags: string[];
+  version?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PartListResponse {
+  by_category: Record<string, PromptPart[]>;
+}
+
+export interface CreatePartRequest {
+  part_id: string;
+  category: string;
+  name: string;
+  content: string;
+  description?: string;
+  tags?: string[];
+  version?: string;
+}
+
+export interface UpdatePartRequest {
+  category?: string;
+  name?: string;
+  content?: string;
+  description?: string;
+  tags?: string[];
+  version?: string;
+}

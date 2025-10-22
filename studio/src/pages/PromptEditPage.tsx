@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Save, X, Plus, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { PromptPartsPanel } from '@/components/PromptPartsPanel';
+import { RichTemplateEditor, type RichTemplateEditorRef } from '@/components/RichTemplateEditor';
 import type { Template, InputSpec } from '@/types';
 
 type InputType = 'string' | 'number' | 'boolean' | 'array<string>' | 'object';
@@ -33,12 +35,15 @@ export function PromptEditPage() {
   const navigate = useNavigate();
   const { api, projectId, projectSlug, contextLoading } = useAuthenticatedApi();
   const promptId = searchParams.get('prompt');
+  const editorRef = useRef<RichTemplateEditorRef>(null);
 
   const [prompt, setPrompt] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [preview, setPreview] = useState<string>('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const [description, setDescription] = useState('');
   const [template, setTemplate] = useState('');
@@ -80,6 +85,25 @@ export function PromptEditPage() {
 
     loadPrompt();
   }, [promptId, navigate, api, projectId, contextLoading]);
+
+  useEffect(() => {
+    if (!prompt || isEditing || !projectId) return;
+
+    const loadPreview = async () => {
+      try {
+        setLoadingPreview(true);
+        const response = await api.renderPreview(projectId, prompt.id);
+        setPreview(response.rendered);
+      } catch (err) {
+        console.error('Failed to load preview:', err);
+        setPreview(prompt.template);
+      } finally {
+        setLoadingPreview(false);
+      }
+    };
+
+    loadPreview();
+  }, [prompt, isEditing, api, projectId]);
 
   const handleAddVariable = () => {
     if (!newVarName.trim()) return;
@@ -196,6 +220,34 @@ export function PromptEditPage() {
     setError('');
   };
 
+  const getUsedParts = useCallback((): Array<{ category: string; partId: string }> => {
+    const includePattern = /{%\s*include\s+"([^"]+)"\s*%}/g;
+    const parts: Array<{ category: string; partId: string }> = [];
+    let match;
+
+    while ((match = includePattern.exec(template)) !== null) {
+      const [category, partId] = match[1].split('/');
+      if (category && partId) {
+        parts.push({ category, partId });
+      }
+    }
+
+    return parts;
+  }, [template]);
+
+  const handleInsertPart = useCallback((category: string, partId: string) => {
+    const insertText = `{% include "${category}/${partId}" %}`;
+    editorRef.current?.insertAtCursor(insertText);
+  }, []);
+
+  const handleDeletePart = useCallback((category: string, partId: string) => {
+    const partPattern = new RegExp(
+      `{%\\s*include\\s+"${category}/${partId}"\\s*%}`,
+      'g'
+    );
+    setTemplate(template.replace(partPattern, ''));
+  }, [template]);
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -283,7 +335,7 @@ export function PromptEditPage() {
 
       <div className="flex-1 overflow-hidden">
         <div className="h-full grid grid-cols-12 gap-0">
-          <div className="col-span-3 border-r border-border overflow-auto">
+          <div className={`${isEditing ? "col-span-2" : "col-span-3"} border-r border-border overflow-auto`}>
             <div className="p-4 space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs font-medium">Name</Label>
@@ -409,28 +461,49 @@ export function PromptEditPage() {
             </div>
           </div>
 
-          <div className="col-span-9 overflow-auto">
+          <div className={`${isEditing ? "col-span-7" : "col-span-9"} overflow-auto`}>
             <div className="p-4">
               <div className="space-y-2">
                 <Label htmlFor="template" className="text-xs font-medium">
-                  Template
+                  {isEditing ? 'Template' : 'Preview'}
                 </Label>
                 {isEditing ? (
-                  <Textarea
-                    id="template"
-                    placeholder="Write your prompt template here. Use {{ variable_name }} for dynamic inputs."
+                  <RichTemplateEditor
+                    ref={editorRef}
                     value={template}
-                    onChange={(e) => setTemplate(e.target.value)}
-                    className="min-h-[calc(100vh-180px)] font-mono text-sm resize-none"
+                    onChange={setTemplate}
+                    placeholder="Write your prompt template here. Use {{ variable_name }} for dynamic inputs."
+                    className="min-h-[calc(100vh-180px)]"
+                    readOnly={false}
                   />
                 ) : (
-                  <pre className="min-h-[calc(100vh-180px)] font-mono text-sm bg-muted p-4 rounded-md overflow-auto whitespace-pre-wrap">
-                    {prompt.template}
-                  </pre>
+                  <div className="relative">
+                    {loadingPreview && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+                        <p className="text-sm text-muted-foreground">Loading preview...</p>
+                      </div>
+                    )}
+                    <Textarea
+                      value={preview}
+                      readOnly
+                      className="min-h-[calc(100vh-180px)] font-mono text-sm resize-none"
+                    />
+                  </div>
                 )}
               </div>
             </div>
           </div>
+
+          {isEditing && (
+            <div className="col-span-3 border-l border-border overflow-hidden">
+              <PromptPartsPanel
+                projectId={projectId}
+                onInsertPart={handleInsertPart}
+                usedParts={getUsedParts()}
+                onDeletePart={handleDeletePart}
+              />
+            </div>
+          )}
         </div>
       </div>
 

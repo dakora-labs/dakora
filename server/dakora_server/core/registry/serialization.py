@@ -94,7 +94,7 @@ def render_yaml(spec: TemplateSpec, original_text: Optional[str]) -> str:
             lines.append(f"  {line}" if line else "")
 
     # Inputs
-    if spec.inputs or orig_inputs:
+    if spec.inputs:
         lines.append("")
         lines.append("inputs:")
         for name, inp in spec.inputs.items():

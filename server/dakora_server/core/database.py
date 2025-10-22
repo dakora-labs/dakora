@@ -105,6 +105,21 @@ prompts_table = Table(
     Column("metadata", JSONB, nullable=True),
 )
 
+# Prompt parts table definition (SQLAlchemy Core)
+prompt_parts_table = Table(
+    "prompt_parts",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("part_id", String(255), nullable=False),
+    Column("category", String(63), nullable=False),
+    Column("name", String(255), nullable=False),
+    Column("description", Text, nullable=True),
+    Column("content", Text, nullable=False),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("updated_at", DateTime, server_default=text("NOW()"), nullable=False),
+)
+
 
 def get_database_url() -> str:
     """Get database URL from environment or use default for local dev"""

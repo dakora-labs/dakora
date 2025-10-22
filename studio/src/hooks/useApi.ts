@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { api, ApiError } from '../utils/api';
-import type { Template } from '../types';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { api, ApiError, createApiClient } from '../utils/api';
+import type { Template, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest } from '../types';
+import { useAuthToken } from '@/utils/auth';
 
 export function usePrompts(projectId: string | undefined) {
   const [prompts, setPrompts] = useState<string[]>([]);
@@ -179,4 +180,168 @@ export function useUpdatePrompt(projectId: string | undefined) {
   }, [projectId]);
 
   return { updatePrompt, loading, error, clearError: () => setError(null) };
+}
+
+export function usePromptParts(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [parts, setParts] = useState<PartListResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchParts = useCallback(async () => {
+    if (!projectId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await authenticatedApi.getPromptParts(projectId);
+      setParts(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch prompt parts');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  useEffect(() => {
+    fetchParts();
+  }, [fetchParts]);
+
+  return { parts, loading, error, refetch: fetchParts };
+}
+
+export function usePromptPart(projectId: string | undefined, partId: string | null) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [part, setPart] = useState<PromptPart | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchPart = useCallback(async (id: string) => {
+    if (!projectId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await authenticatedApi.getPromptPart(projectId, id);
+      setPart(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch prompt part');
+      setPart(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  useEffect(() => {
+    if (partId) {
+      fetchPart(partId);
+    } else {
+      setPart(null);
+      setError(null);
+    }
+  }, [partId, fetchPart]);
+
+  return { part, loading, error, refetch: partId ? () => fetchPart(partId) : undefined };
+}
+
+export function useCreatePromptPart(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const createPart = useCallback(async (part: CreatePartRequest) => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authenticatedApi.createPromptPart(projectId, part);
+      return response;
+    } catch (err) {
+      const errorMessage = err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+        ? err.message
+        : 'Failed to create prompt part';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  return { createPart, loading, error, clearError: () => setError(null) };
+}
+
+export function useUpdatePromptPart(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const updatePart = useCallback(async (partId: string, part: UpdatePartRequest) => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authenticatedApi.updatePromptPart(projectId, partId, part);
+      return response;
+    } catch (err) {
+      const errorMessage = err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+        ? err.message
+        : 'Failed to update prompt part';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  return { updatePart, loading, error, clearError: () => setError(null) };
+}
+
+export function useDeletePromptPart(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const deletePart = useCallback(async (partId: string) => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      await authenticatedApi.deletePromptPart(projectId, partId);
+    } catch (err) {
+      const errorMessage = err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+        ? err.message
+        : 'Failed to delete prompt part';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  return { deletePart, loading, error, clearError: () => setError(null) };
 }

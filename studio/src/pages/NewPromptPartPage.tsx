@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { useCreatePromptPart } from '@/hooks/useApi';
 
 const categories = [
   'System Roles',
@@ -20,13 +22,16 @@ const categories = [
 
 export function NewPromptPartPage() {
   const navigate = useNavigate();
+  const { projectSlug } = useParams<{ projectSlug: string }>();
+  const { projectId } = useAuthenticatedApi();
+  const { createPart, loading: saving } = useCreatePromptPart(projectId);
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('System Roles');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [content, setContent] = useState('');
-  const [saving, setSaving] = useState(false);
 
   const partKey = name
     .toLowerCase()
@@ -55,11 +60,21 @@ export function NewPromptPartPage() {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      navigate('/library');
-    }, 500);
+    if (!partKey || !name.trim() || !content.trim()) return;
+
+    try {
+      await createPart({
+        part_id: partKey,
+        category,
+        name: name.trim(),
+        content: content.trim(),
+        description: description.trim() || undefined,
+        tags,
+      });
+      navigate(`/project/${projectSlug}/library`);
+    } catch (err) {
+      console.error('Failed to create prompt part:', err);
+    }
   };
 
   return (
@@ -69,7 +84,7 @@ export function NewPromptPartPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/library')}
+            onClick={() => navigate(`/project/${projectSlug}/library`)}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -81,7 +96,7 @@ export function NewPromptPartPage() {
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
-            onClick={() => navigate('/library')}
+            onClick={() => navigate(`/project/${projectSlug}/library`)}
           >
             Cancel
           </Button>

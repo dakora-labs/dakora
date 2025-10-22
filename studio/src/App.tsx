@@ -8,7 +8,6 @@ import { NewPromptPage } from './pages/NewPromptPage';
 import { PromptLibraryPage } from './pages/PromptLibraryPage';
 import { NewPromptPartPage } from './pages/NewPromptPartPage';
 import { PromptPartPage } from './pages/PromptPartPage';
-import { FEATURES } from './config/features';
 import { ProjectRedirect } from './components/ProjectRedirect';
 
 function App() {
@@ -22,13 +21,9 @@ function App() {
               <Route path="/project/:projectSlug/prompts" element={<DashboardPage />} />
               <Route path="/project/:projectSlug/prompts/new" element={<NewPromptPage />} />
               <Route path="/project/:projectSlug/prompt/edit" element={<PromptEditPage />} />
-              {FEATURES.PROMPT_PARTS && (
-              <>
-                <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
-                <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
-                <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
-              </>
-            )}
+              <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
+              <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
+              <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
             </Routes>
           </MainLayout>
         </SignedIn>
@@ -47,13 +42,9 @@ function App() {
         <Route path="/project/:projectSlug/prompts" element={<DashboardPage />} />
         <Route path="/project/:projectSlug/prompts/new" element={<NewPromptPage />} />
         <Route path="/project/:projectSlug/prompt/edit" element={<PromptEditPage />} />
-         {FEATURES.PROMPT_PARTS && (
-          <>
-            <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
-            <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
-            <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
-          </>
-        )}
+        <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
+        <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
+        <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
       </Routes>
     </MainLayout>
   );

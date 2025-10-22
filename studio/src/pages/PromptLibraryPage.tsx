@@ -1,84 +1,50 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-
-interface PromptPart {
-  id: string;
-  name: string;
-  description: string;
-  content: string;
-  category: string;
-  tags: string[];
-  version: string;
-  updatedAt: string;
-}
-
-const mockParts: PromptPart[] = [
-  {
-    id: '1',
-    name: 'Helpful Assistant',
-    description: "A generic but friendly assistant persona that's helpful and concise in its responses.",
-    content: 'You are a helpful assistant...',
-    category: 'System Roles',
-    tags: ['persona', 'analysis'],
-    version: '1.0.1',
-    updatedAt: '2 days ago',
-  },
-  {
-    id: '2',
-    name: 'JSON Output',
-    description: 'Forces the model to output a valid JSON object matching a specified schema.',
-    content: 'Output your response as valid JSON...',
-    category: 'Formatting',
-    tags: ['json', 'summarization'],
-    version: '2.1.0',
-    updatedAt: '1 week ago',
-  },
-  {
-    id: '3',
-    name: 'Code Snippet Injector',
-    description: 'Provides context by injecting a file or code snippet into the prompt.',
-    content: 'Here is the relevant code context...',
-    category: 'Context Injection',
-    tags: [],
-    version: '1.0.0',
-    updatedAt: '3 weeks ago',
-  },
-  {
-    id: '4',
-    name: 'Summarize Key Points',
-    description: 'Instructs the model to provide a brief summary highlighting the key takeaways from a text.',
-    content: 'Please summarize the key points...',
-    category: 'Output Instructions',
-    tags: [],
-    version: '1.2.0',
-    updatedAt: '1 month ago',
-  },
-];
-
-const categories = [
-  { name: 'System Roles', count: 5 },
-  { name: 'Formatting', count: 8 },
-  { name: 'Context Injection', count: 3 },
-  { name: 'Output Instructions', count: 12 },
-  { name: 'Utilities', count: 2 },
-];
-
-const tags = ['json', 'summarization', 'persona', 'analysis'];
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { usePromptParts } from '@/hooks/useApi';
 
 export function PromptLibraryPage() {
   const navigate = useNavigate();
+  const { projectSlug } = useParams<{ projectSlug: string }>();
+  const { projectId, contextLoading } = useAuthenticatedApi();
+  const { parts, loading, error } = usePromptParts(projectId);
+
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
+  // Flatten all parts from categories
+  const allParts = useMemo(() => {
+    if (!parts?.by_category) return [];
+    return Object.values(parts.by_category).flat();
+  }, [parts]);
+
+  // Extract categories with counts
+  const categories = useMemo(() => {
+    if (!parts?.by_category) return [];
+    return Object.entries(parts.by_category).map(([name, items]) => ({
+      name,
+      count: items.length,
+    }));
+  }, [parts]);
+
+  // Extract all unique tags
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    allParts.forEach(part => {
+      part.tags.forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [allParts]);
+
   const filteredParts = useMemo(() => {
-    return mockParts.filter(part => {
+    return allParts.filter(part => {
       const matchesCategory = !selectedCategory || part.category === selectedCategory;
 
       const matchesTags = selectedTags.length === 0 ||
@@ -90,7 +56,7 @@ export function PromptLibraryPage() {
 
       return matchesCategory && matchesTags && matchesSearch;
     });
-  }, [search, selectedCategory, selectedTags]);
+  }, [allParts, search, selectedCategory, selectedTags]);
 
   const toggleTag = (tag: string) => {
     setSelectedTags(prev =>
@@ -99,6 +65,22 @@ export function PromptLibraryPage() {
         : [...prev, tag]
     );
   };
+
+  if (contextLoading || loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <p className="text-muted-foreground">Loading prompt parts...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <p className="text-destructive">Error: {error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex">
@@ -129,7 +111,7 @@ export function PromptLibraryPage() {
         <div className="p-4">
           <h2 className="text-sm font-semibold text-foreground mb-3">Tags</h2>
           <div className="flex flex-wrap gap-2">
-            {tags.map(tag => (
+            {allTags.map(tag => (
               <Badge
                 key={tag}
                 variant={selectedTags.includes(tag) ? "default" : "outline"}
@@ -147,7 +129,7 @@ export function PromptLibraryPage() {
         <div className="border-b border-border bg-card px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-semibold">Prompt Snippet Library</h1>
-            <Button onClick={() => navigate('/library/new')}>
+            <Button onClick={() => navigate(`/project/${projectSlug}/library/new`)}>
               + New Part
             </Button>
           </div>
@@ -179,7 +161,7 @@ export function PromptLibraryPage() {
                 <Card
                   key={part.id}
                   className="p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/library/part?id=${part.id}`)}
+                  onClick={() => navigate(`/project/${projectSlug}/library/part?id=${part.part_id}`)}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
@@ -202,7 +184,7 @@ export function PromptLibraryPage() {
                   </p>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">
-                      Updated {part.updatedAt}
+                      Updated {part.updated_at}
                     </span>
                   </div>
                 </Card>

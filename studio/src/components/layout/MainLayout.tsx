@@ -4,7 +4,6 @@ import { FileText, Menu, ChevronLeft, Library } from 'lucide-react';
 import { StatusBar } from '../StatusBar';
 import { AppTopBar } from './AppTopBar';
 import { cn } from '@/lib/utils';
-import { FEATURES } from '@/config/features';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 
 interface MainLayoutProps {
@@ -45,20 +44,18 @@ export function MainLayout({ children }: MainLayoutProps) {
             <FileText className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
             {sidebarOpen && <span>Prompts</span>}
           </Link>
-          {FEATURES.PROMPT_PARTS && (
-            <Link
-              to={`/project/${projectSlug}/library`}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
-                isActive('/library')
-                  ? "bg-muted hover:bg-muted"
-                  : "hover:bg-muted/50"
-              )}
-            >
-              <Library className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-              {sidebarOpen && <span>Library</span>}
-            </Link>
-          )}
+          <Link
+            to={`/project/${projectSlug}/library`}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
+              isActive('/library')
+                ? "bg-muted hover:bg-muted"
+                : "hover:bg-muted/50"
+            )}
+          >
+            <Library className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+            {sidebarOpen && <span>Library</span>}
+          </Link>
         </nav>
 
         <div className="p-3">

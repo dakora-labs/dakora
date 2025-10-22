@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Save, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,40 +17,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-
-interface PromptPart {
-  id: string;
-  name: string;
-  description: string;
-  content: string;
-  category: string;
-  tags: string[];
-  version: string;
-  updatedAt: string;
-}
-
-const mockParts: Record<string, PromptPart> = {
-  '1': {
-    id: '1',
-    name: 'Helpful Assistant',
-    description: "A generic but friendly assistant persona that's helpful and concise in its responses.",
-    content: 'You are a helpful assistant. You provide clear, accurate, and concise responses to user queries. Always be polite and professional.',
-    category: 'System Roles',
-    tags: ['persona', 'analysis'],
-    version: '1.0.1',
-    updatedAt: '2 days ago',
-  },
-  '2': {
-    id: '2',
-    name: 'JSON Output',
-    description: 'Forces the model to output a valid JSON object matching a specified schema.',
-    content: 'Output your response as valid JSON. Ensure all strings are properly escaped and the JSON is well-formed.',
-    category: 'Formatting',
-    tags: ['json', 'summarization'],
-    version: '2.1.0',
-    updatedAt: '1 week ago',
-  },
-};
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { usePromptPart, useUpdatePromptPart, useDeletePromptPart } from '@/hooks/useApi';
 
 const categories = [
   'System Roles',
@@ -65,12 +33,15 @@ const categories = [
 export function PromptPartPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { projectSlug } = useParams<{ projectSlug: string }>();
+  const { projectId } = useAuthenticatedApi();
   const partId = searchParams.get('id');
 
-  const [part, setPart] = useState<PromptPart | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { part, loading, refetch } = usePromptPart(projectId, partId);
+  const { updatePart, loading: saving } = useUpdatePromptPart(projectId);
+  const { deletePart } = useDeletePromptPart(projectId);
+
   const [isEditing, setIsEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -83,23 +54,20 @@ export function PromptPartPage() {
 
   useEffect(() => {
     if (!partId) {
-      navigate('/library');
+      navigate(`/project/${projectSlug}/library`);
       return;
     }
+  }, [partId, navigate, projectSlug]);
 
-    setTimeout(() => {
-      const mockPart = mockParts[partId];
-      if (mockPart) {
-        setPart(mockPart);
-        setName(mockPart.name);
-        setDescription(mockPart.description);
-        setCategory(mockPart.category);
-        setTags(mockPart.tags);
-        setContent(mockPart.content);
-      }
-      setLoading(false);
-    }, 200);
-  }, [partId, navigate]);
+  useEffect(() => {
+    if (part) {
+      setName(part.name);
+      setDescription(part.description || '');
+      setCategory(part.category);
+      setTags(part.tags || []);
+      setContent(part.content);
+    }
+  }, [part]);
 
   const partKey = name
     .toLowerCase()
@@ -128,22 +96,21 @@ export function PromptPartPage() {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    setTimeout(() => {
-      if (part) {
-        const updatedPart = {
-          ...part,
-          name,
-          description,
-          category,
-          tags,
-          content,
-        };
-        setPart(updatedPart);
-      }
-      setSaving(false);
+    if (!partId || !name.trim() || !content.trim()) return;
+
+    try {
+      await updatePart(partId, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        category,
+        tags,
+        content: content.trim(),
+      });
       setIsEditing(false);
-    }, 500);
+      refetch?.();
+    } catch (err) {
+      console.error('Failed to update prompt part:', err);
+    }
   };
 
   const handleEdit = () => {
@@ -153,17 +120,22 @@ export function PromptPartPage() {
   const handleCancel = () => {
     if (!part) return;
     setName(part.name);
-    setDescription(part.description);
+    setDescription(part.description || '');
     setCategory(part.category);
-    setTags(part.tags);
+    setTags(part.tags || []);
     setContent(part.content);
     setIsEditing(false);
   };
 
   const handleDelete = async () => {
-    setTimeout(() => {
-      navigate('/library');
-    }, 300);
+    if (!partId) return;
+
+    try {
+      await deletePart(partId);
+      navigate(`/project/${projectSlug}/library`);
+    } catch (err) {
+      console.error('Failed to delete prompt part:', err);
+    }
   };
 
   if (loading) {
@@ -189,7 +161,7 @@ export function PromptPartPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/library')}
+            onClick={() => navigate(`/project/${projectSlug}/library`)}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />

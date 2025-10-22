@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Save, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { PromptPartsPanel } from '@/components/PromptPartsPanel';
+import { RichTemplateEditor, type RichTemplateEditorRef } from '@/components/RichTemplateEditor';
 import type { InputSpec } from '@/types';
 
 type InputType = 'string' | 'number' | 'boolean' | 'array<string>' | 'object';
@@ -31,6 +33,7 @@ interface VariableConfig {
 export function NewPromptPage() {
   const navigate = useNavigate();
   const { api, projectId, projectSlug, contextLoading } = useAuthenticatedApi();
+  const editorRef = useRef<RichTemplateEditorRef>(null);
   const [id, setId] = useState('');
   const [description, setDescription] = useState('');
   const [template, setTemplate] = useState('');
@@ -136,6 +139,34 @@ export function NewPromptPage() {
     await performSave();
   };
 
+  const getUsedParts = useCallback((): Array<{ category: string; partId: string }> => {
+    const includePattern = /{%\s*include\s+"([^"]+)"\s*%}/g;
+    const parts: Array<{ category: string; partId: string }> = [];
+    let match;
+
+    while ((match = includePattern.exec(template)) !== null) {
+      const [category, partId] = match[1].split('/');
+      if (category && partId) {
+        parts.push({ category, partId });
+      }
+    }
+
+    return parts;
+  }, [template]);
+
+  const handleInsertPart = useCallback((category: string, partId: string) => {
+    const insertText = `{% include "${category}/${partId}" %}`;
+    editorRef.current?.insertAtCursor(insertText);
+  }, []);
+
+  const handleDeletePart = useCallback((category: string, partId: string) => {
+    const partPattern = new RegExp(
+      `{%\\s*include\\s+"${category}/${partId}"\\s*%}`,
+      'g'
+    );
+    setTemplate(template.replace(partPattern, ''));
+  }, [template]);
+
   return (
     <div className="h-full flex flex-col bg-background">
       <div className="border-b border-border bg-card px-4 py-3 flex items-center justify-between">
@@ -167,7 +198,7 @@ export function NewPromptPage() {
 
       <div className="flex-1 overflow-hidden">
         <div className="h-full grid grid-cols-12 gap-0">
-          <div className="col-span-3 border-r border-border overflow-auto">
+          <div className="col-span-2 border-r border-border overflow-auto">
             <div className="p-4 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="prompt-name" className="text-xs font-medium">
@@ -294,21 +325,30 @@ export function NewPromptPage() {
             </div>
           </div>
 
-          <div className="col-span-9 overflow-auto">
+          <div className="col-span-7 overflow-auto">
             <div className="p-4">
               <div className="space-y-2">
                 <Label htmlFor="template" className="text-xs font-medium">
                   Template
                 </Label>
-                <Textarea
-                  id="template"
-                  placeholder="Write your prompt template here. Use {{ variable_name }} for dynamic inputs."
+                <RichTemplateEditor
+                  ref={editorRef}
                   value={template}
-                  onChange={(e) => setTemplate(e.target.value)}
-                  className="min-h-[calc(100vh-180px)] font-mono text-sm resize-none"
+                  onChange={setTemplate}
+                  placeholder="Write your prompt template here. Use {{ variable_name }} for dynamic inputs."
+                  className="min-h-[calc(100vh-180px)]"
                 />
               </div>
             </div>
+          </div>
+
+          <div className="col-span-3 border-l border-border overflow-hidden">
+            <PromptPartsPanel
+              projectId={projectId}
+              onInsertPart={handleInsertPart}
+              usedParts={getUsedParts()}
+              onDeletePart={handleDeletePart}
+            />
           </div>
         </div>
       </div>
