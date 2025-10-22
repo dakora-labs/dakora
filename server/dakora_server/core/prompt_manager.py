@@ -36,11 +36,25 @@ class PromptManager:
 
     def list_ids(self) -> list[str]:
         """List all prompt IDs for this project from database.
+        
+        In no-auth mode (when project doesn't exist in DB), falls back to registry.
 
         Returns:
             List of prompt IDs
         """
         with get_connection(self.engine) as conn:
+            # Check if project exists in database
+            from .database import projects_table
+            project_exists = conn.execute(
+                select(projects_table.c.id)
+                .where(projects_table.c.id == self.project_id)
+            ).fetchone()
+            
+            # If project doesn't exist, use registry directly (no-auth mode)
+            if not project_exists:
+                return list(self.registry.list_ids())
+            
+            # Otherwise, use database for listing
             result = conn.execute(
                 select(prompts_table.c.prompt_id)
                 .where(prompts_table.c.project_id == self.project_id)
@@ -60,20 +74,28 @@ class PromptManager:
         Raises:
             TemplateNotFound: If prompt not found in database or storage
         """
-        # First check database
+        # Check if project exists in database
         with get_connection(self.engine) as conn:
-            result = conn.execute(
-                select(prompts_table.c.id, prompts_table.c.storage_path)
-                .where(
-                    prompts_table.c.project_id == self.project_id,
-                    prompts_table.c.prompt_id == prompt_id,
-                )
+            from .database import projects_table
+            project_exists = conn.execute(
+                select(projects_table.c.id)
+                .where(projects_table.c.id == self.project_id)
             ).fetchone()
+            
+            # If project exists in DB, verify prompt exists in database first
+            if project_exists:
+                result = conn.execute(
+                    select(prompts_table.c.id, prompts_table.c.storage_path)
+                    .where(
+                        prompts_table.c.project_id == self.project_id,
+                        prompts_table.c.prompt_id == prompt_id,
+                    )
+                ).fetchone()
 
-            if not result:
-                raise TemplateNotFound(prompt_id)
+                if not result:
+                    raise TemplateNotFound(prompt_id)
 
-        # Load from blob storage via registry
+        # Load from blob storage via registry (works in both auth and no-auth modes)
         return self.registry.load(prompt_id)
 
     def save(self, spec: TemplateSpec) -> None:
@@ -91,8 +113,19 @@ class PromptManager:
         # Compute storage path (matches registry naming convention)
         storage_path = f"projects/{self.project_id}/{spec.id}.yaml"
 
-        # Sync to database
+        # Sync to database (skip if project doesn't exist - e.g., no-auth mode)
         with get_connection(self.engine) as conn:
+            # Check if project exists in database
+            from .database import projects_table
+            project_exists = conn.execute(
+                select(projects_table.c.id)
+                .where(projects_table.c.id == self.project_id)
+            ).fetchone()
+            
+            # Skip database sync if project doesn't exist (no-auth mode)
+            if not project_exists:
+                return
+            
             # Check if record exists
             existing = conn.execute(
                 select(prompts_table.c.id)
@@ -143,30 +176,47 @@ class PromptManager:
             TemplateNotFound: If prompt doesn't exist
             RegistryError: If deletion fails
         """
-        # Check database first
+        # Check database first (skip if project doesn't exist - no-auth mode)
         with get_connection(self.engine) as conn:
-            existing = conn.execute(
-                select(prompts_table.c.id)
-                .where(
-                    prompts_table.c.project_id == self.project_id,
-                    prompts_table.c.prompt_id == prompt_id,
-                )
+            # Check if project exists in database
+            from .database import projects_table
+            project_exists = conn.execute(
+                select(projects_table.c.id)
+                .where(projects_table.c.id == self.project_id)
             ).fetchone()
+            
+            # If project exists in DB, verify prompt exists
+            if project_exists:
+                existing = conn.execute(
+                    select(prompts_table.c.id)
+                    .where(
+                        prompts_table.c.project_id == self.project_id,
+                        prompts_table.c.prompt_id == prompt_id,
+                    )
+                ).fetchone()
 
-            if not existing:
-                raise TemplateNotFound(prompt_id)
+                if not existing:
+                    raise TemplateNotFound(prompt_id)
 
         # Delete from blob storage
         self.registry.delete(prompt_id)
 
-        # Delete from database
+        # Delete from database (skip if project doesn't exist - no-auth mode)
         with get_connection(self.engine) as conn:
-            conn.execute(
-                delete(prompts_table).where(
-                    prompts_table.c.project_id == self.project_id,
-                    prompts_table.c.prompt_id == prompt_id,
+            # Check if project exists
+            from .database import projects_table
+            project_exists = conn.execute(
+                select(projects_table.c.id)
+                .where(projects_table.c.id == self.project_id)
+            ).fetchone()
+            
+            if project_exists:
+                conn.execute(
+                    delete(prompts_table).where(
+                        prompts_table.c.project_id == self.project_id,
+                        prompts_table.c.prompt_id == prompt_id,
+                    )
                 )
-            )
             conn.commit()
 
     def sync_from_storage(self) -> int:

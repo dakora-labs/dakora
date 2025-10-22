@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
 from ..auth import get_auth_context, AuthContext
+from ..config import settings
 from ..core.database import (
     get_engine,
     get_connection,
@@ -77,6 +78,17 @@ async def get_user_context(
     Raises:
         HTTPException: 401 if not authenticated, 500 for database errors
     """
+    # Handle no-auth mode (development): return default project without database lookup
+    if auth_ctx.auth_method == "none" and not settings.auth_required:
+        return UserContextResponse(
+            user_id="default",
+            email="dev@localhost",
+            name="Development User",
+            project_id="default",
+            project_slug="default",
+            project_name="Default Project",
+        )
+    
     # Check cache first (unless bypass requested)
     cache_key = auth_ctx.user_id
     if x_bypass_cache != "true" and cache_key in _user_context_cache:
