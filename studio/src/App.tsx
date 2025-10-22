@@ -7,6 +7,7 @@ import { NewPromptPage } from './pages/NewPromptPage';
 import { PromptLibraryPage } from './pages/PromptLibraryPage';
 import { NewPromptPartPage } from './pages/NewPromptPartPage';
 import { PromptPartPage } from './pages/PromptPartPage';
+import { FEATURES } from './config/features';
 
 function App() {
   return (
@@ -18,9 +19,13 @@ function App() {
             <Route path="/prompts" element={<DashboardPage />} />
             <Route path="/prompts/new" element={<NewPromptPage />} />
             <Route path="/prompt/edit" element={<PromptEditPage />} />
-            <Route path="/library" element={<PromptLibraryPage />} />
-            <Route path="/library/new" element={<NewPromptPartPage />} />
-            <Route path="/library/part" element={<PromptPartPage />} />
+            {FEATURES.PROMPT_PARTS && (
+              <>
+                <Route path="/library" element={<PromptLibraryPage />} />
+                <Route path="/library/new" element={<NewPromptPartPage />} />
+                <Route path="/library/part" element={<PromptPartPage />} />
+              </>
+            )}
           </Routes>
         </MainLayout>
       </SignedIn>
