@@ -43,14 +43,16 @@ jobs:
     - name: Install dependencies
       run: uv sync
 
-    - name: Run validation tests
-      run: uv run python validate_tests.py
-
     - name: Run database migrations
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dakora
       working-directory: ./server
       run: uv run alembic upgrade head
+
+    - name: Run validation tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dakora
+      run: uv run python validate_tests.py
 
     - name: Run ${{ matrix.test-type }} tests
       env:
