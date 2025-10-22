@@ -72,18 +72,18 @@ async def get_auth_context(
     # Priority 2: Check for JWT Bearer token
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1]
-        
+
         try:
             # Decode JWT without verification first to get the issuer
             unverified = jwt.decode(token, options={"verify_signature": False})
-            
+
             # If Clerk settings are configured, verify the token
             if settings.clerk_jwt_issuer and settings.clerk_jwks_url:
                 # Get the signing key from JWKS
                 from jwt import PyJWKClient
                 jwks_client = PyJWKClient(settings.clerk_jwks_url)
                 signing_key = jwks_client.get_signing_key_from_jwt(token)
-                
+
                 # Verify the token
                 payload = jwt.decode(
                     token,
@@ -95,18 +95,18 @@ async def get_auth_context(
             else:
                 # No verification configured - decode only (for local testing)
                 payload = unverified
-            
+
             # Extract user info from JWT claims
             user_id = payload.get("sub") or payload.get("user_id")
             if not user_id:
                 raise HTTPException(status_code=401, detail="Invalid token: missing user_id")
-            
+
             return AuthContext(
                 user_id=user_id,
                 project_id=payload.get("project_id"),
                 auth_method="jwt",
             )
-            
+
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token has expired")
         except jwt.InvalidTokenError as e:
@@ -120,7 +120,7 @@ async def get_auth_context(
             status_code=401,
             detail="Authentication required. Provide X-API-Key or Authorization: Bearer header."
         )
-    
+
     # Development mode: allow unauthenticated access with default user
     return AuthContext(
         user_id="default",

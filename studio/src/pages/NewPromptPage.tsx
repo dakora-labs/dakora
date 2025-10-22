@@ -30,7 +30,7 @@ interface VariableConfig {
 
 export function NewPromptPage() {
   const navigate = useNavigate();
-  const { api } = useAuthenticatedApi();
+  const { api, projectId, projectSlug, contextLoading } = useAuthenticatedApi();
   const [id, setId] = useState('');
   const [description, setDescription] = useState('');
   const [template, setTemplate] = useState('');
@@ -76,6 +76,11 @@ export function NewPromptPage() {
   };
 
   const performSave = async () => {
+    if (contextLoading || !projectId || !projectSlug) {
+      setError('Project not loaded yet');
+      return;
+    }
+
     const inputs: Record<string, InputSpec> = {};
     for (const v of variables) {
       inputs[v.name] = {
@@ -86,14 +91,14 @@ export function NewPromptPage() {
 
     try {
       setSaving(true);
-      await api.createPrompt({
+      await api.createPrompt(projectId, {
         id: id.trim(),
         version: '1.0.0',
         description: description.trim() || undefined,
         template: template,
         inputs,
       });
-      navigate(`/prompt/edit?prompt=${id.trim()}`);
+      navigate(`/project/${projectSlug}/prompt/edit?prompt=${id.trim()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create prompt');
     } finally {
@@ -138,7 +143,7 @@ export function NewPromptPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/prompts')}
+            onClick={() => projectSlug && navigate(`/project/${projectSlug}/prompts`)}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />

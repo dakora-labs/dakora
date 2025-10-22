@@ -31,7 +31,7 @@ interface VariableConfig {
 export function PromptEditPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { api } = useAuthenticatedApi();
+  const { api, projectId, projectSlug, contextLoading } = useAuthenticatedApi();
   const promptId = searchParams.get('prompt');
 
   const [prompt, setPrompt] = useState<Template | null>(null);
@@ -52,14 +52,16 @@ export function PromptEditPage() {
   const [unusedVars, setUnusedVars] = useState<string[]>([]);
 
   useEffect(() => {
+    if (contextLoading || !projectId || !projectSlug) return;
+
     if (!promptId) {
-      navigate('/prompts');
+      navigate(`/project/${projectSlug}/prompts`);
       return;
     }
 
     const loadPrompt = async () => {
       try {
-        const data = await api.getPrompt(promptId);
+        const data = await api.getPrompt(projectId, promptId);
         setPrompt(data);
         setDescription(data.description || '');
         setTemplate(data.template);
@@ -77,7 +79,7 @@ export function PromptEditPage() {
     };
 
     loadPrompt();
-  }, [promptId, navigate, api]);
+  }, [promptId, navigate, api, projectId, contextLoading]);
 
   const handleAddVariable = () => {
     if (!newVarName.trim()) return;
@@ -112,7 +114,7 @@ export function PromptEditPage() {
   };
 
   const performSave = async () => {
-    if (!promptId) return;
+    if (!promptId || !projectId) return;
 
     const inputs: Record<string, InputSpec> = {};
     for (const v of variables) {
@@ -124,7 +126,7 @@ export function PromptEditPage() {
 
     try {
       setSaving(true);
-      const updated = await api.updatePrompt(promptId, {
+      const updated = await api.updatePrompt(projectId, promptId, {
         description: description.trim() || undefined,
         template: template,
         inputs,
@@ -165,11 +167,11 @@ export function PromptEditPage() {
   };
 
   const handleDelete = async () => {
-    if (!promptId) return;
+    if (!promptId || !projectId || !projectSlug) return;
 
     try {
-      await api.deletePrompt(promptId);
-      navigate('/prompts');
+      await api.deletePrompt(projectId, promptId);
+      navigate(`/project/${projectSlug}/prompts`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete prompt');
       setShowDeleteDialog(false);
@@ -217,7 +219,7 @@ export function PromptEditPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/prompts')}
+            onClick={() => navigate(`/project/${projectSlug}/prompts`)}
             className="gap-2"
           >
             <ArrowLeft className="w-4 h-4" />

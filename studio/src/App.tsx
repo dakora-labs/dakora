@@ -9,6 +9,7 @@ import { PromptLibraryPage } from './pages/PromptLibraryPage';
 import { NewPromptPartPage } from './pages/NewPromptPartPage';
 import { PromptPartPage } from './pages/PromptPartPage';
 import { FEATURES } from './config/features';
+import { ProjectRedirect } from './components/ProjectRedirect';
 
 function App() {
   if (AUTH_REQUIRED) {
@@ -17,15 +18,15 @@ function App() {
         <SignedIn>
           <MainLayout>
             <Routes>
-              <Route path="/" element={<Navigate to="/prompts" replace />} />
-              <Route path="/prompts" element={<DashboardPage />} />
-              <Route path="/prompts/new" element={<NewPromptPage />} />
-              <Route path="/prompt/edit" element={<PromptEditPage />} />
+              <Route path="/" element={<ProjectRedirect />} />
+              <Route path="/project/:projectSlug/prompts" element={<DashboardPage />} />
+              <Route path="/project/:projectSlug/prompts/new" element={<NewPromptPage />} />
+              <Route path="/project/:projectSlug/prompt/edit" element={<PromptEditPage />} />
               {FEATURES.PROMPT_PARTS && (
               <>
-                <Route path="/library" element={<PromptLibraryPage />} />
-                <Route path="/library/new" element={<NewPromptPartPage />} />
-                <Route path="/library/part" element={<PromptPartPage />} />
+                <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
+                <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
+                <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
               </>
             )}
             </Routes>
@@ -38,19 +39,19 @@ function App() {
     );
   }
 
-  // Auth disabled: render app routes directly
+  // Auth disabled: use default project for local dev
   return (
     <MainLayout>
       <Routes>
-        <Route path="/" element={<Navigate to="/prompts" replace />} />
-        <Route path="/prompts" element={<DashboardPage />} />
-        <Route path="/prompts/new" element={<NewPromptPage />} />
-        <Route path="/prompt/edit" element={<PromptEditPage />} />
+        <Route path="/" element={<Navigate to="/project/default/prompts" replace />} />
+        <Route path="/project/:projectSlug/prompts" element={<DashboardPage />} />
+        <Route path="/project/:projectSlug/prompts/new" element={<NewPromptPage />} />
+        <Route path="/project/:projectSlug/prompt/edit" element={<PromptEditPage />} />
          {FEATURES.PROMPT_PARTS && (
           <>
-            <Route path="/library" element={<PromptLibraryPage />} />
-            <Route path="/library/new" element={<NewPromptPartPage />} />
-            <Route path="/library/part" element={<PromptPartPage />} />
+            <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
+            <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
+            <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
           </>
         )}
       </Routes>

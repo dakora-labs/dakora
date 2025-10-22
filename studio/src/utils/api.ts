@@ -1,5 +1,14 @@
 import type { Template, RenderRequest, RenderResponse, HealthResponse } from '../types';
 
+interface UserContext {
+  user_id: string;
+  email: string;
+  name: string | null;
+  project_id: string;
+  project_slug: string;
+  project_name: string;
+}
+
 const getApiBase = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
   return apiUrl ? `${apiUrl}/api` : '/api';
@@ -30,18 +39,26 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
     if (!getToken) {
       return {};
     }
-    
+
     const token = await getToken();
     if (token) {
       return {
         'Authorization': `Bearer ${token}`,
       };
     }
-    
+
     return {};
   }
 
   return {
+    async getUserContext(): Promise<UserContext> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/me/context`, {
+        headers: authHeaders,
+      });
+      return handleResponse<UserContext>(response);
+    },
+
     async getHealth(): Promise<HealthResponse> {
       const authHeaders = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/health`, {
@@ -50,27 +67,27 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       return handleResponse<HealthResponse>(response);
     },
 
-    async getPrompts(): Promise<string[]> {
+    async getPrompts(projectId: string): Promise<string[]> {
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${API_BASE}/templates`, {
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts`, {
         headers: authHeaders,
       });
       return handleResponse<string[]>(response);
     },
 
-    async getPrompt(id: string): Promise<Template> {
+    async getPrompt(projectId: string, id: string): Promise<Template> {
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(id)}`, {
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(id)}`, {
         headers: authHeaders,
       });
       return handleResponse<Template>(response);
     },
 
-    async createPrompt(template: Omit<Template, 'inputs'> & {
+    async createPrompt(projectId: string, template: Omit<Template, 'inputs'> & {
       inputs: Record<string, { type: string; required: boolean; default?: unknown }>
     }): Promise<Template> {
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${API_BASE}/templates`, {
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,11 +98,11 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       return handleResponse<Template>(response);
     },
 
-    async updatePrompt(id: string, template: Partial<Omit<Template, 'id' | 'inputs'>> & {
+    async updatePrompt(projectId: string, id: string, template: Partial<Omit<Template, 'id' | 'inputs'>> & {
       inputs?: Record<string, { type: string; required: boolean; default?: unknown }>
     }): Promise<Template> {
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(id)}`, {
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -96,9 +113,9 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       return handleResponse<Template>(response);
     },
 
-    async deletePrompt(id: string): Promise<void> {
+    async deletePrompt(projectId: string, id: string): Promise<void> {
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(id)}`, {
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: authHeaders,
       });
@@ -108,9 +125,9 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       }
     },
 
-    async renderPrompt(id: string, request: RenderRequest): Promise<RenderResponse> {
+    async renderPrompt(projectId: string, id: string, request: RenderRequest): Promise<RenderResponse> {
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${API_BASE}/templates/${encodeURIComponent(id)}/render`, {
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(id)}/render`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,3 +152,4 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
 export const api = createApiClient();
 
 export { ApiError };
+export type { UserContext };

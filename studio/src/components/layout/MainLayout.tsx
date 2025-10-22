@@ -1,10 +1,11 @@
 import { ReactNode, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { FileText, Menu, ChevronLeft, Library } from 'lucide-react';
 import { StatusBar } from '../StatusBar';
 import { AppTopBar } from './AppTopBar';
 import { cn } from '@/lib/utils';
 import { FEATURES } from '@/config/features';
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -13,8 +14,13 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
+  const { projectSlug: paramProjectSlug } = useParams<{ projectSlug: string }>();
+  const { projectSlug: contextProjectSlug } = useAuthenticatedApi();
 
-  const isActive = (path: string) => location.pathname === path;
+  // Use projectSlug from route params if available, otherwise from context
+  const projectSlug = paramProjectSlug || contextProjectSlug || 'default';
+
+  const isActive = (path: string) => location.pathname.includes(path);
 
   return (
     <div className="h-screen bg-background flex flex-col">
@@ -28,7 +34,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       >
         <nav className="flex-1 p-3 pt-4">
           <Link
-            to="/prompts"
+            to={`/project/${projectSlug}/prompts`}
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
               isActive('/prompts')
@@ -41,7 +47,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           </Link>
           {FEATURES.PROMPT_PARTS && (
             <Link
-              to="/library"
+              to={`/project/${projectSlug}/library`}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
                 isActive('/library')
