@@ -10,7 +10,7 @@ services:
     autoDeploy: false  # Manual deploy only
     # CRITICAL: Pre-deploy command runs database migrations before deploying new version
     # This ensures schema is always up-to-date and prevents breaking production
-    preDeployCommand: "cd /app && alembic upgrade head"
+#    preDeployCommand: "cd /app && alembic upgrade head"
     envVars:
       - key: MODE
         value: production
