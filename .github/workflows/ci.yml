@@ -150,6 +150,30 @@ jobs:
         file: ./coverage.xml
         fail_ci_if_error: false
 
+  test-client-python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install client dependencies
+      working-directory: ./packages/client-python
+      run: uv sync
+
+    - name: Run client tests
+      working-directory: ./packages/client-python
+      run: uv run pytest tests/ -v
+
   version-check:
     runs-on: ubuntu-latest
     steps:
