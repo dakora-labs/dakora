@@ -9,7 +9,7 @@ from ..core.vault import Vault
 from ..core.model import InputSpec, TemplateSpec
 from ..core.exceptions import TemplateNotFound, ValidationError
 from ..core.prompt_manager import PromptManager
-from ..core.database import get_engine
+from ..core.database import get_engine, create_db_engine
 from ..auth import validate_project_access, get_project_vault
 from .schemas import (
     TemplateResponse,

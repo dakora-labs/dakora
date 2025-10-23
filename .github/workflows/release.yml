@@ -1,151 +1,82 @@
-name: Release to PyPI
+name: Unified Release (All Components)
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (leave empty to use version from pyproject.toml)'
-        required: false
+        description: 'Version to release (e.g., 2.0.0) - will be used for CLI, SDK, and Docker'
+        required: true
         type: string
 
 jobs:
-  release:
+  release-cli:
+    uses: ./.github/workflows/release-cli.yml
+    secrets: inherit
+    with:
+      version: ${{ github.event.inputs.version }}
+
+  release-python-sdk:
+    uses: ./.github/workflows/release-client-python.yml
+    secrets: inherit
+    with:
+      version: ${{ github.event.inputs.version }}
+
+  release-docker:
+    uses: ./.github/workflows/release-docker.yml
+    secrets: inherit
+    with:
+      version: ${{ github.event.inputs.version }}
+
+  create-unified-release:
     runs-on: ubuntu-latest
-    environment: release
+    needs: [release-cli, release-python-sdk, release-docker]
     permissions:
       contents: write
-      id-token: write
-
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
-
-    - name: Set up Python 3.12
-      run: uv python install 3.12
-
-    - name: Install dependencies
-      run: uv sync
-
-    - name: Get version from pyproject.toml
-      id: get_version
-      run: |
-        if [ -n "${{ github.event.inputs.version }}" ]; then
-          VERSION="${{ github.event.inputs.version }}"
-        else
-          VERSION=$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
-        fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Releasing version: $VERSION"
-
-    - name: Update version in pyproject.toml (if manually specified)
-      if: github.event.inputs.version != ''
-      run: |
-        uv run python -c "
-        import tomllib
-        import tomli_w
-
-        with open('pyproject.toml', 'rb') as f:
-            data = tomllib.load(f)
-
-        data['project']['version'] = '${{ github.event.inputs.version }}'
-
-        with open('pyproject.toml', 'wb') as f:
-            tomli_w.dump(data, f)
-        "
-
-    - name: Run tests
-      run: |
-        uv run python validate_tests.py
-        uv run python tests/test_runner.py unit --verbose
-        uv run python tests/test_runner.py integration --verbose
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: web/package-lock.json
-
-    - name: Build playground UI
-      run: |
-        cd web
-        npm ci
-        npm run build
-        cd ..
-        echo "✅ Playground UI built successfully"
-        ls -la playground/
-
-    - name: Build package
-      run: uv build
-
-    - name: Check package
-      run: uv run twine check dist/*
-
-    - name: Smoke test - Install and test playground
-      run: |
-        # Install the built package in a temporary venv
-        python -m venv /tmp/test-env
-        /tmp/test-env/bin/pip install dist/*.whl
-
-        # Start playground in background
-        /tmp/test-env/bin/dakora init
-        /tmp/test-env/bin/dakora playground --no-browser --port 3333 &
-        PLAYGROUND_PID=$!
-
-        # Wait for server to start
-        echo "Waiting for playground to start..."
-        for i in {1..30}; do
-          if curl -s http://localhost:3333/api/health > /dev/null; then
-            echo "✅ Playground is responding!"
-            break
-          fi
-          if [ $i -eq 30 ]; then
-            echo "❌ Playground failed to start"
-            kill $PLAYGROUND_PID 2>/dev/null || true
-            exit 1
-          fi
-          sleep 1
-        done
-
-        # Test API endpoints
-        echo "Testing API endpoints..."
-        curl -f http://localhost:3333/api/health || exit 1
-        curl -f http://localhost:3333/api/templates || exit 1
-
-        # Check if UI is served (should have index.html)
-        curl -s http://localhost:3333/ | grep -q "Dakora Playground" || exit 1
-
-        # Cleanup
-        kill $PLAYGROUND_PID
-        echo "✅ Smoke test passed!"
-
-    - name: Create git tag
+    - name: Create unified git tag
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git tag -a "v${{ steps.get_version.outputs.version }}" -m "Release v${{ steps.get_version.outputs.version }}"
-        git push origin "v${{ steps.get_version.outputs.version }}"
+        git tag -a "v${{ inputs.version }}" -m "Unified Release v${{ inputs.version }}"
+        git push origin "v${{ inputs.version }}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: uv run twine upload dist/*
-
-    - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create unified GitHub Release
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: "v${{ steps.get_version.outputs.version }}"
-        release_name: "Release v${{ steps.get_version.outputs.version }}"
+        tag: "v${{ inputs.version }}"
+        name: "Dakora v${{ inputs.version }}"
+        body: |
+          ## Dakora Platform v${{ inputs.version }}
+
+          Unified release of all Dakora components with synchronized versions.
+
+          ### 📦 Python Packages
+
+          **CLI**
+          ```bash
+          pip install dakora==${{ inputs.version }}
+          ```
+
+          **Python SDK**
+          ```bash
+          pip install dakora-client==${{ inputs.version }}
+          ```
+
+          ### 🐳 Docker Images
+
+          ```bash
+          docker pull ghcr.io/${{ github.repository }}/server:${{ inputs.version }}
+          docker pull ghcr.io/${{ github.repository }}/studio:${{ inputs.version }}
+          ```
+
+          ### Component Releases
+          - [CLI v${{ inputs.version }}](https://github.com/${{ github.repository }}/releases/tag/cli-v${{ inputs.version }})
+          - [Python SDK v${{ inputs.version }}](https://github.com/${{ github.repository }}/releases/tag/client-python-v${{ inputs.version }})
+          - [Docker Images v${{ inputs.version }}](https://github.com/${{ github.repository }}/releases/tag/docker-v${{ inputs.version }})
         draft: false
         prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}

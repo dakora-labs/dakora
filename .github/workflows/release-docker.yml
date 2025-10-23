@@ -7,6 +7,12 @@ on:
         description: 'Version tag (e.g., 2.0.0)'
         required: true
         type: string
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version tag (e.g., 2.0.0)'
+        required: true
+        type: string
 
 jobs:
   build-and-push:
@@ -38,7 +44,7 @@ jobs:
       with:
         images: ghcr.io/${{ github.repository }}/${{ matrix.component }}
         tags: |
-          type=raw,value=${{ github.event.inputs.version }}
+          type=raw,value=${{ inputs.version }}
           type=raw,value=latest
 
     - name: Build and push ${{ matrix.component }}
@@ -57,8 +63,8 @@ jobs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git tag -a "docker-v${{ github.event.inputs.version }}" -m "Docker Release v${{ github.event.inputs.version }}"
-        git push origin "docker-v${{ github.event.inputs.version }}"
+        git tag -a "docker-v${{ inputs.version }}" -m "Docker Release v${{ inputs.version }}"
+        git push origin "docker-v${{ inputs.version }}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -72,24 +78,22 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: "docker-v${{ github.event.inputs.version }}"
-        release_name: "Docker Images v${{ github.event.inputs.version }}"
+        tag: "docker-v${{ inputs.version }}"
+        name: "Docker Images v${{ inputs.version }}"
         body: |
-          ## Dakora Docker Images v${{ github.event.inputs.version }}
+          ## Dakora Docker Images v${{ inputs.version }}
 
           ### Images
-          - `ghcr.io/${{ github.repository }}/server:${{ github.event.inputs.version }}`
-          - `ghcr.io/${{ github.repository }}/studio:${{ github.event.inputs.version }}`
+          - `ghcr.io/${{ github.repository }}/server:${{ inputs.version }}`
+          - `ghcr.io/${{ github.repository }}/studio:${{ inputs.version }}`
 
           ### Usage
           ```bash
           # Pull images
-          docker pull ghcr.io/${{ github.repository }}/server:${{ github.event.inputs.version }}
-          docker pull ghcr.io/${{ github.repository }}/studio:${{ github.event.inputs.version }}
+          docker pull ghcr.io/${{ github.repository }}/server:${{ inputs.version }}
+          docker pull ghcr.io/${{ github.repository }}/studio:${{ inputs.version }}
 
           # Or use docker-compose.yml
           dakora start
@@ -99,3 +103,4 @@ jobs:
           See docs/self-hosting.md for full instructions.
         draft: false
         prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}

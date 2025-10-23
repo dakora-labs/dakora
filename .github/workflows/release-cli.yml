@@ -7,6 +7,12 @@ on:
         description: 'Version to release (e.g., 2.0.0)'
         required: true
         type: string
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 2.0.0)'
+        required: true
+        type: string
 
 jobs:
   release-cli:
@@ -32,6 +38,8 @@ jobs:
     - name: Update CLI version
       run: |
         cd cli
+        # Install tomli-w for TOML writing
+        uv pip install tomli-w
         uv run python -c "
         import tomllib
         import tomli_w
@@ -39,7 +47,7 @@ jobs:
         with open('pyproject.toml', 'rb') as f:
             data = tomllib.load(f)
 
-        data['project']['version'] = '${{ github.event.inputs.version }}'
+        data['project']['version'] = '${{ inputs.version }}'
 
         with open('pyproject.toml', 'wb') as f:
             tomli_w.dump(data, f)
@@ -85,26 +93,24 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add cli/pyproject.toml
-        git commit -m "chore: bump CLI version to ${{ github.event.inputs.version }}"
-        git tag -a "cli-v${{ github.event.inputs.version }}" -m "CLI Release v${{ github.event.inputs.version }}"
+        git commit -m "chore: bump CLI version to ${{ inputs.version }}"
+        git tag -a "cli-v${{ inputs.version }}" -m "CLI Release v${{ inputs.version }}"
         git push origin main
-        git push origin "cli-v${{ github.event.inputs.version }}"
+        git push origin "cli-v${{ inputs.version }}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: "cli-v${{ github.event.inputs.version }}"
-        release_name: "CLI v${{ github.event.inputs.version }}"
+        tag: "cli-v${{ inputs.version }}"
+        name: "CLI v${{ inputs.version }}"
         body: |
-          ## Dakora CLI v${{ github.event.inputs.version }}
+          ## Dakora CLI v${{ inputs.version }}
 
           Install with:
           ```bash
-          pip install dakora==${{ github.event.inputs.version }}
+          pip install dakora==${{ inputs.version }}
           ```
 
           ### Usage
@@ -114,3 +120,4 @@ jobs:
           ```
         draft: false
         prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}
