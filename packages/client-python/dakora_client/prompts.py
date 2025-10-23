@@ -1,122 +1,70 @@
 """Prompts API client"""
 
-from typing import List, Dict, Any
-import httpx
-from .types import TemplateInfo, RenderResult, CompareResult
+import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .client import Dakora
+
+logger = logging.getLogger("dakora_client.prompts")
 
 
 class PromptsAPI:
-    def __init__(self, http: httpx.AsyncClient):
-        self._http = http
+    """Prompts API client"""
 
-    async def list(self) -> List[str]:
-        """List all available template IDs"""
-        response = await self._http.get("/api/templates")
-        response.raise_for_status()
-        return response.json()
+    def __init__(self, client: "Dakora"):
+        self._client = client
 
-    async def get(self, template_id: str) -> TemplateInfo:
-        """Get a specific template with all its details"""
-        response = await self._http.get(f"/api/templates/{template_id}")
-        response.raise_for_status()
-        return TemplateInfo(**response.json())
+    async def list(self) -> list[str]:
+        """List all prompt template IDs.
 
-    async def create(
-        self,
-        id: str,
-        template: str,
-        version: str = "1.0.0",
-        description: str | None = None,
-        inputs: Dict[str, Dict[str, Any]] | None = None,
-        metadata: Dict[str, Any] | None = None,
-    ) -> TemplateInfo:
-        """Create a new template"""
-        payload = {
-            "id": id,
-            "version": version,
-            "template": template,
-            "description": description,
-            "inputs": inputs or {},
-            "metadata": metadata or {},
-        }
-        response = await self._http.post("/api/templates", json=payload)
-        response.raise_for_status()
-        return TemplateInfo(**response.json())
+        Returns:
+            List of prompt IDs
 
-    async def update(
-        self,
-        template_id: str,
-        version: str | None = None,
-        description: str | None = None,
-        template: str | None = None,
-        inputs: Dict[str, Dict[str, Any]] | None = None,
-        metadata: Dict[str, Any] | None = None,
-    ) -> TemplateInfo:
-        """Update an existing template"""
-        payload = {}
-        if version is not None:
-            payload["version"] = version
-        if description is not None:
-            payload["description"] = description
-        if template is not None:
-            payload["template"] = template
-        if inputs is not None:
-            payload["inputs"] = inputs
-        if metadata is not None:
-            payload["metadata"] = metadata
-
-        response = await self._http.put(f"/api/templates/{template_id}", json=payload)
-        response.raise_for_status()
-        return TemplateInfo(**response.json())
-
-    async def delete(self, template_id: str) -> None:
-        """Delete a template
-        
-        Args:
-            template_id: The template ID to delete
-            
-        Raises:
-            httpx.HTTPStatusError: If template not found (404) or deletion fails
+        Example:
+            templates = await client.prompts.list()
+            # ["greeting", "email", "summary"]
         """
-        response = await self._http.delete(f"/api/templates/{template_id}")
-        response.raise_for_status()
+        project_id = await self._client._get_project_id()
+        url = f"/api/projects/{project_id}/prompts"
 
-    async def render(
-        self, template_id: str, inputs: Dict[str, Any] | None = None
-    ) -> RenderResult:
-        """Render a template with provided inputs"""
-        payload = {"inputs": inputs or {}}
-        response = await self._http.post(
-            f"/api/templates/{template_id}/render", json=payload
+        logger.debug(f"GET {url}")
+        response = await self._client._http.get(url)
+        logger.debug(f"GET {url} -> {response.status_code}")
+
+        response.raise_for_status()
+        templates = response.json()
+        logger.info(f"Listed {len(templates)} prompts")
+        return templates
+
+    async def render(self, template_id: str, inputs: dict[str, Any]) -> str:
+        """Render a prompt template with inputs.
+
+        Args:
+            template_id: ID of the template to render
+            inputs: Variables to substitute in the template
+
+        Returns:
+            Rendered template text
+
+        Example:
+            result = await client.prompts.render(
+                "greeting",
+                {"name": "Alice", "role": "Developer"}
+            )
+        """
+        project_id = await self._client._get_project_id()
+        url = f"/api/projects/{project_id}/prompts/{template_id}/render"
+
+        logger.debug(f"POST {url} with {len(inputs)} inputs")
+        response = await self._client._http.post(
+            url,
+            json={"inputs": inputs},
         )
-        response.raise_for_status()
-        return RenderResult(**response.json())
+        logger.debug(f"POST {url} -> {response.status_code}")
 
-    async def compare(
-        self,
-        template_id: str,
-        models: List[str],
-        inputs: Dict[str, Any] | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        top_p: float | None = None,
-        **params,
-    ) -> CompareResult:
-        """Compare template execution across multiple LLM models"""
-        payload = {
-            "models": models,
-            "inputs": inputs or {},
-            "params": params,
-        }
-        if temperature is not None:
-            payload["temperature"] = temperature
-        if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
-        if top_p is not None:
-            payload["top_p"] = top_p
-
-        response = await self._http.post(
-            f"/api/templates/{template_id}/compare", json=payload
-        )
         response.raise_for_status()
-        return CompareResult(**response.json())
+        data = response.json()
+        rendered = data["rendered"]
+        logger.info(f"Rendered prompt '{template_id}' ({len(rendered)} chars)")
+        return rendered

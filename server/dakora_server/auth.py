@@ -233,11 +233,16 @@ async def validate_project_access(
         if auth_ctx.auth_method == "none":
             return project_uuid
 
-        # Get user from database using clerk_user_id
+        # Get user from database
+        # For API key: user_id is database UUID
+        # For JWT: user_id is clerk_user_id
+        if auth_ctx.auth_method == "api_key":
+            where_clause = users_table.c.id == auth_ctx.user_id
+        else:
+            where_clause = users_table.c.clerk_user_id == auth_ctx.user_id
+
         user_result = conn.execute(
-            select(users_table.c.id).where(
-                users_table.c.clerk_user_id == auth_ctx.user_id
-            )
+            select(users_table.c.id).where(where_clause)
         ).fetchone()
 
         if not user_result:
