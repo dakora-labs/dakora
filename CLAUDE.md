@@ -4,13 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Dakora is an AI Control Plane for managing prompt templates with type-safe inputs, versioning, multi-model LLM execution, and comparison capabilities. The project is organized as a **monorepo** with the following packages:
+Dakora is a **multi-tenant SaaS platform** for managing prompt templates with type-safe inputs, versioning, multi-model LLM execution, and comparison capabilities. The project is organized as a **monorepo** with the following packages:
 
-- **Server** (`server/`): FastAPI-based platform backend with REST API
+- **Server** (`server/`): FastAPI-based platform backend with REST API, authentication, and multi-tenancy
 - **Client SDK** (`packages/client-python/`): Python client library for interacting with the API
 - **CLI** (`cli/`): Minimal command-line tool for managing the platform
 - **Studio** (`studio/`): React-based web UI for template development and testing
 - **Docker** (`docker/`): Docker Compose configuration for local deployment
+
+**Key Architecture Principles:**
+
+- **Multi-tenancy**: Workspaces, projects, and user-scoped storage
+- **Authentication**: Clerk JWT tokens, API keys (hashed), or no-auth mode for development
+- **Storage**: Azure Blob Storage for templates, PostgreSQL for metadata and indexes
+- **Two-layer architecture**: Database indexes prompt metadata, blob storage holds YAML content
 
 ## Architecture
 
@@ -24,23 +31,31 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 
 - `config.py` - Pydantic settings with environment variables, vault singleton pattern
 
+**Authentication & Authorization (`auth.py`):**
+
+- `get_auth_context()` - Extract auth from headers (API key, JWT, or no-auth mode)
+- `validate_project_access()` - Ensure user can access project
+- `get_project_vault()` - Get project-scoped vault instance with correct storage prefix
+- `get_current_user_id()` - Extract user ID from auth context
+
 **API Routes (`api/`):**
 
-- `prompts.py` - Template CRUD operations (list, get, create, update)
-- `render.py` - Template rendering endpoint
-- `models.py` - Multi-model comparison endpoint (`/api/templates/{id}/compare`)
+- `project_prompts.py` - Project-scoped prompt CRUD (`/api/projects/{project_id}/prompts/`)
+- `project_parts.py` - Reusable prompt parts/snippets (`/api/projects/{project_id}/parts/`)
+- `api_keys.py` - API key management (`/api/projects/{project_id}/api-keys/`)
+- `me.py` - User context and default project (`/api/me`)
+- `webhooks.py` - Clerk webhook handlers for user provisioning
 - `health.py` - Health check endpoint
 - `schemas.py` - Pydantic request/response models
 
 **Core Business Logic (`core/`):**
 
-**Vault System:**
+**Multi-Tenancy & Storage:**
 
-- `vault.py` - Main Vault class with thread-safe caching (RLock), registry integration, template management
-- Supports multiple initialization patterns:
-  - Direct registry injection: `Vault(LocalRegistry("./prompts"))`
-  - Azure storage: `Vault(AzureRegistry(container="prompts", ...))`
-  - Legacy config file: `Vault.from_config("promptvault.yaml")`
+- `prompt_manager.py` - Two-layer prompt management (DB metadata + blob storage)
+- `part_manager.py` - Reusable prompt parts management
+- `provisioning.py` - Auto-create workspaces and default projects for new users
+- `vault.py` - Storage abstraction with thread-safe caching, supports project-scoped prefixes
 
 **Template System:**
 
@@ -72,6 +87,13 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
   - `ExecutionResult` - Single model execution result (output, tokens, cost, latency)
   - `ComparisonResult` - Multi-model comparison result
 
+**API Key System (`core/api_keys/`):**
+
+- `service.py` - APIKeyService for CRUD operations, enforces 10-key-per-project limit
+- `generator.py` - Secure key generation (dk_proj_{project_id}_{random_32_chars})
+- `validator.py` - Cached validation with 1-minute TTL, checks expiration and revocation
+- `models.py` - Pydantic models for API key requests/responses
+
 **Database & Logging:**
 
 - `database.py` - SQLAlchemy Core setup with PostgreSQL connection pooling, table definitions
@@ -79,6 +101,7 @@ Dakora is an AI Control Plane for managing prompt templates with type-safe input
 - `types.py` - Type definitions (InputType, etc.)
 - `exceptions.py` - Custom exception hierarchy (DakoraError, TemplateNotFound, ValidationError, etc.)
 - `watcher.py` - File system monitoring for hot-reload
+- `part_loader.py` - Load and parse prompt parts from storage
 
 **Dependencies:**
 
@@ -326,7 +349,16 @@ export PATH="$HOME/.local/bin:$PATH" && uv run alembic downgrade -1
 
 **Current Schema:**
 
-- `logs` table - Execution logging (prompt_id, version, inputs_json, output_text, provider, model, tokens, cost, latency)
+Core tables support multi-tenant architecture:
+
+- `users` - User accounts (clerk_user_id, email, name)
+- `workspaces` - Workspaces/organizations (slug, name, type: personal/team, owner_id)
+- `workspace_members` - Workspace membership (workspace_id, user_id, role)
+- `projects` - Projects within workspaces (workspace_id, slug, name, description)
+- `prompts` - Prompt metadata index (project_id, prompt_id, version, storage_path, metadata)
+- `prompt_parts` - Reusable prompt snippets (project_id, part_id, category, name, content)
+- `api_keys` - Project-scoped API keys (user_id, project_id, key_hash, key_prefix, key_suffix, expires_at, revoked_at)
+- `logs` - Execution logging (prompt_id, version, inputs_json, output_text, provider, model, tokens, cost, latency)
 
 **Supabase Setup (Production):**
 
@@ -519,73 +551,89 @@ export PATH="$HOME/.local/bin:$PATH" && uv run python -m pytest server/tests/ -v
 dakora/                         # Monorepo root
 ├── server/                     # Platform backend
 │   ├── dakora_server/
-│   │   ├── main.py            # FastAPI app
-│   │   ├── config.py          # Settings and vault singleton
+│   │   ├── main.py            # FastAPI app with routes and middleware
+│   │   ├── config.py          # Pydantic settings, Clerk config
+│   │   ├── auth.py            # Authentication/authorization
 │   │   ├── api/               # API routes
-│   │   │   ├── prompts.py
-│   │   │   ├── render.py
-│   │   │   ├── models.py
-│   │   │   ├── health.py
-│   │   │   └── schemas.py
+│   │   │   ├── project_prompts.py   # Project-scoped prompt CRUD
+│   │   │   ├── project_parts.py     # Reusable prompt parts
+│   │   │   ├── api_keys.py          # API key management
+│   │   │   ├── me.py                # User context
+│   │   │   ├── webhooks.py          # Clerk webhooks
+│   │   │   ├── health.py            # Health check
+│   │   │   └── schemas.py           # Request/response models
 │   │   └── core/              # Business logic
-│   │       ├── vault.py
-│   │       ├── renderer.py
-│   │       ├── model.py
-│   │       ├── types.py
-│   │       ├── exceptions.py
-│   │       ├── logging.py
-│   │       ├── watcher.py
-│   │       ├── registry/      # Template registry
-│   │       │   ├── base.py
-│   │       │   ├── core.py
-│   │       │   ├── backends/
-│   │       │   ├── implementations/
-│   │       │   └── serialization.py
-│   │       └── llm/           # LLM integration
-│   │           ├── client.py
-│   │           └── models.py
+│   │       ├── prompt_manager.py    # Prompt DB + blob sync
+│   │       ├── part_manager.py      # Parts management
+│   │       ├── part_loader.py       # Part loading from storage
+│   │       ├── provisioning.py      # Auto-provision workspaces
+│   │       ├── vault.py             # Storage abstraction
+│   │       ├── renderer.py          # Jinja2 rendering
+│   │       ├── model.py             # Template data models
+│   │       ├── database.py          # SQLAlchemy Core
+│   │       ├── logging.py           # Execution logging
+│   │       ├── exceptions.py        # Custom exceptions
+│   │       ├── types.py             # Type definitions
+│   │       ├── watcher.py           # File watching
+│   │       ├── api_keys/            # API key system
+│   │       │   ├── service.py       # CRUD operations
+│   │       │   ├── generator.py     # Key generation
+│   │       │   ├── validator.py     # Cached validation
+│   │       │   └── models.py        # Pydantic models
+│   │       ├── registry/            # Template registry
+│   │       │   ├── base.py          # Protocol
+│   │       │   ├── core.py          # TemplateRegistry
+│   │       │   ├── backends/        # Storage backends
+│   │       │   ├── implementations/ # Registry implementations
+│   │       │   └── serialization.py # YAML utils
+│   │       └── llm/                 # LLM integration
+│   │           ├── client.py        # LLMClient (litellm)
+│   │           └── models.py        # ExecutionResult, etc.
+│   ├── alembic/               # Database migrations
+│   │   ├── versions/          # Migration files
+│   │   ├── env.py             # Alembic environment
+│   │   └── script.py.mako     # Migration template
 │   ├── tests/                 # Server tests
-│   ├── Dockerfile
+│   ├── Dockerfile             # Production image
+│   ├── entrypoint.sh          # Runs migrations + starts server
 │   └── pyproject.toml
 │
 ├── packages/                  # Client SDKs
 │   └── client-python/
 │       ├── dakora_client/
-│       │   ├── client.py
-│       │   ├── prompts.py
-│       │   └── types.py
+│       │   ├── client.py      # Main Dakora class
+│       │   ├── prompts.py     # PromptsAPI
+│       │   └── types.py       # Data models
+│       ├── Makefile           # Build/publish commands
 │       └── pyproject.toml
 │
 ├── cli/                       # CLI tool
 │   ├── dakora_cli/
-│   │   ├── main.py
-│   │   └── templates/
+│   │   ├── main.py            # Commands (start, stop, init)
+│   │   └── templates/         # Embedded templates
 │   └── pyproject.toml
 │
 ├── studio/                    # Web UI
 │   ├── src/
-│   │   ├── App.tsx
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── views/
-│   │   ├── hooks/
-│   │   └── utils/
+│   │   ├── App.tsx            # Main app with routing
+│   │   ├── components/        # UI components
+│   │   ├── pages/             # Page components
+│   │   ├── views/             # View components
+│   │   ├── hooks/             # Custom hooks
+│   │   └── utils/             # Utilities
 │   ├── dist/                  # Built UI (gitignored)
-│   ├── Dockerfile
-│   ├── nginx.conf
+│   ├── Dockerfile             # Nginx image
+│   ├── nginx.conf             # Nginx configuration
 │   └── package.json
 │
 ├── docker/                    # Docker deployment
-│   ├── docker-compose.yml
-│   └── .env.example
+│   ├── docker-compose.yml     # Local development
+│   └── .env.example           # Environment template
 │
 ├── examples/                  # Usage examples
-│   ├── openai-agents/
-│   └── microsoft-agent-framework/
-│
 ├── prompts/                   # Example templates
-├── promptvault.yaml          # Config file
-└── CLAUDE.md                 # This file
+├── render.yaml                # Render deployment config
+└── CLAUDE.md                  # This file
 ```
 
 ## Configuration
