@@ -17,7 +17,7 @@ from sqlalchemy import select
 from .config import get_vault, settings
 from .core.vault import Vault
 from .core.registry import Registry
-from .core.database import create_db_engine, get_connection, get_engine, projects_table, workspaces_table, workspace_members_table, users_table
+from .core.database import get_connection, get_engine, projects_table, workspaces_table, workspace_members_table, users_table
 from .core.api_keys.validator import get_validator
 
 
@@ -210,59 +210,61 @@ async def validate_project_access(
         project_uuid = UUID(project_id)
     except ValueError:
         raise HTTPException(
-            status_code=422, 
+            status_code=422,
             detail=f"Invalid project ID format. Expected UUID, got: {project_id}"
         )
-    
-    engine = create_db_engine()
+
+    engine = get_engine()
 
     with get_connection(engine) as conn:
-        # Check if project exists
-        project_result = conn.execute(
-            select(projects_table.c.id, projects_table.c.workspace_id).where(
-                projects_table.c.id == project_uuid
-            )
-        ).fetchone()
-
-        if not project_result:
-            raise HTTPException(status_code=404, detail="Project not found")
-
-        workspace_id = project_result[1]
-
-        # In development mode (no auth), skip membership check
+        # In development mode (no auth), just check if project exists
         if auth_ctx.auth_method == "none":
+            project_result = conn.execute(
+                select(projects_table.c.id).where(projects_table.c.id == project_uuid)
+            ).fetchone()
+            if not project_result:
+                raise HTTPException(status_code=404, detail="Project not found")
             return project_uuid
 
-        # Get user from database
-        # For API key: user_id is database UUID
-        # For JWT: user_id is clerk_user_id
+        # For authenticated users: Single JOIN query to check everything
+        # Join projects -> workspaces -> workspace_members -> users
+        # This validates: project exists, user exists, and user has access in one query
         if auth_ctx.auth_method == "api_key":
-            where_clause = users_table.c.id == auth_ctx.user_id
+            user_where_clause = users_table.c.id == auth_ctx.user_id
         else:
-            where_clause = users_table.c.clerk_user_id == auth_ctx.user_id
+            user_where_clause = users_table.c.clerk_user_id == auth_ctx.user_id
 
-        user_result = conn.execute(
-            select(users_table.c.id).where(where_clause)
+        from sqlalchemy import join
+
+        result = conn.execute(
+            select(projects_table.c.id)
+            .select_from(
+                join(
+                    projects_table,
+                    workspace_members_table,
+                    projects_table.c.workspace_id == workspace_members_table.c.workspace_id
+                ).join(
+                    users_table,
+                    workspace_members_table.c.user_id == users_table.c.id
+                )
+            )
+            .where(projects_table.c.id == project_uuid)
+            .where(user_where_clause)
         ).fetchone()
 
-        if not user_result:
-            raise HTTPException(status_code=403, detail="User not found")
+        if not result:
+            # Check if project exists to give better error message
+            project_exists = conn.execute(
+                select(projects_table.c.id).where(projects_table.c.id == project_uuid)
+            ).fetchone()
 
-        user_db_id = user_result[0]
-
-        # Check workspace membership
-        membership_result = conn.execute(
-            select(workspace_members_table.c.role).where(
-                workspace_members_table.c.workspace_id == workspace_id,
-                workspace_members_table.c.user_id == user_db_id
-            )
-        ).fetchone()
-
-        if not membership_result:
-            raise HTTPException(
-                status_code=403,
-                detail="You do not have access to this project"
-            )
+            if not project_exists:
+                raise HTTPException(status_code=404, detail="Project not found")
+            else:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You do not have access to this project"
+                )
 
         return project_uuid
 
@@ -329,7 +331,7 @@ async def get_current_user_id(
         return uuid5(NAMESPACE_DNS, "default-user")
 
     # For JWT auth, look up user by clerk_user_id
-    engine = create_db_engine()
+    engine = get_engine()
     with get_connection(engine) as conn:
         user_result = conn.execute(
             select(users_table.c.id).where(

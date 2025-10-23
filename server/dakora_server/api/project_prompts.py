@@ -9,7 +9,7 @@ from ..core.vault import Vault
 from ..core.model import InputSpec, TemplateSpec
 from ..core.exceptions import TemplateNotFound, ValidationError
 from ..core.prompt_manager import PromptManager
-from ..core.database import get_engine, create_db_engine
+from ..core.database import get_engine
 from ..auth import validate_project_access, get_project_vault
 from .schemas import (
     TemplateResponse,
@@ -268,7 +268,7 @@ async def render_prompt(
         template = manager.load(prompt_id)
         spec = template if isinstance(template, TemplateSpec) else template.spec
 
-        engine = create_db_engine()
+        engine = get_engine()
         renderer = Renderer(engine=engine, project_id=project_id)
 
         if request.resolve_includes_only:
