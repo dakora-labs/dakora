@@ -74,3 +74,33 @@ export interface UpdatePartRequest {
   tags?: string[];
   version?: string;
 }
+
+export interface ApiKey {
+  id: string;
+  name: string | null;
+  key_preview: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+}
+
+export interface ApiKeyCreateRequest {
+  name?: string | null;
+  expires_in_days?: number | null;
+}
+
+export interface ApiKeyCreateResponse {
+  id: string;
+  name: string | null;
+  key: string;
+  key_prefix: string;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface ApiKeyListResponse {
+  keys: ApiKey[];
+  count: number;
+  limit: number;
+}

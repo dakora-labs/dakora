@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { FileText, Menu, ChevronLeft, Library } from 'lucide-react';
+import { FileText, Menu, ChevronLeft, Library, Settings } from 'lucide-react';
 import { StatusBar } from '../StatusBar';
 import { AppTopBar } from './AppTopBar';
 import { cn } from '@/lib/utils';
@@ -55,6 +55,30 @@ export function MainLayout({ children }: MainLayoutProps) {
           >
             <Library className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
             {sidebarOpen && <span>Library</span>}
+          </Link>
+
+          {sidebarOpen && (
+            <div className="mt-6 mb-2 px-3">
+              <div className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">
+                Manage
+              </div>
+            </div>
+          )}
+          {!sidebarOpen && (
+            <div className="mt-6 mb-2 h-px bg-border" />
+          )}
+
+          <Link
+            to={`/project/${projectSlug}/settings`}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
+              isActive('/settings')
+                ? "bg-muted hover:bg-muted"
+                : "hover:bg-muted/50"
+            )}
+          >
+            <Settings className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+            {sidebarOpen && <span>Settings</span>}
           </Link>
         </nav>
 
