@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from ..core.part_manager import PartManager
-from ..core.database import create_db_engine
+from ..core.database import get_engine
 from ..core.exceptions import PartNotFound, ValidationError
 from ..auth import validate_project_access
 
@@ -71,7 +71,7 @@ def get_part_manager(
     Returns:
         PartManager instance
     """
-    engine = create_db_engine()
+    engine = get_engine()
     return PartManager(engine, project_id)
 
 
