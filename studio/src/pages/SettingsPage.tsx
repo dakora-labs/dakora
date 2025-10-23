@@ -107,7 +107,7 @@ export function SettingsPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold mb-1">Project Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Configure project identity, API keys, environments, and other controls.
+            Configure project identity, API keys, and other controls.
           </p>
         </div>
 
