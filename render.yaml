@@ -4,7 +4,7 @@ services:
   - type: web
     name: dakora-api
     runtime: docker
-    region: frankfurt
+#    region: frankfurt
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
     autoDeploy: false  # Manual deploy only
@@ -48,7 +48,7 @@ services:
   - type: web
     name: dakora-studio
     runtime: docker
-    region: frankfurt
+#    region: frankfurt
     dockerfilePath: ./studio/Dockerfile
     dockerContext: ./studio
     autoDeploy: false  # Manual deploy only
