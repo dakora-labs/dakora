@@ -44,24 +44,40 @@ class APIKeyGenerator:
             key: Full API key (e.g., "dkr_1a2b3c4d...")
 
         Returns:
-            str: First 12 characters (e.g., "dkr_1a2b3c4d")
+            str: First 8 characters (e.g., "dkr_1a2b")
         """
-        if len(key) < 12:
+        if len(key) < 8:
             return key
-        return key[:12]
+        return key[:8]
 
     @staticmethod
-    def mask_key(prefix: str) -> str:
+    def get_suffix(key: str) -> str:
+        """
+        Extract display suffix from full key.
+
+        Args:
+            key: Full API key (e.g., "dkr_1a2b3c4d...")
+
+        Returns:
+            str: Last 4 characters (e.g., "3c4d")
+        """
+        if len(key) < 4:
+            return key
+        return key[-4:]
+
+    @staticmethod
+    def mask_key(prefix: str, suffix: str) -> str:
         """
         Create masked display for key preview.
 
         Args:
-            prefix: Key prefix (first 12 chars)
+            prefix: Key prefix (first 8 chars)
+            suffix: Key suffix (last 4 chars)
 
         Returns:
-            str: Masked key display (e.g., "dkr_1a2b***...***")
+            str: Masked key display (e.g., "dkr_1a2b...3c4d")
         """
-        return f"{prefix}***...***"
+        return f"{prefix}...{suffix}"
 
     @staticmethod
     def verify_key(key: str, key_hash: str) -> bool:

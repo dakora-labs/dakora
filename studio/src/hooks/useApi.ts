@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api, ApiError, createApiClient } from '../utils/api';
-import type { Template, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest } from '../types';
+import type { Template, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse } from '../types';
 import { useAuthToken } from '@/utils/auth';
 
 export function usePrompts(projectId: string | undefined) {
@@ -344,4 +344,99 @@ export function useDeletePromptPart(projectId: string | undefined) {
   }, [projectId, authenticatedApi]);
 
   return { deletePart, loading, error, clearError: () => setError(null) };
+}
+
+export function useApiKeys(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [apiKeys, setApiKeys] = useState<ApiKeyListResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchApiKeys = useCallback(async () => {
+    if (!projectId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await authenticatedApi.getApiKeys(projectId);
+      setApiKeys(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch API keys');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  useEffect(() => {
+    fetchApiKeys();
+  }, [fetchApiKeys]);
+
+  return { apiKeys, loading, error, refetch: fetchApiKeys };
+}
+
+export function useCreateApiKey(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const createApiKey = useCallback(async (request: ApiKeyCreateRequest): Promise<ApiKeyCreateResponse> => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authenticatedApi.createApiKey(projectId, request);
+      return response;
+    } catch (err) {
+      const errorMessage = err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+        ? err.message
+        : 'Failed to create API key';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  return { createApiKey, loading, error, clearError: () => setError(null) };
+}
+
+export function useDeleteApiKey(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const deleteApiKey = useCallback(async (keyId: string): Promise<void> => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      await authenticatedApi.deleteApiKey(projectId, keyId);
+    } catch (err) {
+      const errorMessage = err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+        ? err.message
+        : 'Failed to delete API key';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  return { deleteApiKey, loading, error, clearError: () => setError(null) };
 }

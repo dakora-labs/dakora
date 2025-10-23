@@ -31,9 +31,9 @@ class TestAPIKeyGenerator:
         key, _ = APIKeyGenerator.generate()
         prefix = APIKeyGenerator.get_prefix(key)
 
-        # Prefix should be first 12 characters
-        assert len(prefix) == 12, "Prefix should be 12 characters"
-        assert prefix == key[:12], "Prefix should match first 12 chars"
+        # Prefix should be first 8 characters
+        assert len(prefix) == 8, "Prefix should be 8 characters"
+        assert prefix == key[:8], "Prefix should match first 8 chars"
         assert prefix.startswith("dkr_"), "Prefix should start with dkr_"
 
     def test_get_prefix_short_key(self):
@@ -45,11 +45,14 @@ class TestAPIKeyGenerator:
 
     def test_mask_key(self):
         """Test key masking for display."""
-        prefix = "dkr_1a2b3c4d"
-        masked = APIKeyGenerator.mask_key(prefix)
+        prefix = "dkr_1a2b"
+        suffix = "3c4d"
+        masked = APIKeyGenerator.mask_key(prefix, suffix)
 
-        assert masked == "dkr_1a2b3c4d***...***", "Masked key should have correct format"
-        assert "***...***" in masked, "Masked key should contain asterisks"
+        assert masked == "dkr_1a2b...3c4d", "Masked key should have correct format"
+        assert "..." in masked, "Masked key should contain ellipsis"
+        assert masked.startswith(prefix), "Masked key should start with prefix"
+        assert masked.endswith(suffix), "Masked key should end with suffix"
 
     def test_verify_key_valid(self):
         """Test key verification with valid key."""

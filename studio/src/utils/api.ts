@@ -1,4 +1,4 @@
-import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest } from '../types';
+import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKey } from '../types';
 
 interface UserContext {
   user_id: string;
@@ -214,6 +214,47 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         }),
       });
       return handleResponse<RenderResponse>(response);
+    },
+
+    async getApiKeys(projectId: string): Promise<ApiKeyListResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/api-keys`, {
+        headers: authHeaders,
+      });
+      return handleResponse<ApiKeyListResponse>(response);
+    },
+
+    async createApiKey(projectId: string, request: ApiKeyCreateRequest): Promise<ApiKeyCreateResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/api-keys`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(request),
+      });
+      return handleResponse<ApiKeyCreateResponse>(response);
+    },
+
+    async getApiKey(projectId: string, keyId: string): Promise<ApiKey> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(keyId)}`, {
+        headers: authHeaders,
+      });
+      return handleResponse<ApiKey>(response);
+    },
+
+    async deleteApiKey(projectId: string, keyId: string): Promise<void> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(keyId)}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new ApiError(errorData.detail || `HTTP ${response.status}`, response.status);
+      }
     },
   };
 }

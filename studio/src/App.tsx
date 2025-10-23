@@ -8,6 +8,7 @@ import { NewPromptPage } from './pages/NewPromptPage';
 import { PromptLibraryPage } from './pages/PromptLibraryPage';
 import { NewPromptPartPage } from './pages/NewPromptPartPage';
 import { PromptPartPage } from './pages/PromptPartPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { ProjectRedirect } from './components/ProjectRedirect';
 import { UserContextProvider } from './contexts/UserContext';
 
@@ -26,6 +27,7 @@ function App() {
               <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
               <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
               <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
+              <Route path="/project/:projectSlug/settings" element={<SettingsPage />} />
             </Routes>
           </MainLayout>
           </UserContextProvider>
@@ -49,6 +51,7 @@ function App() {
         <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
         <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
         <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
+        <Route path="/project/:projectSlug/settings" element={<SettingsPage />} />
       </Routes>
     </MainLayout>
     </UserContextProvider>

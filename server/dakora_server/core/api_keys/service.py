@@ -98,6 +98,7 @@ class APIKeyService:
             # Generate key
             full_key, key_hash = APIKeyGenerator.generate()
             key_prefix = APIKeyGenerator.get_prefix(full_key)
+            key_suffix = APIKeyGenerator.get_suffix(full_key)
 
             # Calculate expiration
             expires_at = None
@@ -110,6 +111,7 @@ class APIKeyService:
                 project_id=project_id,
                 name=name,
                 key_prefix=key_prefix,
+                key_suffix=key_suffix,
                 key_hash=key_hash,
                 expires_at=expires_at,
             ).returning(
@@ -150,6 +152,7 @@ class APIKeyService:
                 api_keys_table.c.id,
                 api_keys_table.c.name,
                 api_keys_table.c.key_prefix,
+                api_keys_table.c.key_suffix,
                 api_keys_table.c.created_at,
                 api_keys_table.c.last_used_at,
                 api_keys_table.c.expires_at,
@@ -167,10 +170,10 @@ class APIKeyService:
                 APIKeyResponse(
                     id=row[0],
                     name=row[1],
-                    key_preview=APIKeyGenerator.mask_key(row[2]),
-                    created_at=row[3],
-                    last_used_at=row[4],
-                    expires_at=row[5],
+                    key_preview=APIKeyGenerator.mask_key(row[2], row[3]),
+                    created_at=row[4],
+                    last_used_at=row[5],
+                    expires_at=row[6],
                 )
                 for row in rows
             ]
@@ -206,6 +209,7 @@ class APIKeyService:
                 api_keys_table.c.id,
                 api_keys_table.c.name,
                 api_keys_table.c.key_prefix,
+                api_keys_table.c.key_suffix,
                 api_keys_table.c.created_at,
                 api_keys_table.c.last_used_at,
                 api_keys_table.c.expires_at,
@@ -226,10 +230,10 @@ class APIKeyService:
             return APIKeyResponse(
                 id=row[0],
                 name=row[1],
-                key_preview=APIKeyGenerator.mask_key(row[2]),
-                created_at=row[3],
-                last_used_at=row[4],
-                expires_at=row[5],
+                key_preview=APIKeyGenerator.mask_key(row[2], row[3]),
+                created_at=row[4],
+                last_used_at=row[5],
+                expires_at=row[6],
             )
 
     def revoke_key(

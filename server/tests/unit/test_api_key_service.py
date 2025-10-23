@@ -34,7 +34,7 @@ class TestAPIKeyService:
         assert result.id is not None
         assert result.name == "Test Key"
         assert result.key.startswith("dkr_")
-        assert result.key_prefix == result.key[:12]
+        assert result.key_prefix == result.key[:8]
         assert result.expires_at is not None
         assert result.created_at is not None
 
@@ -110,9 +110,11 @@ class TestAPIKeyService:
         assert "Key 1" in keys_by_name
         assert "Key 2" in keys_by_name
 
-        # Check that full keys are not returned
+        # Check that keys are in the preview format (prefix...suffix)
         for key in result.keys:
-            assert key.key_preview.endswith("***...***")
+            assert key.key_preview.startswith("dkr_")
+            assert "..." in key.key_preview
+            assert len(key.key_preview) == 15  # 8 char prefix + ... + 4 char suffix
 
     def test_get_key(self, service, test_user_id, test_project_id, clean_api_keys):
         """Test getting a specific API key."""
@@ -130,7 +132,9 @@ class TestAPIKeyService:
 
         assert result.id == created.id
         assert result.name == "Test Key"
-        assert result.key_preview.endswith("***...***")
+        assert result.key_preview.startswith("dkr_")
+        assert "..." in result.key_preview
+        assert len(result.key_preview) == 15  # 8 char prefix + ... + 4 char suffix
 
     def test_get_key_not_found(self, service, test_user_id, test_project_id):
         """Test getting non-existent key."""

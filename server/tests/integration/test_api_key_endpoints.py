@@ -127,7 +127,9 @@ class TestAPIKeyEndpoints:
 
         # Check that keys are masked
         for key in data["keys"]:
-            assert key["key_preview"].endswith("***...***")
+            assert key["key_preview"].startswith("dkr_")
+            assert "..." in key["key_preview"]
+            assert len(key["key_preview"]) == 15  # 8 char prefix + ... + 4 char suffix
             assert "key" not in key  # Full key should not be included
 
     def test_get_api_key(self, client, test_project_id, test_user_id, clean_api_keys):
@@ -150,7 +152,9 @@ class TestAPIKeyEndpoints:
 
         assert data["id"] == str(created.id)
         assert data["name"] == "Test Key"
-        assert data["key_preview"].endswith("***...***")
+        assert data["key_preview"].startswith("dkr_")
+        assert "..." in data["key_preview"]
+        assert len(data["key_preview"]) == 15  # 8 char prefix + ... + 4 char suffix
         assert "key" not in data
 
     def test_get_api_key_not_found(self, client, test_project_id):
