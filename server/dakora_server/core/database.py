@@ -124,6 +124,22 @@ prompt_parts_table = Table(
     Column("updated_at", DateTime, server_default=text("NOW()"), nullable=False),
 )
 
+# API keys table definition (SQLAlchemy Core)
+api_keys_table = Table(
+    "api_keys",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("name", String(255), nullable=True),
+    Column("key_prefix", String(12), nullable=False),
+    Column("key_hash", String(255), nullable=False, index=True),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("last_used_at", DateTime, nullable=True),
+    Column("expires_at", DateTime, nullable=True, index=True),
+    Column("revoked_at", DateTime, nullable=True),
+)
+
 
 def get_database_url() -> str:
     """Get database URL from environment or use default for local dev"""

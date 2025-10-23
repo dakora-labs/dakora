@@ -17,7 +17,8 @@ from sqlalchemy import select
 from .config import get_vault, settings
 from .core.vault import Vault
 from .core.registry import Registry
-from .core.database import create_db_engine, get_connection, projects_table, workspaces_table, workspace_members_table, users_table
+from .core.database import create_db_engine, get_connection, get_engine, projects_table, workspaces_table, workspace_members_table, users_table
+from .core.api_keys.validator import get_validator
 
 
 class AuthContext(BaseModel):
@@ -61,11 +62,22 @@ async def get_auth_context(
     """
     # Priority 1: Check for API key
     if x_api_key:
-        # TODO: Implement API key validation
-        # For now, treat any API key as valid with a test user
+        # Validate API key using cached validator
+        validator = get_validator()
+        validation_result = await validator.validate(x_api_key)
+
+        if not validation_result.valid:
+            if validation_result.expired:
+                raise HTTPException(status_code=401, detail="API key has expired")
+            elif validation_result.revoked:
+                raise HTTPException(status_code=401, detail="API key has been revoked")
+            else:
+                raise HTTPException(status_code=401, detail="Invalid API key")
+
+        # API key is valid - return context with user and project IDs
         return AuthContext(
-            user_id=f"apikey_{x_api_key[:8]}",
-            project_id=None,
+            user_id=str(validation_result.user_id),
+            project_id=str(validation_result.project_id),
             auth_method="api_key",
         )
 
@@ -281,3 +293,46 @@ def get_project_vault(
         scoped_registry,
         logging_enabled=base_vault.logger is not None,
     )
+
+
+async def get_current_user_id(
+    auth_ctx: AuthContext = Depends(get_auth_context),
+) -> UUID:
+    """
+    Get the current authenticated user's database ID.
+
+    For API key authentication: Returns the user_id from the key's metadata.
+    For JWT authentication: Looks up the user by clerk_user_id.
+    For no-auth mode: Returns a default UUID.
+
+    Args:
+        auth_ctx: Authentication context
+
+    Returns:
+        User's database UUID
+
+    Raises:
+        HTTPException: 403 if user not found
+    """
+    # For API key auth, user_id is already the database UUID
+    if auth_ctx.auth_method == "api_key":
+        return UUID(auth_ctx.user_id)
+
+    # For no-auth mode, return a default UUID
+    if auth_ctx.auth_method == "none":
+        from uuid import uuid5, NAMESPACE_DNS
+        return uuid5(NAMESPACE_DNS, "default-user")
+
+    # For JWT auth, look up user by clerk_user_id
+    engine = create_db_engine()
+    with get_connection(engine) as conn:
+        user_result = conn.execute(
+            select(users_table.c.id).where(
+                users_table.c.clerk_user_id == auth_ctx.user_id
+            )
+        ).fetchone()
+
+        if not user_result:
+            raise HTTPException(status_code=403, detail="User not found")
+
+        return user_result[0]

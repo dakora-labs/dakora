@@ -23,6 +23,8 @@ dependencies = [
     "psycopg2-binary>=2.9.0",
     "pyjwt[crypto]>=2.8.0",
     "svix>=1.77.0,<2.0.0",
+    "bcrypt>=5.0.0",
+    "base58>=2.1.1",
 ]
 
 [project.optional-dependencies]
@@ -37,3 +39,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["dakora_server"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]
