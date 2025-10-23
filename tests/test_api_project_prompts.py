@@ -185,6 +185,7 @@ class TestCreatePrompt:
         """Test creating duplicate prompt fails."""
         project_id = test_project["project_id"]
 
+
         # Create first prompt
         payload = {
             "id": "duplicate_prompt",

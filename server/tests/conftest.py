@@ -291,3 +291,44 @@ def playground_url(test_vault: Vault) -> Generator[str, None, None]:
     """Fixture that provides a running playground server URL"""
     with playground_server(test_vault) as url:
         yield url
+
+
+# API Key test fixtures
+@pytest.fixture
+def test_user_id(test_project_id: str) -> UUID:
+    """Get the test user ID created by test_project_id fixture."""
+    from dakora_server.core.database import (
+        create_db_engine,
+        get_connection,
+        users_table,
+    )
+    from sqlalchemy import select
+
+    engine = create_db_engine()
+    with get_connection(engine) as conn:
+        result = conn.execute(
+            select(users_table.c.id).where(
+                users_table.c.clerk_user_id == "test_user_clerk_id"
+            )
+        ).fetchone()
+        return result[0]
+
+
+@pytest.fixture
+def clean_api_keys(test_project_id: str) -> Generator[None, None, None]:
+    """Clean up API keys after each test."""
+    yield
+
+    from dakora_server.core.database import (
+        create_db_engine,
+        get_connection,
+        api_keys_table,
+    )
+    from sqlalchemy import delete
+
+    engine = create_db_engine()
+    with get_connection(engine) as conn:
+        conn.execute(delete(api_keys_table).where(
+            api_keys_table.c.project_id == UUID(test_project_id)
+        ))
+        conn.commit()
