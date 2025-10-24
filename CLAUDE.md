@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Dakora is a **multi-tenant SaaS platform** for managing prompt templates with type-safe inputs, versioning, multi-model LLM execution, and comparison capabilities. The project is organized as a **monorepo** with the following packages:
+Dakora is a **multi-tenant SaaS platform** for managing prompt templates with type-safe inputs and versioning. The project is organized as a **monorepo** with the following packages:
 
 - **Server** (`server/`): FastAPI-based platform backend with REST API, authentication, and multi-tenancy
 - **Client SDK** (`packages/client-python/`): Python client library for interacting with the API
@@ -78,15 +78,6 @@ Dakora is a **multi-tenant SaaS platform** for managing prompt templates with ty
   - `azure.py` - AzureRegistry
 - `serialization.py` - YAML parsing and rendering utilities
 
-**LLM Integration (`llm/`):**
-
-- `client.py` - LLMClient using litellm for multi-provider LLM support
-  - `execute()` - Synchronous single model execution
-  - `_execute_async()` - Asynchronous execution with error handling
-- `models.py` - Data models:
-  - `ExecutionResult` - Single model execution result (output, tokens, cost, latency)
-  - `ComparisonResult` - Multi-model comparison result
-
 **API Key System (`core/api_keys/`):**
 
 - `service.py` - APIKeyService for CRUD operations, enforces 10-key-per-project limit
@@ -108,7 +99,6 @@ Dakora is a **multi-tenant SaaS platform** for managing prompt templates with ty
 - FastAPI + Uvicorn - Web framework
 - Pydantic - Data validation
 - Jinja2 - Template rendering
-- litellm - Multi-provider LLM integration
 - PyYAML - Template storage format
 - Watchdog - File system monitoring
 - SQLAlchemy - Database toolkit (Core only, no ORM)
@@ -129,8 +119,7 @@ Dakora is a **multi-tenant SaaS platform** for managing prompt templates with ty
   - `create(...)` - Create new template
   - `update(template_id, ...)` - Update existing template
   - `render(template_id, inputs)` - Render template with inputs
-  - `compare(template_id, models, inputs, ...)` - Compare across multiple LLM models
-- `types.py` - Data models (TemplateInfo, RenderResult, CompareResult)
+- `types.py` - Data models (TemplateInfo, RenderResult)
 
 **Usage Example:**
 
@@ -144,11 +133,7 @@ result = await dakora.prompts.render("greeting", {"name": "Alice"})
 
 # Cloud
 dakora = Dakora("https://api.dakora.cloud", api_key="dk_xxx")
-comparison = await dakora.prompts.compare(
-    "greeting",
-    models=["gpt-4", "claude-3-opus"],
-    inputs={"name": "Alice"}
-)
+result = await dakora.prompts.render("greeting", {"name": "Alice"})
 ```
 
 ### CLI (`cli/dakora_cli/`)
@@ -257,7 +242,7 @@ export PATH="$HOME/.local/bin:$PATH" && uv run python server/tests/test_runner.p
 export PATH="$HOME/.local/bin:$PATH" && uv run python server/tests/test_runner.py performance
 
 # Run specific test file
-export PATH="$HOME/.local/bin:$PATH" && uv run python -m pytest server/tests/test_vault_execute.py -v
+export PATH="$HOME/.local/bin:$PATH" && uv run python -m pytest server/tests/test_database.py -v
 
 # Quick validation
 python validate_tests.py
@@ -389,26 +374,6 @@ cd server && export PATH="$HOME/.local/bin:$PATH" && uv run alembic history --ve
 cd server && export PATH="$HOME/.local/bin:$PATH" && uv run alembic stamp head
 ```
 
-### API Key Configuration
-
-Dakora integrates with LLM providers for model execution and comparison.
-
-**Setup:**
-
-1. Create `.env` file in project root
-2. Add required API keys:
-
-```bash
-OPENAI_API_KEY="sk-..."
-ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-**Supported Providers:**
-
-- OpenAI (GPT-3.5, GPT-4)
-- Anthropic (Claude)
-- Any provider supported by litellm
-
 ### Working with Templates
 
 Templates are stored as YAML files with this structure:
@@ -449,28 +414,6 @@ metadata:
 
 ## Key Features
 
-### Multi-Model LLM Execution
-
-Templates can be executed with LLM models and compared across providers:
-
-```python
-# Single execution
-result = await template.execute("gpt-4", **inputs)
-
-# Compare across models
-comparison = await template.compare(
-    models=["gpt-4", "claude-3-opus", "gpt-3.5-turbo"],
-    **inputs
-)
-```
-
-**Comparison Features:**
-
-- Parallel execution for speed
-- Error handling per model
-- Token usage and cost tracking
-- Latency measurements
-
 ### Azure Storage Support
 
 Templates can be stored in Azure Blob Storage:
@@ -509,23 +452,16 @@ watcher.start()
 
 - `server/tests/` - All server tests
 - Test categories: unit, integration, performance
-- Manual tests for LLM functionality (require API keys)
 
 **Key Test Files:**
 
-- `test_vault_execute.py` - LLM execution tests
-- `test_vault_compare.py` - Multi-model comparison tests
-- `test_llm_client.py` - LLM client unit tests
 - `test_registry_azure.py` - Azure storage tests
 - `conftest.py` - Pytest fixtures
 
 **Running Specific Tests:**
 
 ```bash
-# LLM execution tests (requires API keys)
-export PATH="$HOME/.local/bin:$PATH" && uv run python -m pytest server/tests/test_llm_client.py::test_execute_success -v
-
-# All tests in a directory
+# Run all tests
 export PATH="$HOME/.local/bin:$PATH" && uv run python -m pytest server/tests/ -v --tb=no
 ```
 
@@ -534,7 +470,7 @@ export PATH="$HOME/.local/bin:$PATH" && uv run python -m pytest server/tests/ -v
 ### Python Code
 
 1. **Type Hints**: Always use type hints for function parameters and return values for better IDE support
-2. **Async/Await**: Use async/await patterns for I/O operations (LLM calls, HTTP, database)
+2. **Async/Await**: Use async/await patterns for I/O operations (HTTP, database)
 3. **Pydantic Models**: Use Pydantic v2 models for data validation and settings
 4. **Docstrings**: Use Google-style docstrings for functions and classes
 5. **Imports**: Group imports (standard library, third-party, local)
@@ -580,15 +516,12 @@ dakora/                         # Monorepo root
 │   │       │   ├── generator.py     # Key generation
 │   │       │   ├── validator.py     # Cached validation
 │   │       │   └── models.py        # Pydantic models
-│   │       ├── registry/            # Template registry
-│   │       │   ├── base.py          # Protocol
-│   │       │   ├── core.py          # TemplateRegistry
-│   │       │   ├── backends/        # Storage backends
-│   │       │   ├── implementations/ # Registry implementations
-│   │       │   └── serialization.py # YAML utils
-│   │       └── llm/                 # LLM integration
-│   │           ├── client.py        # LLMClient (litellm)
-│   │           └── models.py        # ExecutionResult, etc.
+│   │       └── registry/            # Template registry
+│   │           ├── base.py          # Protocol
+│   │           ├── core.py          # TemplateRegistry
+│   │           ├── backends/        # Storage backends
+│   │           ├── implementations/ # Registry implementations
+│   │           └── serialization.py # YAML utils
 │   ├── alembic/               # Database migrations
 │   │   ├── versions/          # Migration files
 │   │   ├── env.py             # Alembic environment

@@ -37,10 +37,6 @@ def main():
             "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest server/tests/smoke_test.py::test_error_handling -v --tb=no -q",
             "Error handling test"
         ),
-        (
-            "export PATH=\"$HOME/.local/bin:$PATH\" && uv run python -m pytest server/tests/test_llm_client.py::test_execute_success -v --tb=no -q",
-            "LLM client execution test"
-        ),
     ]
 
     passed = 0
