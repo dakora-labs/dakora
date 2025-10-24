@@ -38,12 +38,3 @@ class TemplateResponse(BaseModel):
 class RenderResponse(BaseModel):
     rendered: str
     inputs_used: Dict[str, Any]
-
-
-class ExecuteRequest(BaseModel):
-    inputs: Dict[str, Any] = Field(default_factory=dict)
-    models: List[str] = Field(min_length=1, max_length=3)
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    top_p: Optional[float] = None
-    params: Dict[str, Any] = Field(default_factory=dict)

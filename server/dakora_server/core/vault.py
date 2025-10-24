@@ -10,8 +10,6 @@ from .registry import LocalRegistry, Registry
 from .model import TemplateSpec
 from .exceptions import ValidationError, RenderError, DakoraError
 from .logging import Logger
-from .llm.client import LLMClient
-from .llm.models import ExecutionResult, ComparisonResult
 
 
 class Vault:
@@ -250,7 +248,6 @@ class TemplateHandle:
     def __init__(self, vault: Vault, spec: TemplateSpec) -> None:
         self.vault = vault
         self.spec = spec
-        self._llm_client: Optional[LLMClient] = None
 
     @property
     def id(self) -> str:
@@ -273,114 +270,6 @@ class TemplateHandle:
             return self.vault.renderer.render(self.spec.template, vars)
         except Exception as e:
             raise RenderError(str(e)) from e
-
-    def execute(self, model: str, **kwargs: Any) -> ExecutionResult:
-        """
-        Execute template against an LLM model with full LiteLLM parameter support.
-
-        Args:
-            model: LLM model identifier (e.g., 'gpt-4', 'claude-3-opus', 'gemini-pro')
-            **kwargs: Template inputs merged with LiteLLM parameters
-                     Template inputs are extracted based on spec.inputs
-                     Remaining kwargs are passed directly to LiteLLM
-
-        Returns:
-            ExecutionResult with output, provider, model, tokens, cost, and latency
-
-        Raises:
-            ValidationError: Invalid template inputs
-            RenderError: Template rendering failed
-            LLMError: LLM execution failed (APIKeyError, RateLimitError, ModelNotFoundError)
-        """
-        if self._llm_client is None:
-            self._llm_client = LLMClient()
-
-        template_input_names = set(self.spec.inputs.keys())
-        template_inputs = {k: v for k, v in kwargs.items() if k in template_input_names}
-        llm_params = {k: v for k, v in kwargs.items() if k not in template_input_names}
-
-        try:
-            vars = self.spec.coerce_inputs(template_inputs)
-        except Exception as e:
-            raise ValidationError(str(e)) from e
-
-        try:
-            prompt = self.vault.renderer.render(self.spec.template, vars)
-        except Exception as e:
-            raise RenderError(str(e)) from e
-
-        result = self._llm_client.execute(prompt, model, **llm_params)
-
-        if self.vault.logger:
-            self.vault.logger.write(
-                prompt_id=self.id,
-                version=self.version,
-                inputs=vars,
-                output=result.output,
-                cost=None,
-                latency_ms=result.latency_ms,
-                provider=result.provider,
-                model=result.model,
-                tokens_in=result.tokens_in,
-                tokens_out=result.tokens_out,
-                cost_usd=result.cost_usd,
-            )
-
-        return result
-
-    async def compare(self, models: List[str], **kwargs: Any) -> ComparisonResult:
-        """
-        Execute template against multiple LLM models in parallel.
-
-        Args:
-            models: List of LLM model identifiers (e.g., ['gpt-4', 'claude-3-opus', 'gemini-pro'])
-            **kwargs: Template inputs merged with LiteLLM parameters
-                     Template inputs are extracted based on spec.inputs
-                     Remaining kwargs are passed directly to LiteLLM
-
-        Returns:
-            ComparisonResult with results for each model and aggregate statistics
-
-        Raises:
-            ValidationError: Invalid template inputs
-            RenderError: Template rendering failed
-        """
-        if self._llm_client is None:
-            self._llm_client = LLMClient()
-
-        template_input_names = set(self.spec.inputs.keys())
-        template_inputs = {k: v for k, v in kwargs.items() if k in template_input_names}
-        llm_params = {k: v for k, v in kwargs.items() if k not in template_input_names}
-
-        try:
-            vars = self.spec.coerce_inputs(template_inputs)
-        except Exception as e:
-            raise ValidationError(str(e)) from e
-
-        try:
-            prompt = self.vault.renderer.render(self.spec.template, vars)
-        except Exception as e:
-            raise RenderError(str(e)) from e
-
-        comparison = await self._llm_client.compare(prompt, models, **llm_params)
-
-        if self.vault.logger:
-            for result in comparison.results:
-                self.vault.logger.write(
-                    prompt_id=self.id,
-                    version=self.version,
-                    inputs=vars,
-                    output=result.output,
-                    cost=None,
-                    latency_ms=result.latency_ms,
-                    provider=result.provider,
-                    model=result.model,
-                    tokens_in=result.tokens_in,
-                    tokens_out=result.tokens_out,
-                    cost_usd=result.cost_usd,
-                )
-
-        return comparison
 
     def run(self, func: Callable[[str], Any], **kwargs: Any) -> Any:
         """Execute a call with logging.
