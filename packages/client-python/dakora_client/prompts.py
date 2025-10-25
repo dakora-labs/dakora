@@ -83,3 +83,82 @@ class PromptsAPI:
         
         logger.info(f"Rendered prompt '{template_id}' v{result.version} ({len(result.text)} chars)")
         return result
+
+    async def create(
+        self,
+        prompt_id: str,
+        template: str,
+        version: str = "1.0.0",
+        description: str | None = None,
+        inputs: dict[str, dict[str, Any]] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create a new prompt template.
+
+        Args:
+            prompt_id: Unique identifier for the prompt
+            template: The prompt template text (supports Jinja2 syntax)
+            version: Semantic version (default: "1.0.0")
+            description: Human-readable description (optional)
+            inputs: Input schema definition (optional)
+            metadata: Additional metadata (optional)
+
+        Returns:
+            Created prompt data
+
+        Example:
+            await client.prompts.create(
+                prompt_id="greeting",
+                template="Hello {{name}}!",
+                description="Simple greeting template",
+                inputs={
+                    "name": {"type": "string", "required": True}
+                },
+                metadata={"category": "greetings"}
+            )
+        """
+        project_id = await self._client._get_project_id()  # type: ignore
+        url = f"/api/projects/{project_id}/prompts"
+
+        payload = {
+            "id": prompt_id,
+            "version": version,
+            "template": template,
+            "description": description,
+            "inputs": inputs or {},
+            "metadata": metadata or {},
+        }
+
+        logger.debug(f"POST {url} - creating prompt '{prompt_id}'")
+        response = await self._client.post(url, json=payload)
+        logger.debug(f"POST {url} -> {response.status_code}")
+
+        response.raise_for_status()
+        data = response.json()
+        logger.info(f"Created prompt '{prompt_id}' v{version}")
+        return data
+
+    async def get(self, prompt_id: str) -> dict[str, Any]:
+        """Get a prompt template by ID.
+
+        Args:
+            prompt_id: ID of the prompt to retrieve
+
+        Returns:
+            Prompt template data
+
+        Example:
+            prompt = await client.prompts.get("greeting")
+            print(prompt["template"])
+        """
+        project_id = await self._client._get_project_id()  # type: ignore
+        url = f"/api/projects/{project_id}/prompts/{prompt_id}"
+
+        logger.debug(f"GET {url}")
+        response = await self._client.get(url)
+        logger.debug(f"GET {url} -> {response.status_code}")
+
+        response.raise_for_status()
+        data = response.json()
+        logger.info(f"Retrieved prompt '{prompt_id}'")
+        return data
