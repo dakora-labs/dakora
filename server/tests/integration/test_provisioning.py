@@ -34,13 +34,13 @@ def cleanup_provisioning_tests(request, db_connection):
 
     # Delete test users and their associated data
     if 'users' in metadata.tables:
-        # Clean up by email and clerk_user_id patterns
+        # Clean up by email and clerk_user_id patterns (excluding session-scoped fixtures)
         db_connection.execute(text("""
             DELETE FROM projects WHERE workspace_id IN (
                 SELECT id FROM workspaces WHERE owner_id IN (
                     SELECT id FROM users WHERE
-                        email LIKE 'test-%@example.com' OR
-                        clerk_user_id LIKE 'test_clerk_%' OR
+                        (email LIKE 'test-%@example.com' AND email != 'test@example.com') OR
+                        (clerk_user_id LIKE 'test_clerk_%' AND clerk_user_id != 'test_clerk_user_default') OR
                         clerk_user_id LIKE 'user_webhook_test_%'
                 )
             )
@@ -48,23 +48,23 @@ def cleanup_provisioning_tests(request, db_connection):
         db_connection.execute(text("""
             DELETE FROM workspace_members WHERE user_id IN (
                 SELECT id FROM users WHERE
-                    email LIKE 'test-%@example.com' OR
-                    clerk_user_id LIKE 'test_clerk_%' OR
-                    clerk_user_id LIKE 'user_webhook_test_%'
+                        (email LIKE 'test-%@example.com' AND email != 'test@example.com') OR
+                        (clerk_user_id LIKE 'test_clerk_%' AND clerk_user_id != 'test_clerk_user_default') OR
+                        clerk_user_id LIKE 'user_webhook_test_%'
             )
         """))
         db_connection.execute(text("""
             DELETE FROM workspaces WHERE owner_id IN (
                 SELECT id FROM users WHERE
-                    email LIKE 'test-%@example.com' OR
-                    clerk_user_id LIKE 'test_clerk_%' OR
-                    clerk_user_id LIKE 'user_webhook_test_%'
+                        (email LIKE 'test-%@example.com' AND email != 'test@example.com') OR
+                        (clerk_user_id LIKE 'test_clerk_%' AND clerk_user_id != 'test_clerk_user_default') OR
+                        clerk_user_id LIKE 'user_webhook_test_%'
             )
         """))
         db_connection.execute(text("""
             DELETE FROM users WHERE
-                email LIKE 'test-%@example.com' OR
-                clerk_user_id LIKE 'test_clerk_%' OR
+                (email LIKE 'test-%@example.com' AND email != 'test@example.com') OR
+                (clerk_user_id LIKE 'test_clerk_%' AND clerk_user_id != 'test_clerk_user_default') OR
                 clerk_user_id LIKE 'user_webhook_test_%'
         """))
         db_connection.commit()
