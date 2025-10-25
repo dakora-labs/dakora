@@ -43,7 +43,7 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
   }, [models, selectedModel]);
 
   useEffect(() => {
-    if (models && !selectedModel) {
+    if (models && !selectedModel && models.default_model) {
       setSelectedModel(models.default_model);
     }
   }, [models, selectedModel]);
