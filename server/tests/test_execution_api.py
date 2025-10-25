@@ -64,7 +64,7 @@ async def test_execute_prompt_success(
     from dakora_server.auth import get_project_vault
 
     mock_registry = MagicMock()
-    mock_registry.get_provider.return_value = mock_provider
+    mock_registry.get_provider_by_name.return_value = mock_provider
 
     # Override get_project_vault (injected dependency)
     app.dependency_overrides[get_project_vault] = lambda: mock_vault
@@ -75,7 +75,7 @@ async def test_execute_prompt_success(
             with patch("dakora_server.api.project_executions.ProviderRegistry", return_value=mock_registry):
                 response = test_client.post(
                     f"/api/projects/{project_id}/prompts/{prompt_id}/execute",
-                    json={"inputs": {"name": "Alice"}},
+                    json={"inputs": {"name": "Alice"}, "provider": "azure_openai", "model": "gpt-4o"},
                 )
 
                 assert response.status_code == 200
@@ -157,11 +157,10 @@ async def test_get_available_models(test_client, setup_test_data, mock_provider,
             max_tokens=128000,
         ),
     ]
-    mock_provider.get_available_models.return_value = mock_models
 
     # Use patches for ProviderRegistry (direct instantiation, not a dependency)
     mock_registry = MagicMock()
-    mock_registry.get_provider.return_value = mock_provider
+    mock_registry.get_all_models.return_value = mock_models
 
     with patch("dakora_server.api.project_executions.ProviderRegistry", return_value=mock_registry):
         response = test_client.get(
@@ -173,7 +172,7 @@ async def test_get_available_models(test_client, setup_test_data, mock_provider,
         assert len(data["models"]) == 2
         assert data["models"][0]["id"] == "gpt-4o"
         assert data["models"][1]["id"] == "gpt-4o-mini"
-        assert data["default_model"] == "gpt-4o"
+        assert data["default_model"] is None  # No default - user must select
 
 
 @pytest.mark.asyncio
@@ -300,7 +299,7 @@ async def test_execution_cleanup_keeps_only_20(
     from dakora_server.auth import get_project_vault
 
     mock_registry = MagicMock()
-    mock_registry.get_provider.return_value = mock_provider
+    mock_registry.get_provider_by_name.return_value = mock_provider
 
     # Override get_project_vault (injected dependency)
     app.dependency_overrides[get_project_vault] = lambda: mock_vault
@@ -313,7 +312,7 @@ async def test_execution_cleanup_keeps_only_20(
                 for i in range(2):
                     response = test_client.post(
                         f"/api/projects/{project_id}/prompts/{prompt_id}/execute",
-                        json={"inputs": {"test": i + 19}},
+                        json={"inputs": {"test": i + 19}, "provider": "azure_openai", "model": "gpt-4o"},
                     )
                     assert response.status_code == 200
     finally:

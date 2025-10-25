@@ -72,11 +72,20 @@ async def execute_prompt(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to render prompt: {str(e)}")
 
+    # Validate model and provider are provided
+    if not request.model:
+        raise HTTPException(status_code=400, detail="model is required")
+    if not request.provider:
+        raise HTTPException(status_code=400, detail="provider is required")
+
     # Get provider and execute
     provider_registry = ProviderRegistry()
-    provider = provider_registry.get_provider(workspace_id)
+    try:
+        provider = provider_registry.get_provider_by_name(workspace_id, request.provider)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    model = request.model or "gpt-4o"  # Default model
+    model = request.model
 
     execution_status = "success"
     output_text = None
@@ -198,11 +207,9 @@ async def get_available_models(
             raise HTTPException(status_code=404, detail="Project not found")
         workspace_id = str(project_row.workspace_id)
 
-    # Get provider and available models
+    # Get all available models from all configured providers
     provider_registry = ProviderRegistry()
-    provider = provider_registry.get_provider(workspace_id)
-
-    models = provider.get_available_models()
+    models = provider_registry.get_all_models(workspace_id)
 
     return ModelsResponse(
         models=[
@@ -216,7 +223,7 @@ async def get_available_models(
             )
             for model in models
         ],
-        default_model="gpt-4o",
+        default_model=None,  # No default - user must select
     )
 
 

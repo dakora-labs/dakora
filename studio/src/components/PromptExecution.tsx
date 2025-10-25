@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useModels, useExecutePrompt, useExecutionHistory } from '@/hooks/useApi';
 import type { ExecutionResponse, ExecutionHistoryItem, InputSpec } from '@/types';
+import { ProviderBadge } from './ProviderBadge';
 
 interface PromptExecutionProps {
   projectId: string;
@@ -20,10 +21,26 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
   const [inputValues, setInputValues] = useState<Record<string, unknown>>({});
   const [lastExecution, setLastExecution] = useState<ExecutionResponse | null>(null);
   const [showResults, setShowResults] = useState(false);
+  const [invalidInputs, setInvalidInputs] = useState<Set<string>>(new Set());
 
   const { models, loading: modelsLoading } = useModels(projectId);
   const { execute, loading: executing, error: executeError } = useExecutePrompt(projectId);
   const { history, refetch: refetchHistory } = useExecutionHistory(projectId, promptId);
+
+  const modelsByProvider = useMemo(() => {
+    if (!models) return {};
+    return models.models.reduce((acc, model) => {
+      if (!acc[model.provider]) {
+        acc[model.provider] = [];
+      }
+      acc[model.provider].push(model);
+      return acc;
+    }, {} as Record<string, typeof models.models>);
+  }, [models]);
+
+  const selectedModelInfo = useMemo(() => {
+    return models?.models.find((m) => m.id === selectedModel);
+  }, [models, selectedModel]);
 
   useEffect(() => {
     if (models && !selectedModel) {
@@ -52,10 +69,28 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
   }, [inputs]);
 
   const handleExecute = async () => {
+    if (!selectedModelInfo) return;
+
+    const missingInputs = Object.entries(inputs)
+      .filter(([key, spec]) => spec.required && !inputValues[key])
+      .map(([key]) => key);
+
+    if (missingInputs.length > 0) {
+      if (!isExpanded) {
+        setIsExpanded(true);
+        return;
+      }
+      setInvalidInputs(new Set(missingInputs));
+      return;
+    }
+
+    setInvalidInputs(new Set());
+
     try {
       const result = await execute(promptId, {
         inputs: inputValues,
         model: selectedModel,
+        provider: selectedModelInfo.provider,
       });
       setLastExecution(result);
       setShowResults(true);
@@ -63,6 +98,7 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
       refetchHistory?.();
     } catch (err) {
       console.error('Execution failed:', err);
+      setIsExpanded(true);
     }
   };
 
@@ -114,16 +150,25 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
           <div className="flex items-center gap-3">
             {!modelsLoading && models && (
               <>
-                <span className="text-xs text-muted-foreground">Provider:</span>
+                {selectedModelInfo && (
+                  <ProviderBadge provider={selectedModelInfo.provider} size="sm" />
+                )}
                 <Select value={selectedModel} onValueChange={setSelectedModel}>
-                  <SelectTrigger className="h-7 w-[140px] text-xs">
-                    <SelectValue />
+                  <SelectTrigger className="h-7 w-[180px] text-xs">
+                    <SelectValue placeholder="Select model" />
                   </SelectTrigger>
                   <SelectContent>
-                    {models.models.map((model) => (
-                      <SelectItem key={model.id} value={model.id} className="text-xs">
-                        {model.name}
-                      </SelectItem>
+                    {Object.entries(modelsByProvider).map(([provider, providerModels]) => (
+                      <SelectGroup key={provider}>
+                        <SelectLabel className="text-xs font-semibold capitalize">
+                          {provider.replace('_', ' ')}
+                        </SelectLabel>
+                        {providerModels.map((model) => (
+                          <SelectItem key={model.id} value={model.id} className="text-xs">
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>
@@ -164,21 +209,37 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
 
         <CollapsibleContent>
           <div className="border-b border-border bg-muted/10 px-4 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
-            {Object.entries(inputs).map(([key, spec]) => (
-              <div key={key} className="flex items-center gap-3">
-                <label className="text-xs font-medium w-24 shrink-0">{key}</label>
-                <input
-                  type={spec.type === 'number' ? 'number' : 'text'}
-                  value={inputValues[key] as string}
-                  onChange={(e) => setInputValues({ ...inputValues, [key]: e.target.value })}
-                  placeholder={spec.required ? 'Required' : 'Optional'}
-                  className="flex-1 h-7 px-2 text-xs border border-border rounded bg-background"
-                />
-                <Badge variant="outline" className="text-xs">
-                  {spec.type}
-                </Badge>
-              </div>
-            ))}
+            {Object.entries(inputs).map(([key, spec]) => {
+              const isInvalid = invalidInputs.has(key);
+              return (
+                <div key={key} className="flex items-center gap-3">
+                  <label className={`text-xs font-medium w-24 shrink-0 ${isInvalid ? 'text-destructive' : ''}`}>
+                    {key}
+                  </label>
+                  <input
+                    type={spec.type === 'number' ? 'number' : 'text'}
+                    value={inputValues[key] as string}
+                    onChange={(e) => {
+                      setInputValues({ ...inputValues, [key]: e.target.value });
+                      if (invalidInputs.has(key)) {
+                        const newInvalid = new Set(invalidInputs);
+                        newInvalid.delete(key);
+                        setInvalidInputs(newInvalid);
+                      }
+                    }}
+                    placeholder={spec.required ? 'Required' : 'Optional'}
+                    className={`flex-1 h-7 px-2 text-xs border rounded bg-background transition-all ${
+                      isInvalid
+                        ? 'border-destructive focus:ring-destructive focus:ring-2 animate-shake'
+                        : 'border-border'
+                    }`}
+                  />
+                  <Badge variant="outline" className="text-xs">
+                    {spec.type}
+                  </Badge>
+                </div>
+              );
+            })}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -229,6 +290,12 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
                 <div className="space-y-2">
                   <span className="text-xs font-medium text-muted-foreground">Metrics</span>
                   <div className="flex flex-wrap gap-3">
+                    <div className="flex items-center gap-2">
+                      <ProviderBadge provider={lastExecution.provider} size="sm" />
+                      <Badge variant="outline" className="text-xs h-5">
+                        {lastExecution.model}
+                      </Badge>
+                    </div>
                     <div className="flex items-center gap-2 px-2.5 py-1.5 bg-muted/30 rounded border border-border">
                       <div className="flex items-center gap-1">
                         <Download className="w-3 h-3 text-blue-500" />
@@ -302,6 +369,7 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
                   >
                     {getStatusIcon(exec.status)}
                     <span className="text-xs text-muted-foreground w-16">{formatDate(exec.created_at)}</span>
+                    <ProviderBadge provider={exec.provider} size="sm" showIcon={false} />
                     <Badge variant="outline" className="text-xs h-5">
                       {exec.model}
                     </Badge>
