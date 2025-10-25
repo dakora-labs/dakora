@@ -20,7 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema - remove tokens_limit_month column."""
-    op.drop_column('workspace_quotas', 'tokens_limit_month')
+    # Drop column only if it exists
+    conn = op.get_bind()
+    result = conn.execute(sa.text("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'workspace_quotas' 
+        AND column_name = 'tokens_limit_month'
+    """))
+    if result.fetchone():
+        op.drop_column('workspace_quotas', 'tokens_limit_month')
 
 
 def downgrade() -> None:
