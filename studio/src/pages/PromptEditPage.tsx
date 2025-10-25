@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Save, X, Plus, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Save, X, Plus, AlertTriangle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -314,6 +314,15 @@ export function PromptEditPage() {
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/project/${projectSlug}/prompt/optimize?prompt=${promptId}`)}
+                className="gap-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border-purple-200"
+              >
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                Optimize
               </Button>
               <Button
                 size="sm"
