@@ -258,6 +258,10 @@ class TemplateHandle:
         return self.spec.version
 
     @property
+    def template(self) -> str:
+        return self.spec.template
+
+    @property
     def inputs(self) -> Dict[str, Any]:
         return self.spec.inputs
 

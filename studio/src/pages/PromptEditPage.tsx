@@ -21,6 +21,7 @@ import {
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import { PromptPartsPanel } from '@/components/PromptPartsPanel';
 import { RichTemplateEditor, type RichTemplateEditorRef } from '@/components/RichTemplateEditor';
+import { PromptExecution } from '@/components/PromptExecution';
 import type { Template, InputSpec } from '@/types';
 
 type InputType = 'string' | 'number' | 'boolean' | 'array<string>' | 'object';
@@ -506,6 +507,14 @@ export function PromptEditPage() {
           )}
         </div>
       </div>
+
+      {!isEditing && projectId && (
+        <PromptExecution
+          projectId={projectId}
+          promptId={prompt.id}
+          inputs={prompt.inputs}
+        />
+      )}
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

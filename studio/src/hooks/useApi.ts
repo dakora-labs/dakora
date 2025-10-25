@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api, ApiError, createApiClient } from '../utils/api';
-import type { Template, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse } from '../types';
+import type { Template, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ModelsResponse, ExecutionRequest, ExecutionResponse, ExecutionHistoryResponse } from '../types';
 import { useAuthToken } from '@/utils/auth';
 
 export function usePrompts(projectId: string | undefined) {
@@ -439,4 +439,103 @@ export function useDeleteApiKey(projectId: string | undefined) {
   }, [projectId, authenticatedApi]);
 
   return { deleteApiKey, loading, error, clearError: () => setError(null) };
+}
+
+export function useModels(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [models, setModels] = useState<ModelsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchModels = useCallback(async () => {
+    if (!projectId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await authenticatedApi.getModels(projectId);
+      setModels(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch models');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  useEffect(() => {
+    fetchModels();
+  }, [fetchModels]);
+
+  return { models, loading, error, refetch: fetchModels };
+}
+
+export function useExecutePrompt(projectId: string | undefined) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const execute = useCallback(async (promptId: string, request: ExecutionRequest): Promise<ExecutionResponse> => {
+    if (!projectId) {
+      throw new Error('Project ID is required');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authenticatedApi.executePrompt(projectId, promptId, request);
+      return response;
+    } catch (err) {
+      const errorMessage = err instanceof ApiError
+        ? err.message
+        : err instanceof Error
+        ? err.message
+        : 'Failed to execute prompt';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  return { execute, loading, error, clearError: () => setError(null) };
+}
+
+export function useExecutionHistory(projectId: string | undefined, promptId: string | null) {
+  const { getToken } = useAuthToken();
+  const authenticatedApi = useMemo(() => createApiClient(getToken), [getToken]);
+
+  const [history, setHistory] = useState<ExecutionHistoryResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchHistory = useCallback(async (id: string) => {
+    if (!projectId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await authenticatedApi.getExecutionHistory(projectId, id);
+      setHistory(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch execution history');
+      setHistory(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, authenticatedApi]);
+
+  useEffect(() => {
+    if (promptId) {
+      fetchHistory(promptId);
+    } else {
+      setHistory(null);
+      setError(null);
+    }
+  }, [promptId, fetchHistory]);
+
+  return { history, loading, error, refetch: promptId ? () => fetchHistory(promptId) : undefined };
 }

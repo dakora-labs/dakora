@@ -15,7 +15,7 @@ from dakora_server.core.vault import Vault
 def test_vault_with_template(test_project_id: str) -> Generator[tuple[Vault, Path], None, None]:
     """Create a test vault with a sample template"""
     from dakora_server.core.database import create_db_engine, get_connection, prompts_table
-    from sqlalchemy import insert
+    from sqlalchemy import insert, delete
     from datetime import datetime
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -52,9 +52,16 @@ def test_vault_with_template(test_project_id: str) -> Generator[tuple[Vault, Pat
 
         vault = Vault(prompt_dir=str(base_dir))
 
-        # Insert templates into database
+        # Insert templates into database (delete first if exist to handle fixture reuse)
         engine = create_db_engine()
         with get_connection(engine) as conn:
+            # Clean up any existing prompts first
+            conn.execute(
+                delete(prompts_table).where(
+                    prompts_table.c.project_id == UUID(test_project_id)
+                )
+            )
+
             conn.execute(
                 insert(prompts_table).values([
                     {
@@ -79,7 +86,16 @@ def test_vault_with_template(test_project_id: str) -> Generator[tuple[Vault, Pat
 
         yield vault, prompts_dir
 
+        # Cleanup: Delete templates from database
+        with get_connection(engine) as conn:
+            conn.execute(
+                delete(prompts_table).where(
+                    prompts_table.c.project_id == UUID(test_project_id)
+                )
+            )
+            conn.commit()
 
+@pytest.mark.integration
 def test_delete_template_endpoint_success(
     test_vault_with_template: tuple[Vault, Path],
     test_project_id: str,
@@ -129,7 +145,7 @@ def test_delete_template_endpoint_success(
     finally:
         app.dependency_overrides.clear()
 
-
+@pytest.mark.integration
 def test_delete_template_endpoint_not_found(
     test_vault_with_template: tuple[Vault, Path],
     test_project_id: str,
@@ -161,7 +177,7 @@ def test_delete_template_endpoint_not_found(
     finally:
         app.dependency_overrides.clear()
 
-
+@pytest.mark.integration
 def test_delete_template_endpoint_other_templates_unaffected(
     test_vault_with_template: tuple[Vault, Path],
     test_project_id: str,
@@ -208,7 +224,7 @@ def test_delete_template_endpoint_other_templates_unaffected(
     finally:
         app.dependency_overrides.clear()
 
-
+@pytest.mark.integration
 def test_delete_template_cache_invalidation_via_api(
     test_vault_with_template: tuple[Vault, Path],
     test_project_id: str,
@@ -247,7 +263,7 @@ def test_delete_template_cache_invalidation_via_api(
     finally:
         app.dependency_overrides.clear()
 
-
+@pytest.mark.integration
 def test_delete_then_recreate_template(
     test_vault_with_template: tuple[Vault, Path],
     test_project_id: str,
@@ -307,7 +323,7 @@ def test_delete_then_recreate_template(
     finally:
         app.dependency_overrides.clear()
 
-
+@pytest.mark.integration
 def test_delete_template_idempotency(test_project_id: str) -> None:
     """Test that deleting the same template twice returns appropriate responses"""
     from dakora_server.core.database import create_db_engine, get_connection, prompts_table

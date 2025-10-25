@@ -34,7 +34,7 @@ from dakora_server.api.project_prompts import get_prompt_manager
 def test_vault_with_template(test_project_id: str) -> Generator[tuple[Vault, Path], None, None]:
     """Create a test vault with a sample template"""
     from dakora_server.core.database import create_db_engine, get_connection, prompts_table
-    from sqlalchemy import insert
+    from sqlalchemy import insert, delete
     from datetime import datetime
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -59,9 +59,17 @@ def test_vault_with_template(test_project_id: str) -> Generator[tuple[Vault, Pat
 
         vault = Vault(prompt_dir=str(base_dir))
 
-        # Insert template into database
+        # Insert template into database (delete first if exists to handle fixture reuse)
         engine = create_db_engine()
         with get_connection(engine) as conn:
+            # Clean up any existing prompt first
+            conn.execute(
+                delete(prompts_table).where(
+                    (prompts_table.c.project_id == UUID(test_project_id)) &
+                    (prompts_table.c.prompt_id == "test-template")
+                )
+            )
+
             conn.execute(
                 insert(prompts_table).values(
                     {
@@ -78,6 +86,16 @@ def test_vault_with_template(test_project_id: str) -> Generator[tuple[Vault, Pat
 
         yield vault, prompts_dir
 
+        # Cleanup: Delete the template from database
+        with get_connection(engine) as conn:
+            conn.execute(
+                delete(prompts_table).where(
+                    (prompts_table.c.project_id == UUID(test_project_id)) &
+                    (prompts_table.c.prompt_id == "test-template")
+                )
+            )
+            conn.commit()
+
 
 @pytest.fixture
 def client():
@@ -89,7 +107,7 @@ def client():
 # AuthContext Tests
 # ============================================================================
 
-
+@pytest.mark.integration
 class TestAuthContext:
     """Tests for AuthContext model"""
 
@@ -140,7 +158,7 @@ class TestAuthContext:
 # Protected Endpoints Tests - API Key Auth
 # ============================================================================
 
-
+@pytest.mark.integration
 class TestProtectedEndpointsWithAPIKey:
     """Tests for protected endpoints with API key authentication"""
 
@@ -273,7 +291,7 @@ class TestProtectedEndpointsWithAPIKey:
 # Protected Endpoints Tests - JWT Auth
 # ============================================================================
 
-
+@pytest.mark.integration
 class TestProtectedEndpointsWithJWT:
     """Tests for protected endpoints with JWT token authentication"""
 
@@ -403,7 +421,7 @@ class TestProtectedEndpointsWithJWT:
 # Protected Endpoints Tests - No Auth (Dev Mode)
 # ============================================================================
 
-
+@pytest.mark.integration
 class TestProtectedEndpointsNoAuth:
     """Tests for protected endpoints in no-auth mode"""
 
@@ -511,7 +529,7 @@ class TestProtectedEndpointsNoAuth:
 # Multi-Tenancy Tests
 # ============================================================================
 
-
+@pytest.mark.integration
 class TestMultiTenancy:
     """Tests for multi-tenancy with storage prefixes"""
 
@@ -572,7 +590,7 @@ class TestMultiTenancy:
 # Auth Method Priority Tests
 # ============================================================================
 
-
+@pytest.mark.integration
 class TestAuthMethodPriority:
     """Tests for authentication method priority"""
 
@@ -615,7 +633,7 @@ class TestAuthMethodPriority:
 # Error Handling Tests
 # ============================================================================
 
-
+@pytest.mark.integration
 class TestErrorHandling:
     """Tests for error handling in authentication"""
 
@@ -695,7 +713,7 @@ class TestErrorHandling:
 # Health Check Tests
 # ============================================================================
 
-
+@pytest.mark.integration
 class TestHealthCheck:
     """Tests for health check endpoint accessibility"""
 

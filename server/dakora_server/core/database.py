@@ -18,6 +18,7 @@ from sqlalchemy import (
     Float,
     DateTime,
     ForeignKey,
+    Numeric,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -139,6 +140,48 @@ api_keys_table = Table(
     Column("last_used_at", DateTime, nullable=True),
     Column("expires_at", DateTime, nullable=True, index=True),
     Column("revoked_at", DateTime, nullable=True),
+)
+
+# Workspace quotas table definition (SQLAlchemy Core)
+workspace_quotas_table = Table(
+    "workspace_quotas",
+    metadata,
+    Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True),
+    Column("tier", String(50), nullable=False, server_default="free"),
+    Column("tokens_used_month", Integer, nullable=False, server_default="0"),
+    Column("tokens_limit_month", Integer, nullable=False),
+    Column("current_period_start", DateTime, nullable=False),
+    Column("current_period_end", DateTime, nullable=False),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("updated_at", DateTime, server_default=text("NOW()"), nullable=False),
+)
+
+# Prompt executions table definition (SQLAlchemy Core)
+prompt_executions_table = Table(
+    "prompt_executions",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("prompt_id", String(255), nullable=False),
+    Column("version", String(50), nullable=False),
+    # Execution details
+    Column("inputs_json", JSONB, nullable=False),
+    Column("model", String(100), nullable=False),
+    Column("provider", String(50), nullable=False),
+    # Results
+    Column("output_text", Text, nullable=True),
+    Column("error_message", Text, nullable=True),
+    Column("status", String(20), nullable=False),
+    # Metrics
+    Column("tokens_input", Integer, nullable=True),
+    Column("tokens_output", Integer, nullable=True),
+    Column("tokens_total", Integer, nullable=True),
+    Column("cost_usd", Numeric(10, 6), nullable=True),
+    Column("latency_ms", Integer, nullable=True),
+    # Metadata
+    Column("user_id", String(255), nullable=False),
+    Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False, index=True),
 )
 
 

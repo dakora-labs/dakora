@@ -1,4 +1,4 @@
-import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKey } from '../types';
+import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKey, ModelsResponse, ExecutionRequest, ExecutionResponse, ExecutionHistoryResponse } from '../types';
 
 interface UserContext {
   user_id: string;
@@ -255,6 +255,35 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
         throw new ApiError(errorData.detail || `HTTP ${response.status}`, response.status);
       }
+    },
+
+    async getModels(projectId: string): Promise<ModelsResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/models`, {
+        headers: authHeaders,
+      });
+      return handleResponse<ModelsResponse>(response);
+    },
+
+    async executePrompt(projectId: string, promptId: string, request: ExecutionRequest): Promise<ExecutionResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(promptId)}/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(request),
+      });
+      return handleResponse<ExecutionResponse>(response);
+    },
+
+    async getExecutionHistory(projectId: string, promptId: string): Promise<ExecutionHistoryResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(promptId)}/executions`, {
+        headers: authHeaders,
+      });
+      return handleResponse<ExecutionHistoryResponse>(response);
     },
   };
 }
