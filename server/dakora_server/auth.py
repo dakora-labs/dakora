@@ -17,7 +17,7 @@ from sqlalchemy import select
 from .config import get_vault, settings
 from .core.vault import Vault
 from .core.registry import Registry
-from .core.database import get_connection, get_engine, projects_table, workspaces_table, workspace_members_table, users_table
+from .core.database import get_connection, get_engine, projects_table, workspace_members_table, users_table
 from .core.api_keys.validator import get_validator
 
 
@@ -172,11 +172,7 @@ def get_user_vault(
     )
 
     # Create a new Vault with the scoped registry
-    # Logger is shared across vaults and uses PostgreSQL (no db_path needed)
-    return Vault(
-        scoped_registry,
-        logging_enabled=base_vault.logger is not None,
-    )
+    return Vault(scoped_registry)
 
 
 async def validate_project_access(
@@ -295,11 +291,7 @@ def get_project_vault(
     )
 
     # Create a new Vault with the scoped registry
-    # Logger uses PostgreSQL (no db_path needed)
-    return Vault(
-        scoped_registry,
-        logging_enabled=base_vault.logger is not None,
-    )
+    return Vault(scoped_registry)
 
 
 async def get_current_user_id(
