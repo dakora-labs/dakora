@@ -39,6 +39,36 @@ class RenderResponse(BaseModel):
     rendered: str
     inputs_used: Dict[str, Any]
 
+class TemplateUsage(BaseModel):
+    """Information about a template used in an execution"""
+    prompt_id: str
+    version: str
+    inputs: Dict[str, Any]
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class ExecutionCreate(BaseModel):
+    """Request to create an execution log entry"""
+    trace_id: str
+    parent_trace_id: Optional[str] = None
+    session_id: str
+    agent_id: Optional[str] = None
+    template_usages: Optional[List[TemplateUsage]] = None
+    conversation_history: Optional[List[Dict[str, Any]]] = None
+    metadata: Optional[Dict[str, Any]] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    latency_ms: Optional[int] = None
+    cost_usd: Optional[float] = None
+
+
+class ExecutionResponse(BaseModel):
+    """Response after creating an execution log"""
+    trace_id: str
+    status: str = "logged"
+
 
 class ExecuteRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
