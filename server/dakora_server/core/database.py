@@ -149,7 +149,6 @@ workspace_quotas_table = Table(
     Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True),
     Column("tier", String(50), nullable=False, server_default="free"),
     Column("tokens_used_month", Integer, nullable=False, server_default="0"),
-    Column("tokens_limit_month", Integer, nullable=False),
     Column("current_period_start", DateTime, nullable=False),
     Column("current_period_end", DateTime, nullable=False),
     Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
