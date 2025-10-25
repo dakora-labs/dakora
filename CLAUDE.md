@@ -132,8 +132,55 @@ templates = await dakora.prompts.list()
 result = await dakora.prompts.render("greeting", {"name": "Alice"})
 
 # Cloud
-dakora = Dakora("https://api.dakora.cloud", api_key="dk_xxx")
+dakora = Dakora("https://api.dakora.io", api_key="dk_xxx")
 result = await dakora.prompts.render("greeting", {"name": "Alice"})
+```
+
+### Agent Integrations (`packages/agents/dakora_agents/`)
+
+**Package:** `dakora-agents` (published to PyPI)
+
+**Structure:**
+
+- `maf/` - Microsoft Agent Framework integration
+  - `middleware.py` - `DakoraTraceMiddleware` for automatic observability
+  - `helpers.py` - Utility functions (`to_message`)
+  - Tracks tokens, cost, latency, conversation history
+- Future: `langchain/`, `crewai/` integrations
+
+**Installation:**
+
+```bash
+# Install with MAF support
+pip install dakora-agents[maf]
+
+# Or install base package
+pip install dakora-agents
+```
+
+**Usage Example:**
+
+```python
+from agent_framework import ChatAgent
+from agent_framework.openai import OpenAIChatClient
+from dakora_client import Dakora
+from dakora_agents.maf import DakoraTraceMiddleware
+
+dakora = Dakora("http://localhost:54321", api_key="dk_xxx")
+
+# Create agent with automatic observability
+agent = ChatAgent(
+    chat_client=OpenAIChatClient(),
+    instructions="You are a helpful assistant.",
+    middleware=[DakoraTraceMiddleware(
+        dakora,
+        project_id="support-bot",
+        agent_id="support-v1",
+    )],
+)
+
+# All LLM calls automatically tracked in Dakora Studio
+result = await agent.run("I need help")
 ```
 
 ### CLI (`cli/dakora_cli/`)
@@ -902,13 +949,23 @@ dakora/                         # Monorepo root
 │   ├── entrypoint.sh          # Runs migrations + starts server
 │   └── pyproject.toml
 │
-├── packages/                  # Client SDKs
-│   └── client-python/
-│       ├── dakora_client/
-│       │   ├── client.py      # Main Dakora class
-│       │   ├── prompts.py     # PromptsAPI
-│       │   └── types.py       # Data models
-│       ├── Makefile           # Build/publish commands
+├── packages/                  # Client SDKs and integrations
+│   ├── client-python/
+│   │   ├── dakora_client/
+│   │   │   ├── client.py      # Main Dakora class
+│   │   │   ├── prompts.py     # PromptsAPI
+│   │   │   └── types.py       # Data models
+│   │   ├── Makefile           # Build/publish commands
+│   │   └── pyproject.toml
+│   │
+│   └── agents/                # Agent framework integrations
+│       ├── dakora_agents/
+│       │   ├── maf/           # Microsoft Agent Framework
+│       │   │   ├── middleware.py  # DakoraTraceMiddleware
+│       │   │   ├── helpers.py     # Utility functions
+│       │   │   └── __init__.py
+│       │   └── __init__.py    # Package root
+│       ├── examples/          # Usage examples
 │       └── pyproject.toml
 │
 ├── cli/                       # CLI tool
@@ -963,7 +1020,7 @@ logging:
 
 ## Publishing
 
-Three separate packages are published:
+Four separate packages are published:
 
 1. **dakora** (CLI) - PyPI
 
@@ -975,7 +1032,14 @@ Three separate packages are published:
    - Dependencies: httpx, pydantic
    - Full API client library
 
-3. **dakora-server** (Server) - Not published
+3. **dakora-agents** (Agent Integrations) - PyPI
+
+   - Base: dakora-client, httpx
+   - Optional: agent-framework-core (MAF support)
+   - Observability middleware for agent frameworks
+   - Install: `pip install dakora-agents[maf]` for MAF support
+
+4. **dakora-server** (Server) - Not published
    - Docker-only deployment
    - Contains all backend logic
 

@@ -21,7 +21,7 @@ dakora start
 dakora stop
 
 # Link to cloud instance
-dakora link https://api.dakora.cloud
+dakora link https://api.dakora.io
 
 # Show version
 dakora version
