@@ -2,6 +2,7 @@
 
 import pytest
 from uuid import UUID
+from unittest.mock import patch
 
 from dakora_server.core.database import optimization_runs_table
 from sqlalchemy import select
@@ -31,14 +32,24 @@ class TestOptimizationAPI:
         )
         assert create_response.status_code == 201
 
-        # Set quota to exceeded to test quota enforcement
+        # Create quota record with exceeded limit (free tier = 10)
         from dakora_server.core.database import workspace_quotas_table
-        from sqlalchemy import update
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        from datetime import datetime, timedelta, timezone
 
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         db_connection.execute(
-            update(workspace_quotas_table)
-            .where(workspace_quotas_table.c.workspace_id == workspace_id)
-            .values(optimization_runs_used_month=10)
+            pg_insert(workspace_quotas_table).values(
+                workspace_id=workspace_id,
+                tier="free",
+                tokens_used_month=0,
+                optimization_runs_used_month=10,  # Set to limit
+                current_period_start=now,
+                current_period_end=now + timedelta(days=30),
+            ).on_conflict_do_update(
+                index_elements=["workspace_id"],
+                set_={"optimization_runs_used_month": 10}
+            )
         )
         db_connection.commit()
 
