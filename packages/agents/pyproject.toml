@@ -1,0 +1,67 @@
+[project]
+name = "dakora-agents"
+version = "1.0.0"
+description = "Observability integrations for agent frameworks with Dakora"
+readme = "README.md"
+authors = [
+    { name = "Dakora Labs", email = "support@dakora.io" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "dakora-client>=1.0.0",
+    "httpx>=0.25.0",
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+maf = [
+    "agent-framework-core>=1.0.0b251016",
+]
+all = [
+    "agent-framework-core>=1.0.0b251016",
+]
+
+[project.urls]
+Homepage = "https://github.com/dakora-labs/dakora"
+Repository = "https://github.com/dakora-labs/dakora.git"
+Issues = "https://github.com/dakora-labs/dakora/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Only include the actual package code in wheels (for end users)
+packages = ["dakora_agents"]
+
+# Source distributions automatically include:
+# - All Python files (dakora_agents/, tests/, examples/)
+# - README.md, LICENSE, pyproject.toml
+# This is the correct behavior for developer installations
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.pyright]
+include = ["dakora_agents"]
+exclude = ["tests"]
+reportMissingTypeStubs = false
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
