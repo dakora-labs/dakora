@@ -139,6 +139,7 @@ class TestProviderRegistry:
                 azure_openai_endpoint="https://test.openai.azure.com/",
                 azure_openai_api_key="test-key",
                 azure_openai_deployment_name="gpt-4o",
+                google_gemini_api_key="",
             )
 
             registry = ProviderRegistry()
@@ -153,6 +154,7 @@ class TestProviderRegistry:
                 azure_openai_endpoint="https://test.openai.azure.com/",
                 azure_openai_api_key="test-key",
                 azure_openai_deployment_name="gpt-4o",
+                google_gemini_api_key="",
             )
 
             registry = ProviderRegistry()
@@ -163,15 +165,103 @@ class TestProviderRegistry:
             assert provider1 is provider2
 
     def test_get_provider_missing_config(self):
-        """Test error when Azure OpenAI is not configured."""
+        """Test error when no providers are configured."""
         with patch("dakora_server.core.llm.registry.get_settings") as mock_settings:
             mock_settings.return_value = MagicMock(
                 azure_openai_endpoint="",
                 azure_openai_api_key="",
                 azure_openai_deployment_name="gpt-4o",
+                google_gemini_api_key="",
             )
 
             registry = ProviderRegistry()
 
-            with pytest.raises(ValueError, match="endpoint not configured"):
+            with pytest.raises(ValueError, match="No LLM providers configured"):
                 registry.get_provider("workspace-123")
+
+    def test_get_all_providers_azure_only(self):
+        """Test get_all_providers with only Azure configured."""
+        with patch("dakora_server.core.llm.registry.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                azure_openai_endpoint="https://test.openai.azure.com/",
+                azure_openai_api_key="test-key",
+                azure_openai_deployment_name="gpt-4o",
+                google_gemini_api_key="",
+            )
+
+            registry = ProviderRegistry()
+            providers = registry.get_all_providers("workspace-123")
+
+            assert len(providers) == 1
+            assert "azure_openai" in providers
+            assert isinstance(providers["azure_openai"], AzureOpenAIProvider)
+
+    def test_get_all_providers_multiple(self):
+        """Test get_all_providers with multiple providers configured."""
+        with patch("dakora_server.core.llm.registry.get_settings") as mock_settings, \
+             patch("dakora_server.core.llm.google_gemini.genai.configure"):
+            mock_settings.return_value = MagicMock(
+                azure_openai_endpoint="https://test.openai.azure.com/",
+                azure_openai_api_key="test-key",
+                azure_openai_deployment_name="gpt-4o",
+                google_gemini_api_key="gemini-key",
+            )
+
+            registry = ProviderRegistry()
+            providers = registry.get_all_providers("workspace-123")
+
+            assert len(providers) == 2
+            assert "azure_openai" in providers
+            assert "google_gemini" in providers
+
+    def test_get_provider_by_name_success(self):
+        """Test getting provider by name."""
+        with patch("dakora_server.core.llm.registry.get_settings") as mock_settings, \
+             patch("dakora_server.core.llm.google_gemini.genai.configure"):
+            mock_settings.return_value = MagicMock(
+                azure_openai_endpoint="https://test.openai.azure.com/",
+                azure_openai_api_key="test-key",
+                azure_openai_deployment_name="gpt-4o",
+                google_gemini_api_key="gemini-key",
+            )
+
+            registry = ProviderRegistry()
+            provider = registry.get_provider_by_name("workspace-123", "azure_openai")
+
+            assert isinstance(provider, AzureOpenAIProvider)
+
+    def test_get_provider_by_name_not_configured(self):
+        """Test error when requesting unconfigured provider."""
+        with patch("dakora_server.core.llm.registry.get_settings") as mock_settings:
+            mock_settings.return_value = MagicMock(
+                azure_openai_endpoint="https://test.openai.azure.com/",
+                azure_openai_api_key="test-key",
+                azure_openai_deployment_name="gpt-4o",
+                google_gemini_api_key="",
+            )
+
+            registry = ProviderRegistry()
+
+            with pytest.raises(ValueError, match="Provider 'google_gemini' is not configured"):
+                registry.get_provider_by_name("workspace-123", "google_gemini")
+
+    def test_get_all_models(self):
+        """Test getting all models from all providers."""
+        with patch("dakora_server.core.llm.registry.get_settings") as mock_settings, \
+             patch("dakora_server.core.llm.google_gemini.genai.configure"):
+            mock_settings.return_value = MagicMock(
+                azure_openai_endpoint="https://test.openai.azure.com/",
+                azure_openai_api_key="test-key",
+                azure_openai_deployment_name="gpt-4o",
+                google_gemini_api_key="gemini-key",
+            )
+
+            registry = ProviderRegistry()
+            models = registry.get_all_models("workspace-123")
+
+            # Should have models from both Azure and Gemini
+            assert len(models) > 2
+
+            providers = {m.provider for m in models}
+            assert "azure_openai" in providers
+            assert "google_gemini" in providers

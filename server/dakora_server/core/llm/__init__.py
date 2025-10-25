@@ -2,6 +2,7 @@
 
 from .provider import ExecutionResult, LLMProvider, ModelInfo
 from .azure_openai import AzureOpenAIProvider
+from .google_gemini import GoogleGeminiProvider
 from .registry import ProviderRegistry
 from .quota import QUOTA_TIERS, QuotaService, QuotaUsage
 
@@ -10,6 +11,7 @@ __all__ = [
     "LLMProvider",
     "ModelInfo",
     "AzureOpenAIProvider",
+    "GoogleGeminiProvider",
     "ProviderRegistry",
     "QUOTA_TIERS",
     "QuotaService",

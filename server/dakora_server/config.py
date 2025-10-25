@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     azure_openai_api_key: str = ""
     azure_openai_deployment_name: str = "gpt-4o"  # Default model deployment
 
+    # Google Gemini settings (shared instance for all workspaces)
+    google_gemini_api_key: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

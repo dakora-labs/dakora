@@ -74,7 +74,7 @@ class ModelInfo(BaseModel):
 
 class ModelsResponse(BaseModel):
     models: List[ModelInfo]
-    default_model: str
+    default_model: Optional[str] = None
 
 
 class ExecutionRecord(BaseModel):
