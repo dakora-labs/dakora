@@ -42,6 +42,8 @@ Dakora is a **multi-tenant SaaS platform** for managing prompt templates with ty
 
 - `project_prompts.py` - Project-scoped prompt CRUD (`/api/projects/{project_id}/prompts/`)
 - `project_parts.py` - Reusable prompt parts/snippets (`/api/projects/{project_id}/parts/`)
+- `project_executions.py` - Execute prompts against LLMs, track history and metrics
+- `project_optimizations.py` - Prompt optimization and history (`/api/projects/{project_id}/prompts/{prompt_id}/optimize`)
 - `api_keys.py` - API key management (`/api/projects/{project_id}/api-keys/`)
 - `me.py` - User context and default project (`/api/me`)
 - `webhooks.py` - Clerk webhook handlers for user provisioning
@@ -84,6 +86,22 @@ Dakora is a **multi-tenant SaaS platform** for managing prompt templates with ty
 - `generator.py` - Secure key generation (dk_proj_{project_id}_{random_32_chars})
 - `validator.py` - Cached validation with 1-minute TTL, checks expiration and revocation
 - `models.py` - Pydantic models for API key requests/responses
+
+**Prompt Optimizer (`core/optimizer/`):**
+
+- `engine.py` - OptimizationEngine orchestrator for complete optimization workflow
+- `generator.py` - VariantGenerator creates multiple prompt variants (clarity, specificity, efficiency)
+- `evaluator.py` - VariantEvaluator scores variants using LLM critic
+- `explainer.py` - ImprovementExplainer generates human-readable insights
+- `quota.py` - OptimizationQuotaService manages tier-based optimization limits
+- `types.py` - Pydantic models (OptimizationRequest, OptimizationResult, Variant, Insight)
+
+**LLM Provider System (`core/llm/`):**
+
+- `provider.py` - LLMProvider abstract base class
+- `registry.py` - ProviderRegistry for workspace-scoped provider configuration
+- `azure_openai.py` - Azure OpenAI implementation with chat completion support
+- `google_gemini.py` - Google Gemini implementation
 
 **Database & Logging:**
 
@@ -178,11 +196,16 @@ studio/src/
 │   ├── PromptEditor.tsx     # Template editing component
 │   ├── StatusBar.tsx        # Footer status bar
 │   ├── NewPromptDialog.tsx  # New template dialog
+│   ├── optimization/        # Optimization components
+│   │   ├── OptimizationProgress.tsx  # Progress indicator
+│   │   ├── OptimizationResults.tsx   # Results comparison view
+│   │   └── OptimizationHistory.tsx   # History list
 │   └── ui/                  # shadcn/ui components
 ├── pages/
-│   ├── DashboardPage.tsx    # Template browser with search
-│   ├── PromptEditPage.tsx   # Template editor
-│   └── NewPromptPage.tsx    # New template creation
+│   ├── DashboardPage.tsx        # Template browser with search
+│   ├── PromptEditPage.tsx       # Template editor
+│   ├── OptimizePromptPage.tsx   # Prompt optimization interface
+│   └── NewPromptPage.tsx        # New template creation
 ├── views/
 │   ├── PromptsView.tsx      # Prompts tab view
 │   └── ExecuteView.tsx      # Execution/comparison view
@@ -339,9 +362,12 @@ Core tables support multi-tenant architecture:
 - `users` - User accounts (clerk_user_id, email, name)
 - `workspaces` - Workspaces/organizations (slug, name, type: personal/team, owner_id)
 - `workspace_members` - Workspace membership (workspace_id, user_id, role)
+- `workspace_quotas` - Workspace usage quotas (workspace_id, tier, tokens_used_month, tokens_limit_month, optimization_runs_used_month, current_period_start, current_period_end)
 - `projects` - Projects within workspaces (workspace_id, slug, name, description)
 - `prompts` - Prompt metadata index (project_id, prompt_id, version, storage_path, metadata)
 - `prompt_parts` - Reusable prompt snippets (project_id, part_id, category, name, content)
+- `prompt_executions` - Execution history with metrics (project_id, prompt_id, version, inputs_json, model, provider, output_text, error_message, status, tokens_input/output/total, cost_usd, latency_ms, user_id, workspace_id, created_at)
+- `optimization_runs` - Prompt optimization history (project_id, prompt_id, version, original_template, optimized_template, insights, token_reduction_pct, applied, user_id, workspace_id, created_at)
 - `api_keys` - Project-scoped API keys (user_id, project_id, key_hash, key_prefix, key_suffix, expires_at, revoked_at)
 - `logs` - Execution logging (prompt_id, version, inputs_json, output_text, provider, model, tokens, cost, latency)
 
@@ -445,6 +471,105 @@ from dakora_server.core.watcher import Watcher
 watcher = Watcher(prompt_dir, callback=lambda: vault.invalidate_cache())
 watcher.start()
 ```
+
+### Prompt Execution
+
+Execute prompts directly against LLM providers with automatic quota management, token tracking, and execution history.
+
+**Key Features:**
+
+- Multi-provider support (Azure OpenAI, Google Gemini)
+- Workspace-scoped LLM configurations
+- Automatic quota enforcement and token consumption tracking
+- Detailed metrics (tokens in/out/total, cost USD, latency ms)
+- Complete execution history per prompt
+
+**API Endpoints:**
+
+- `POST /api/projects/{project_id}/prompts/{prompt_id}/execute` - Execute prompt
+- `GET /api/projects/{project_id}/prompts/{prompt_id}/executions` - Get execution history
+- `GET /api/workspaces/{workspace_id}/models` - List available models
+
+**Execution Flow:** Check quota → Render template → Execute LLM → Store result → Consume quota → Return response
+
+### Prompt Optimization
+
+Dakora includes an AI-powered prompt optimizer that uses LLMs to improve prompt templates for clarity, specificity, and efficiency.
+
+**How it Works:**
+
+1. **Variant Generation** - Creates 3 optimized variants using different optimization strategies
+2. **LLM Evaluation** - Scores each variant using an LLM-based critic
+3. **Best Selection** - Selects highest-scoring variant
+4. **Insight Generation** - Provides human-readable explanations of improvements
+5. **Token Reduction** - Calculates estimated token savings
+
+**Optimization Process:**
+
+```python
+from dakora_server.core.optimizer import OptimizationEngine
+from dakora_server.core.llm import AzureOpenAIProvider
+
+# Create LLM provider
+provider = AzureOpenAIProvider(
+    endpoint="https://YOUR_INSTANCE.openai.azure.com",
+    api_key="YOUR_API_KEY",
+    deployment_name="gpt-4o-mini",
+)
+
+# Create engine
+engine = OptimizationEngine(provider, model="gpt-4o-mini")
+
+# Optimize a prompt
+from dakora_server.core.optimizer.types import OptimizationRequest
+
+request = OptimizationRequest(
+    template="Hello {{ name }}!",
+    test_cases=[{"inputs": {"name": "World"}}],
+)
+result = await engine.optimize(request)
+
+# Access results
+print(result.best_variant.template)
+print(result.insights)
+print(result.token_reduction_pct)
+```
+
+**API Endpoints:**
+
+- `POST /api/projects/{project_id}/prompts/{prompt_id}/optimize` - Run optimization
+- `GET /api/projects/{project_id}/prompts/{prompt_id}/optimization-runs` - Get optimization history
+- `GET /api/workspaces/{workspace_id}/quota` - Check workspace optimization quota
+
+**Quota System:**
+
+Optimizations are tier-based to prevent abuse:
+
+- **Free tier**: 10 optimizations/month
+- **Starter tier**: 50 optimizations/month
+- **Pro tier**: Unlimited optimizations
+
+Quotas are configured via `OPTIMIZATION_QUOTA_TIERS` environment variable:
+
+```bash
+OPTIMIZATION_QUOTA_TIERS="free=10,starter=50,pro=unlimited"
+```
+
+**Studio UI:**
+
+The optimization interface (`OptimizePromptPage.tsx`) provides:
+
+- One-click optimization with progress indicators
+- Side-by-side comparison of original vs. optimized templates
+- Categorized insights (clarity, specificity, efficiency, etc.)
+- Optimization history with 10 most recent runs
+- Apply optimized template directly to prompt
+
+**Database Storage:**
+
+- `optimization_runs` table stores optimization history (last 10 per prompt)
+- `workspace_quotas` table tracks monthly optimization usage
+- Automatic cleanup keeps only 10 most recent runs per prompt
 
 ## Testing Strategy
 
@@ -887,6 +1012,18 @@ dakora/                         # Monorepo root
 │   │       │   ├── generator.py     # Key generation
 │   │       │   ├── validator.py     # Cached validation
 │   │       │   └── models.py        # Pydantic models
+│   │       ├── optimizer/           # Prompt optimization
+│   │       │   ├── engine.py        # OptimizationEngine
+│   │       │   ├── generator.py     # Variant generation
+│   │       │   ├── evaluator.py     # Variant scoring
+│   │       │   ├── explainer.py     # Insight generation
+│   │       │   ├── quota.py         # Quota management
+│   │       │   └── types.py         # Data models
+│   │       ├── llm/                 # LLM provider system
+│   │       │   ├── provider.py      # Abstract provider
+│   │       │   ├── registry.py      # Provider registry
+│   │       │   ├── azure_openai.py  # Azure OpenAI
+│   │       │   └── google_gemini.py # Google Gemini
 │   │       └── registry/            # Template registry
 │   │           ├── base.py          # Protocol
 │   │           ├── core.py          # TemplateRegistry

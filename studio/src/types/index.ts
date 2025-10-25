@@ -160,3 +160,48 @@ export interface ExecutionHistoryResponse {
   executions: ExecutionHistoryItem[];
   total: number;
 }
+
+export interface OptimizationInsight {
+  category: string;
+  description: string;
+  impact: string;
+}
+
+export interface OptimizePromptRequest {
+  test_cases?: Record<string, unknown>[] | null;
+}
+
+export interface OptimizePromptResponse {
+  optimization_id: string;
+  original_template: string;
+  optimized_template: string;
+  insights: OptimizationInsight[];
+  token_reduction_pct: number;
+  created_at: string;
+}
+
+export interface OptimizationRunRecord {
+  optimization_id: string;
+  prompt_id: string;
+  version: string;
+  original_template: string;
+  optimized_template: string;
+  insights: OptimizationInsight[];
+  token_reduction_pct: number;
+  applied: boolean;
+  created_at: string;
+}
+
+export interface OptimizationRunsResponse {
+  optimization_runs: OptimizationRunRecord[];
+  total: number;
+}
+
+export interface QuotaInfo {
+  optimizations_used: number;
+  optimizations_limit: number;
+  optimizations_remaining: number;
+  usage_percentage: number;
+  period_start: string;
+  period_end: string;
+}

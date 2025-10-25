@@ -12,19 +12,20 @@ class AzureOpenAIProvider:
     """Provider for Azure OpenAI."""
 
     # Model pricing (per 1K tokens)
+    # Order matters: first model is used as default for optimization
     PRICING = {
-        "gpt-5-mini": {"input": 0.000125, "output": 0.001},
+        "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},  # Fast, cheap, good for optimization
         "gpt-4o": {"input": 0.0025, "output": 0.01},
-        "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+        "gpt-5-mini": {"input": 0.000125, "output": 0.001},  # Reasoning model (slower)
         "gpt-4-turbo": {"input": 0.01, "output": 0.03},
         "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
     }
 
     # Model max tokens
     MAX_TOKENS = {
-        "gpt-5-mini": 128000,
-        "gpt-4o": 128000,
         "gpt-4o-mini": 128000,
+        "gpt-4o": 128000,
+        "gpt-5-mini": 128000,
         "gpt-4-turbo": 128000,
         "gpt-3.5-turbo": 16385,
     }
@@ -70,6 +71,19 @@ class AzureOpenAIProvider:
         """
         deployment = model or self.deployment_name
         start_time = time.time()
+
+        # Convert max_tokens to max_completion_tokens for newer API versions
+        if "max_tokens" in kwargs:
+            kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+
+        # Filter out parameters not supported by reasoning models (o1, o3, etc.)
+        # These models only support default temperature (1.0) and have other restrictions
+        if self._is_reasoning_model(deployment):
+            # Remove unsupported parameters for reasoning models
+            kwargs.pop("temperature", None)
+            kwargs.pop("top_p", None)
+            kwargs.pop("presence_penalty", None)
+            kwargs.pop("frequency_penalty", None)
 
         try:
             # Call Azure OpenAI API
@@ -135,6 +149,26 @@ class AzureOpenAIProvider:
                 )
             )
         return models
+
+    def list_models(self) -> list[ModelInfo]:
+        """Alias for get_available_models() for compatibility.
+
+        Returns:
+            List of ModelInfo objects
+        """
+        return self.get_available_models()
+
+    def _is_reasoning_model(self, model: str) -> bool:
+        """Check if model is a reasoning model (o1, o3, gpt-5, etc.) with restricted parameters.
+
+        Args:
+            model: Model ID to check
+
+        Returns:
+            True if model is a reasoning model, False otherwise
+        """
+        reasoning_prefixes = ("o1", "o3", "o4", "gpt-5")
+        return any(model.startswith(prefix) for prefix in reasoning_prefixes)
 
     def _format_model_name(self, model_id: str) -> str:
         """Format model ID into display name."""
