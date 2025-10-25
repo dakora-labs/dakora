@@ -104,3 +104,59 @@ export interface ApiKeyListResponse {
   count: number;
   limit: number;
 }
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+  input_cost_per_1k: number;
+  output_cost_per_1k: number;
+  max_tokens: number;
+}
+
+export interface ModelsResponse {
+  models: ModelInfo[];
+  default_model: string;
+}
+
+export interface ExecutionMetrics {
+  tokens_input: number;
+  tokens_output: number;
+  tokens_total: number;
+  cost_usd: number;
+  latency_ms: number;
+}
+
+export interface ExecutionRequest {
+  inputs: Record<string, unknown>;
+  model?: string;
+  provider?: string;
+}
+
+export interface ExecutionResponse {
+  execution_id: string;
+  content: string;
+  metrics: ExecutionMetrics;
+  model: string;
+  provider: string;
+  created_at: string;
+}
+
+export interface ExecutionHistoryItem {
+  execution_id: string;
+  prompt_id: string;
+  version: string;
+  inputs: Record<string, unknown>;
+  model: string;
+  provider: string;
+  output_text: string | null;
+  error_message: string | null;
+  status: 'success' | 'error' | 'quota_exceeded';
+  metrics: ExecutionMetrics | null;
+  created_at: string;
+}
+
+export interface ExecutionHistoryResponse {
+  executions: ExecutionHistoryItem[];
+  total: number;
+}

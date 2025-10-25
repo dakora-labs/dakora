@@ -27,7 +27,11 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
-        test-type: ["unit"]
+        test-type: ["unit", "integration"]
+        exclude:
+          # Only run integration tests on Python 3.11 to save time
+          - python-version: "3.12"
+            test-type: "integration"
 
     steps:
     - uses: actions/checkout@v4

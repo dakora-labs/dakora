@@ -1,0 +1,276 @@
+"""API endpoints for prompt execution and history"""
+
+from typing import Dict, Any
+from uuid import UUID
+import json
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select, insert, delete, desc, func
+from sqlalchemy.engine import Engine
+
+from dakora_server.auth import get_auth_context, validate_project_access, get_project_vault
+from dakora_server.core.database import get_engine, get_connection, prompt_executions_table
+from dakora_server.core.llm.registry import ProviderRegistry
+from dakora_server.core.llm.quota import QuotaService
+from dakora_server.core.renderer import Renderer
+from dakora_server.core.vault import Vault
+from dakora_server.api.schemas import (
+    ExecuteRequest,
+    ExecuteResponse,
+    ExecutionMetrics,
+    ModelsResponse,
+    ModelInfo,
+    ExecutionsResponse,
+    ExecutionRecord,
+)
+
+router = APIRouter()
+
+
+@router.post("/api/projects/{project_id}/prompts/{prompt_id}/execute")
+async def execute_prompt(
+    prompt_id: str,
+    request: ExecuteRequest,
+    project_id: UUID = Depends(validate_project_access),
+    auth_context = Depends(get_auth_context),
+    vault: Vault = Depends(get_project_vault),
+    engine: Engine = Depends(get_engine),
+) -> ExecuteResponse:
+    """
+    Execute a prompt against an LLM provider.
+
+    Checks quota, renders prompt, executes, stores result, and consumes quota.
+    """
+    # Get workspace_id from project
+    from dakora_server.core.database import projects_table
+
+    with get_connection(engine) as conn:
+        project_result = conn.execute(
+            select(projects_table).where(projects_table.c.id == project_id)
+        )
+        project_row = project_result.fetchone()
+        if not project_row:
+            raise HTTPException(status_code=404, detail="Project not found")
+        workspace_id = str(project_row.workspace_id)
+
+    # Check quota
+    quota_service = QuotaService(engine)
+    if not await quota_service.check_quota(workspace_id):
+        raise HTTPException(status_code=429, detail="Quota exceeded for this month")
+
+    # Load template from vault
+    try:
+        template_spec = vault.get(prompt_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Prompt not found: {str(e)}")
+
+    # Render template with inputs
+    try:
+        renderer = Renderer(engine=engine, project_id=project_id)
+        rendered_prompt = renderer.render(template_spec.template, request.inputs)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to render prompt: {str(e)}")
+
+    # Get provider and execute
+    provider_registry = ProviderRegistry()
+    provider = provider_registry.get_provider(workspace_id)
+
+    model = request.model or "gpt-4o"  # Default model
+
+    execution_status = "success"
+    output_text = None
+    error_message = None
+    execution_result = None
+
+    try:
+        execution_result = await provider.execute(
+            prompt=rendered_prompt,
+            model=model,
+        )
+        output_text = execution_result.content
+    except Exception as e:
+        execution_status = "error"
+        error_message = str(e)
+
+    # Store execution record
+    execution_id = None
+    with get_connection(engine) as conn:
+        result = conn.execute(
+            insert(prompt_executions_table).values(
+                project_id=project_id,
+                prompt_id=prompt_id,
+                version=template_spec.version,
+                inputs_json=request.inputs,
+                model=model,
+                provider=execution_result.provider if execution_result else "azure_openai",
+                output_text=output_text,
+                error_message=error_message,
+                status=execution_status,
+                tokens_input=execution_result.tokens_input if execution_result else None,
+                tokens_output=execution_result.tokens_output if execution_result else None,
+                tokens_total=execution_result.tokens_total if execution_result else None,
+                cost_usd=execution_result.cost_usd if execution_result else None,
+                latency_ms=execution_result.latency_ms if execution_result else None,
+                user_id=auth_context.user_id,
+                workspace_id=UUID(workspace_id),
+            ).returning(prompt_executions_table.c.id, prompt_executions_table.c.created_at)
+        )
+        row = result.fetchone()
+        execution_id = str(row[0])
+        created_at = row[1].isoformat()
+
+        # Cleanup: keep only 20 most recent executions per prompt
+        # Count total executions for this prompt
+        count_result = conn.execute(
+            select(func.count()).select_from(prompt_executions_table).where(
+                prompt_executions_table.c.project_id == project_id,
+                prompt_executions_table.c.prompt_id == prompt_id,
+            )
+        )
+        total_count = count_result.scalar()
+
+        if total_count > 20:
+            # Delete oldest executions beyond the 20 limit
+            executions_to_delete = total_count - 20
+
+            # Get IDs of oldest executions to delete
+            oldest_executions = conn.execute(
+                select(prompt_executions_table.c.id)
+                .where(
+                    prompt_executions_table.c.project_id == project_id,
+                    prompt_executions_table.c.prompt_id == prompt_id,
+                )
+                .order_by(prompt_executions_table.c.created_at.asc())
+                .limit(executions_to_delete)
+            )
+            ids_to_delete = [row[0] for row in oldest_executions.fetchall()]
+
+            if ids_to_delete:
+                conn.execute(
+                    delete(prompt_executions_table).where(
+                        prompt_executions_table.c.id.in_(ids_to_delete)
+                    )
+                )
+
+    # Consume quota if execution was successful
+    if execution_status == "success" and execution_result:
+        await quota_service.consume_quota(workspace_id, execution_result.tokens_total)
+
+    # Return error if execution failed
+    if execution_status == "error":
+        raise HTTPException(status_code=500, detail=error_message)
+
+    # Return success response
+    return ExecuteResponse(
+        execution_id=execution_id,
+        content=execution_result.content,
+        metrics=ExecutionMetrics(
+            tokens_input=execution_result.tokens_input,
+            tokens_output=execution_result.tokens_output,
+            tokens_total=execution_result.tokens_total,
+            cost_usd=execution_result.cost_usd,
+            latency_ms=execution_result.latency_ms,
+        ),
+        model=execution_result.model,
+        provider=execution_result.provider,
+        created_at=created_at,
+    )
+
+
+@router.get("/api/projects/{project_id}/models")
+async def get_available_models(
+    project_id: UUID = Depends(validate_project_access),
+    engine: Engine = Depends(get_engine),
+) -> ModelsResponse:
+    """
+    Get available models for the workspace.
+    """
+    # Get workspace_id from project
+    from dakora_server.core.database import projects_table
+
+    with get_connection(engine) as conn:
+        project_result = conn.execute(
+            select(projects_table).where(projects_table.c.id == project_id)
+        )
+        project_row = project_result.fetchone()
+        if not project_row:
+            raise HTTPException(status_code=404, detail="Project not found")
+        workspace_id = str(project_row.workspace_id)
+
+    # Get provider and available models
+    provider_registry = ProviderRegistry()
+    provider = provider_registry.get_provider(workspace_id)
+
+    models = provider.get_available_models()
+
+    return ModelsResponse(
+        models=[
+            ModelInfo(
+                id=model.id,
+                name=model.name,
+                provider=model.provider,
+                input_cost_per_1k=model.input_cost_per_1k,
+                output_cost_per_1k=model.output_cost_per_1k,
+                max_tokens=model.max_tokens,
+            )
+            for model in models
+        ],
+        default_model="gpt-4o",
+    )
+
+
+@router.get("/api/projects/{project_id}/prompts/{prompt_id}/executions")
+async def get_execution_history(
+    prompt_id: str,
+    project_id: UUID = Depends(validate_project_access),
+    engine: Engine = Depends(get_engine),
+) -> ExecutionsResponse:
+    """
+    Get execution history for a prompt.
+    """
+    # Query executions
+    with get_connection(engine) as conn:
+        result = conn.execute(
+            select(prompt_executions_table)
+            .where(
+                prompt_executions_table.c.project_id == project_id,
+                prompt_executions_table.c.prompt_id == prompt_id,
+            )
+            .order_by(desc(prompt_executions_table.c.created_at))
+            .limit(20)
+        )
+        rows = result.fetchall()
+
+    executions = []
+    for row in rows:
+        metrics = None
+        if row.tokens_total is not None:
+            metrics = ExecutionMetrics(
+                tokens_input=row.tokens_input or 0,
+                tokens_output=row.tokens_output or 0,
+                tokens_total=row.tokens_total or 0,
+                cost_usd=float(row.cost_usd) if row.cost_usd else 0.0,
+                latency_ms=row.latency_ms or 0,
+            )
+
+        executions.append(
+            ExecutionRecord(
+                execution_id=str(row.id),
+                prompt_id=row.prompt_id,
+                version=row.version,
+                inputs=row.inputs_json,
+                model=row.model,
+                provider=row.provider,
+                output_text=row.output_text,
+                error_message=row.error_message,
+                status=row.status,
+                metrics=metrics,
+                created_at=row.created_at.isoformat(),
+            )
+        )
+
+    return ExecutionsResponse(
+        executions=executions,
+        total=len(executions),
+    )

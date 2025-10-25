@@ -1,39 +1,23 @@
 """Integration tests for API key endpoints."""
 
 import pytest
-import os
-from starlette.testclient import TestClient
-from dakora_server.main import create_app
-from dakora_server.core.api_keys.service import APIKeyService
-from dakora_server.core.database import create_db_engine
+from dakora_server.core.database import api_keys_table
+from dakora_server.core.api_keys.generator import APIKeyGenerator
+from sqlalchemy import insert, delete
+from datetime import datetime, timedelta
 from uuid import UUID
-
-
-@pytest.fixture
-def client(test_user_id, test_project_id):
-    """Create test client with auth dependencies overridden."""
-    from dakora_server.auth import get_current_user_id, validate_project_access
-
-    # Override auth dependencies to return test IDs
-    app = create_app()
-    app.dependency_overrides[get_current_user_id] = lambda: test_user_id
-    app.dependency_overrides[validate_project_access] = lambda: UUID(test_project_id)
-
-    client = TestClient(app)
-    yield client
-
-    # Clean up
-    app.dependency_overrides.clear()
 
 
 @pytest.mark.integration
 class TestAPIKeyEndpoints:
     """Integration tests for API key management endpoints."""
 
-    def test_create_api_key(self, client, test_project_id, clean_api_keys):
+    def test_create_api_key(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test creating an API key via API."""
-        response = client.post(
-            f"/api/projects/{test_project_id}/api-keys",
+        project_id, _, _ = test_project
+
+        response = test_client.post(
+            f"/api/projects/{project_id}/api-keys",
             json={
                 "name": "Production Key",
                 "expires_in_days": 365,
@@ -52,10 +36,12 @@ class TestAPIKeyEndpoints:
         assert "created_at" in data
         assert "expires_at" in data
 
-    def test_create_api_key_no_expiration(self, client, test_project_id, clean_api_keys):
+    def test_create_api_key_no_expiration(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test creating key without expiration."""
-        response = client.post(
-            f"/api/projects/{test_project_id}/api-keys",
+        project_id, _, _ = test_project
+
+        response = test_client.post(
+            f"/api/projects/{project_id}/api-keys",
             json={
                 "name": "Never Expires",
                 "expires_in_days": None,
@@ -66,10 +52,12 @@ class TestAPIKeyEndpoints:
         data = response.json()
         assert data["expires_at"] is None
 
-    def test_create_api_key_invalid_expiration(self, client, test_project_id):
+    def test_create_api_key_invalid_expiration(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test creating key with invalid expiration."""
-        response = client.post(
-            f"/api/projects/{test_project_id}/api-keys",
+        project_id, _, _ = test_project
+
+        response = test_client.post(
+            f"/api/projects/{project_id}/api-keys",
             json={
                 "name": "Invalid",
                 "expires_in_days": 999,
@@ -79,44 +67,72 @@ class TestAPIKeyEndpoints:
         assert response.status_code == 400
         assert "expires_in_days" in response.json()["detail"].lower()
 
-    def test_create_api_key_limit_exceeded(self, client, test_project_id, test_user_id, clean_api_keys):
+    def test_create_api_key_limit_exceeded(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test that key limit is enforced."""
-        # Create 4 keys directly via service
-        service = APIKeyService(create_db_engine())
+        project_id, _, owner_id = test_project
+
+        # Create 4 keys directly using db_connection
         for i in range(4):
-            service.create_key(
-                user_id=test_user_id,
-                project_id=UUID(test_project_id),
-                name=f"Key {i}",
+            full_key, key_hash = APIKeyGenerator.generate()
+            key_prefix = APIKeyGenerator.get_prefix(full_key)
+            key_suffix = APIKeyGenerator.get_suffix(full_key)
+
+            db_connection.execute(
+                insert(api_keys_table).values(
+                    user_id=owner_id,
+                    project_id=project_id,
+                    name=f"Key {i}",
+                    key_prefix=key_prefix,
+                    key_suffix=key_suffix,
+                    key_hash=key_hash,
+                )
             )
+        db_connection.commit()
 
         # Try to create via API
-        response = client.post(
-            f"/api/projects/{test_project_id}/api-keys",
+        response = test_client.post(
+            f"/api/projects/{project_id}/api-keys",
             json={"name": "Too Many"},
         )
 
         assert response.status_code == 400
         assert "maximum" in response.json()["detail"].lower()
 
-    def test_list_api_keys(self, client, test_project_id, test_user_id, clean_api_keys):
+    def test_list_api_keys(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test listing API keys."""
-        # Create some keys
-        service = APIKeyService(create_db_engine())
-        service.create_key(
-            user_id=test_user_id,
-            project_id=UUID(test_project_id),
-            name="Key 1",
-        )
-        service.create_key(
-            user_id=test_user_id,
-            project_id=UUID(test_project_id),
-            name="Key 2",
-            expires_in_days=30,
+        project_id, _, owner_id = test_project
+
+        # Create key 1
+        full_key1, key_hash1 = APIKeyGenerator.generate()
+        db_connection.execute(
+            insert(api_keys_table).values(
+                user_id=owner_id,
+                project_id=project_id,
+                name="Key 1",
+                key_prefix=APIKeyGenerator.get_prefix(full_key1),
+                key_suffix=APIKeyGenerator.get_suffix(full_key1),
+                key_hash=key_hash1,
+            )
         )
 
+        # Create key 2 with expiration
+        full_key2, key_hash2 = APIKeyGenerator.generate()
+        expires_at = datetime.utcnow() + timedelta(days=30)
+        db_connection.execute(
+            insert(api_keys_table).values(
+                user_id=owner_id,
+                project_id=project_id,
+                name="Key 2",
+                key_prefix=APIKeyGenerator.get_prefix(full_key2),
+                key_suffix=APIKeyGenerator.get_suffix(full_key2),
+                key_hash=key_hash2,
+                expires_at=expires_at,
+            )
+        )
+        db_connection.commit()
+
         # List keys
-        response = client.get(f"/api/projects/{test_project_id}/api-keys")
+        response = test_client.get(f"/api/projects/{project_id}/api-keys")
 
         assert response.status_code == 200
         data = response.json()
@@ -132,77 +148,99 @@ class TestAPIKeyEndpoints:
             assert len(key["key_preview"]) == 15  # 8 char prefix + ... + 4 char suffix
             assert "key" not in key  # Full key should not be included
 
-    def test_get_api_key(self, client, test_project_id, test_user_id, clean_api_keys):
+    def test_get_api_key(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test getting a specific API key."""
+        project_id, _, owner_id = test_project
+
         # Create a key
-        service = APIKeyService(create_db_engine())
-        created = service.create_key(
-            user_id=test_user_id,
-            project_id=UUID(test_project_id),
-            name="Test Key",
+        full_key, key_hash = APIKeyGenerator.generate()
+        result = db_connection.execute(
+            insert(api_keys_table).values(
+                user_id=owner_id,
+                project_id=project_id,
+                name="Test Key",
+                key_prefix=APIKeyGenerator.get_prefix(full_key),
+                key_suffix=APIKeyGenerator.get_suffix(full_key),
+                key_hash=key_hash,
+            ).returning(api_keys_table.c.id)
         )
+        key_id = result.scalar()
+        db_connection.commit()
 
         # Get the key
-        response = client.get(
-            f"/api/projects/{test_project_id}/api-keys/{created.id}"
+        response = test_client.get(
+            f"/api/projects/{project_id}/api-keys/{key_id}"
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert data["id"] == str(created.id)
+        assert data["id"] == str(key_id)
         assert data["name"] == "Test Key"
         assert data["key_preview"].startswith("dkr_")
         assert "..." in data["key_preview"]
         assert len(data["key_preview"]) == 15  # 8 char prefix + ... + 4 char suffix
         assert "key" not in data
 
-    def test_get_api_key_not_found(self, client, test_project_id):
+    def test_get_api_key_not_found(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test getting non-existent key."""
         from uuid import uuid4
+        project_id, _, _ = test_project
 
-        response = client.get(
-            f"/api/projects/{test_project_id}/api-keys/{uuid4()}"
+        response = test_client.get(
+            f"/api/projects/{project_id}/api-keys/{uuid4()}"
         )
 
         assert response.status_code == 404
 
-    def test_revoke_api_key(self, client, test_project_id, test_user_id, clean_api_keys):
+    def test_revoke_api_key(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test revoking an API key."""
+        project_id, _, owner_id = test_project
+
         # Create a key
-        service = APIKeyService(create_db_engine())
-        created = service.create_key(
-            user_id=test_user_id,
-            project_id=UUID(test_project_id),
-            name="To Revoke",
+        full_key, key_hash = APIKeyGenerator.generate()
+        result = db_connection.execute(
+            insert(api_keys_table).values(
+                user_id=owner_id,
+                project_id=project_id,
+                name="To Revoke",
+                key_prefix=APIKeyGenerator.get_prefix(full_key),
+                key_suffix=APIKeyGenerator.get_suffix(full_key),
+                key_hash=key_hash,
+            ).returning(api_keys_table.c.id)
         )
+        key_id = result.scalar()
+        db_connection.commit()
 
         # Revoke the key
-        response = client.delete(
-            f"/api/projects/{test_project_id}/api-keys/{created.id}"
+        response = test_client.delete(
+            f"/api/projects/{project_id}/api-keys/{key_id}"
         )
 
         assert response.status_code == 204
 
         # Verify key is no longer listed
-        list_response = client.get(f"/api/projects/{test_project_id}/api-keys")
+        list_response = test_client.get(f"/api/projects/{project_id}/api-keys")
         assert list_response.json()["count"] == 0
 
-    def test_revoke_api_key_not_found(self, client, test_project_id):
+    def test_revoke_api_key_not_found(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test revoking non-existent key."""
         from uuid import uuid4
+        project_id, _, _ = test_project
 
-        response = client.delete(
-            f"/api/projects/{test_project_id}/api-keys/{uuid4()}"
+        response = test_client.delete(
+            f"/api/projects/{project_id}/api-keys/{uuid4()}"
         )
 
         assert response.status_code == 404
 
-    def test_api_key_workflow(self, client, test_project_id, clean_api_keys):
+    def test_api_key_workflow(self, test_project, test_client, override_auth_dependencies, db_connection):
         """Test complete workflow: create, list, get, revoke."""
+        project_id, _, _ = test_project
+
         # 1. Create a key
-        create_response = client.post(
-            f"/api/projects/{test_project_id}/api-keys",
+        create_response = test_client.post(
+            f"/api/projects/{project_id}/api-keys",
             json={"name": "Workflow Test", "expires_in_days": 90},
         )
         assert create_response.status_code == 201
@@ -210,22 +248,22 @@ class TestAPIKeyEndpoints:
         key_id = created_key["id"]
 
         # 2. List keys - should see 1
-        list_response = client.get(f"/api/projects/{test_project_id}/api-keys")
+        list_response = test_client.get(f"/api/projects/{project_id}/api-keys")
         assert list_response.json()["count"] == 1
 
         # 3. Get specific key
-        get_response = client.get(
-            f"/api/projects/{test_project_id}/api-keys/{key_id}"
+        get_response = test_client.get(
+            f"/api/projects/{project_id}/api-keys/{key_id}"
         )
         assert get_response.status_code == 200
         assert get_response.json()["name"] == "Workflow Test"
 
         # 4. Revoke key
-        revoke_response = client.delete(
-            f"/api/projects/{test_project_id}/api-keys/{key_id}"
+        revoke_response = test_client.delete(
+            f"/api/projects/{project_id}/api-keys/{key_id}"
         )
         assert revoke_response.status_code == 204
 
         # 5. List keys - should see 0
-        list_response2 = client.get(f"/api/projects/{test_project_id}/api-keys")
+        list_response2 = test_client.get(f"/api/projects/{project_id}/api-keys")
         assert list_response2.json()["count"] == 0

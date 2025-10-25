@@ -38,3 +38,59 @@ class TemplateResponse(BaseModel):
 class RenderResponse(BaseModel):
     rendered: str
     inputs_used: Dict[str, Any]
+
+
+class ExecuteRequest(BaseModel):
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+    model: Optional[str] = Field(default=None, description="Model to use (defaults to workspace default)")
+    provider: Optional[str] = Field(default=None, description="Provider to use (defaults to workspace provider)")
+
+
+class ExecutionMetrics(BaseModel):
+    tokens_input: int
+    tokens_output: int
+    tokens_total: int
+    cost_usd: float
+    latency_ms: int
+
+
+class ExecuteResponse(BaseModel):
+    execution_id: str
+    content: str
+    metrics: ExecutionMetrics
+    model: str
+    provider: str
+    created_at: str
+
+
+class ModelInfo(BaseModel):
+    id: str
+    name: str
+    provider: str
+    input_cost_per_1k: float
+    output_cost_per_1k: float
+    max_tokens: int
+
+
+class ModelsResponse(BaseModel):
+    models: List[ModelInfo]
+    default_model: str
+
+
+class ExecutionRecord(BaseModel):
+    execution_id: str
+    prompt_id: str
+    version: str
+    inputs: Dict[str, Any]
+    model: str
+    provider: str
+    output_text: Optional[str]
+    error_message: Optional[str]
+    status: str
+    metrics: Optional[ExecutionMetrics]
+    created_at: str
+
+
+class ExecutionsResponse(BaseModel):
+    executions: List[ExecutionRecord]
+    total: int

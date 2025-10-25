@@ -1,33 +1,13 @@
-"""Tests for database connection and management"""
+"""Tests for database schema and configuration"""
 
-import pytest
 import os
-from sqlalchemy import text
 from dakora_server.core.database import (
     create_db_engine,
     create_test_engine,
-    get_connection,
     wait_for_db,
     logs_table,
     get_database_url,
 )
-
-
-@pytest.fixture
-def test_db_url():
-    """Get test database URL from environment or use default"""
-    return os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/dakora"
-    )
-
-
-@pytest.fixture
-def test_engine(test_db_url):
-    """Create test engine with NullPool for testing"""
-    engine = create_test_engine(test_db_url)
-    yield engine
-    engine.dispose()
 
 
 class TestDatabaseConnection:
@@ -72,43 +52,15 @@ class TestDatabaseConnection:
         assert engine.pool.size() == 5  # Default pool size
         engine.dispose()
 
-    def test_create_test_engine(self, test_db_url):
+    def test_create_test_engine(self):
         """Test test engine creation with NullPool"""
-        engine = create_test_engine(test_db_url)
+        engine = create_test_engine(
+            "postgresql://postgres:postgres@localhost:5432/dakora"
+        )
         assert engine is not None
         # NullPool doesn't maintain connections
         assert hasattr(engine.pool, 'connect')
         engine.dispose()
-
-    @pytest.mark.skipif(
-        not os.getenv("DATABASE_URL"),
-        reason="DATABASE_URL not set - skipping live database tests"
-    )
-    def test_get_connection(self, test_engine):
-        """Test connection context manager"""
-        with get_connection(test_engine) as conn:
-            result = conn.execute(text("SELECT 1"))
-            assert result.scalar() == 1
-
-    @pytest.mark.skipif(
-        not os.getenv("DATABASE_URL"),
-        reason="DATABASE_URL not set - skipping live database tests"
-    )
-    def test_get_connection_rollback_on_error(self, test_engine):
-        """Test that connection rolls back on error"""
-        with pytest.raises(Exception):
-            with get_connection(test_engine) as conn:
-                # This should cause an error
-                conn.execute(text("SELECT * FROM nonexistent_table"))
-
-    @pytest.mark.skipif(
-        not os.getenv("DATABASE_URL"),
-        reason="DATABASE_URL not set - skipping live database tests"
-    )
-    def test_wait_for_db_success(self, test_engine):
-        """Test wait_for_db succeeds when database is ready"""
-        result = wait_for_db(test_engine, max_retries=5, retry_interval=1)
-        assert result is True
 
     def test_wait_for_db_failure(self):
         """Test wait_for_db fails with invalid connection"""

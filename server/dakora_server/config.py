@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     clerk_webhook_secret: str | None = None  # Clerk webhook signing secret
     auth_required: bool = False  # Set to True to enforce authentication
 
+    # Azure OpenAI settings (shared instance for all workspaces)
+    azure_openai_endpoint: str = ""  # e.g., "https://your-resource.openai.azure.com/"
+    azure_openai_api_key: str = ""
+    azure_openai_deployment_name: str = "gpt-4o"  # Default model deployment
+
     class Config:
         env_file = ".env"
         extra = "ignore"
@@ -61,3 +66,8 @@ def get_vault() -> Vault:
             _vault_instance = Vault(prompt_dir=settings.prompt_dir)
 
     return _vault_instance
+
+
+def get_settings() -> Settings:
+    """Get the Settings instance (dependency injection for FastAPI)"""
+    return settings

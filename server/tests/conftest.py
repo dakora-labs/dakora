@@ -1,5 +1,24 @@
 """
 Test configuration and fixtures for Dakora tests
+
+This module provides:
+- Import of all fixtures from fixtures/ (database, auth, entities)
+- Import of all factories from factories/ (users, workspaces, projects)
+- Legacy fixtures for backward compatibility
+- FastAPI test client
+
+Usage:
+    # New pattern (recommended)
+    def test_api_endpoint(test_project, test_client, override_auth_dependencies):
+        project_id, _, _ = test_project
+        response = test_client.get(f"/api/projects/{project_id}/prompts/")
+        assert response.status_code == 200
+
+    # Create custom test data
+    def test_with_multiple_projects(db_connection):
+        from tests.factories import create_test_project
+        proj1_id, _, _ = create_test_project(db_connection, suffix="1")
+        proj2_id, _, _ = create_test_project(db_connection, suffix="2")
 """
 
 import tempfile
@@ -13,6 +32,10 @@ import requests
 from contextlib import contextmanager
 
 from dakora_server.core.vault import Vault
+
+# Import all fixtures and factories for test usage
+from tests.fixtures import *  # noqa: F401, F403
+from tests.factories import *  # noqa: F401, F403
 
 try:
     from dakora.playground import create_playground  # type: ignore
@@ -45,87 +68,45 @@ except Exception:
 
 
 from typing import Generator, Any
-from uuid import uuid4, UUID
+from uuid import UUID
+
+
+# ============================================================================
+# LEGACY FIXTURES (for backward compatibility)
+# ============================================================================
+# These fixtures are maintained for existing tests that haven't been migrated
+# to the new fixture system. New tests should use the fixtures from fixtures/
+# ============================================================================
 
 
 @pytest.fixture(scope="module")
-def test_project_id() -> Generator[str, None, None]:
-    """Generate a test project UUID and create required database records.
+def test_project_id(db_engine) -> Generator[str, None, None]:
+    """LEGACY: Generate a test project UUID and create required database records.
+
+    DEPRECATED: Use test_project fixture instead.
+    This fixture is kept for backward compatibility with existing tests.
 
     Module-scoped so all tests in a module share the same project/workspace/user.
     """
-    from dakora_server.core.database import (
-        create_db_engine,
-        get_connection,
-        users_table,
-        workspaces_table,
-        projects_table,
-        prompts_table,
-    )
-    from sqlalchemy import insert, delete
+    from dakora_server.core.database import get_connection
+    from tests.factories import create_test_project
 
-    project_id = uuid4()
-    user_id = uuid4()
-    workspace_id = uuid4()
-
-    engine = create_db_engine()
-
-    with get_connection(engine) as conn:
-        conn.execute(
-            insert(users_table).values(
-                id=user_id,
-                clerk_user_id="test_user_clerk_id",
-                email="test@example.com",
-            )
-        )
-
-        conn.execute(
-            insert(workspaces_table).values(
-                id=workspace_id,
-                slug="test-workspace",
-                name="Test Workspace",
-                type="personal",
-                owner_id=user_id,
-            )
-        )
-
-        conn.execute(
-            insert(projects_table).values(
-                id=project_id,
-                workspace_id=workspace_id,
-                slug="test-project",
-                name="Test Project",
-                description="Test project for tests",
-            )
-        )
+    with get_connection(db_engine) as conn:
+        project_id, _, _ = create_test_project(conn, suffix="legacy")
         conn.commit()
 
     yield str(project_id)
 
-    with get_connection(engine) as conn:
-        conn.execute(delete(prompts_table).where(prompts_table.c.project_id == project_id))
-        conn.execute(delete(projects_table).where(projects_table.c.id == project_id))
-        conn.execute(delete(workspaces_table).where(workspaces_table.c.id == workspace_id))
-        conn.execute(delete(users_table).where(users_table.c.id == user_id))
-        conn.commit()
-
 
 @pytest.fixture(autouse=True)
-def cleanup_prompts(test_project_id: str) -> Generator[None, None, None]:
-    """Clean up prompts after each test to prevent interference."""
+def cleanup_prompts() -> Generator[None, None, None]:
+    """LEGACY: Clean up prompts after each test.
+
+    DEPRECATED: This is now handled by cleanup_project_data fixture.
+    Kept for backward compatibility.
+    """
     yield
-
-    from dakora_server.core.database import (
-        create_db_engine,
-        get_connection,
-        prompts_table,
-    )
-    from sqlalchemy import delete
-
-    engine = create_db_engine()
-    with get_connection(engine) as conn:
-        conn.execute(delete(prompts_table).where(prompts_table.c.project_id == UUID(test_project_id)))
-        conn.commit()
+    # Cleanup is now handled by the new cleanup_project_data fixture
 
 
 @pytest.fixture
@@ -295,40 +276,142 @@ def playground_url(test_vault: Vault) -> Generator[str, None, None]:
 
 # API Key test fixtures
 @pytest.fixture
-def test_user_id(test_project_id: str) -> UUID:
-    """Get the test user ID created by test_project_id fixture."""
-    from dakora_server.core.database import (
-        create_db_engine,
-        get_connection,
-        users_table,
-    )
-    from sqlalchemy import select
+def test_user_id(test_user: UUID) -> UUID:
+    """LEGACY: Get the test user ID.
 
-    engine = create_db_engine()
-    with get_connection(engine) as conn:
-        result = conn.execute(
-            select(users_table.c.id).where(
-                users_table.c.clerk_user_id == "test_user_clerk_id"
-            )
-        ).fetchone()
-        return result[0]
+    DEPRECATED: Use test_user fixture directly.
+    Kept for backward compatibility.
+    """
+    return test_user
 
 
 @pytest.fixture
-def clean_api_keys(test_project_id: str) -> Generator[None, None, None]:
-    """Clean up API keys after each test."""
+def clean_api_keys() -> Generator[None, None, None]:
+    """LEGACY: Clean up API keys after each test.
+
+    DEPRECATED: This is now handled by cleanup_project_data fixture.
+    Kept for backward compatibility.
+    """
     yield
+    # Cleanup is now handled by the new cleanup_project_data fixture
 
+
+# Execution API test fixtures
+@pytest.fixture
+def test_engine(db_engine):
+    """LEGACY: Create a database engine for tests.
+
+    DEPRECATED: Use db_engine fixture directly.
+    Kept for backward compatibility.
+    """
+    return db_engine
+
+
+@pytest.fixture
+def test_client():
+    """Create a FastAPI test client.
+
+    Use with override_auth_dependencies to test authenticated endpoints:
+
+    Example:
+        def test_endpoint(test_client, override_auth_dependencies):
+            response = test_client.get("/api/...")
+            assert response.status_code == 200
+    """
+    from fastapi.testclient import TestClient
+    from dakora_server.main import app
+
+    return TestClient(app)
+
+
+@pytest.fixture
+def setup_test_data(db_engine):
+    """LEGACY: Create user, workspace, project with quota for testing.
+
+    DEPRECATED: Use test_project fixture with custom quota setup instead.
+    Kept for backward compatibility with quota tests.
+    """
     from dakora_server.core.database import (
-        create_db_engine,
         get_connection,
-        api_keys_table,
+        workspace_quotas_table,
     )
-    from sqlalchemy import delete
+    from sqlalchemy import insert, delete
+    from datetime import datetime, timedelta, timezone
+    from tests.factories import create_test_project
 
-    engine = create_db_engine()
-    with get_connection(engine) as conn:
-        conn.execute(delete(api_keys_table).where(
-            api_keys_table.c.project_id == UUID(test_project_id)
-        ))
+    with get_connection(db_engine) as conn:
+        project_id, workspace_id, user_id = create_test_project(conn, suffix="quota")
+
+        # Create quota
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        conn.execute(
+            insert(workspace_quotas_table).values(
+                workspace_id=workspace_id,
+                tier="free",
+                tokens_used_month=0,
+                current_period_start=now,
+                current_period_end=now + timedelta(days=30),
+            )
+        )
         conn.commit()
+
+    yield str(user_id), str(workspace_id), str(project_id)
+
+    # Cleanup
+    with get_connection(db_engine) as conn:
+        from dakora_server.core.database import (
+            projects_table,
+            workspaces_table,
+            workspace_members_table,
+            users_table,
+        )
+        conn.execute(delete(workspace_quotas_table).where(
+            workspace_quotas_table.c.workspace_id == workspace_id
+        ))
+        conn.execute(delete(projects_table).where(projects_table.c.id == project_id))
+        conn.execute(delete(workspace_members_table).where(
+            workspace_members_table.c.workspace_id == workspace_id
+        ))
+        conn.execute(delete(workspaces_table).where(workspaces_table.c.id == workspace_id))
+        conn.execute(delete(users_table).where(users_table.c.id == user_id))
+        conn.commit()
+
+
+@pytest.fixture
+def mock_provider():
+    """Create a mock LLM provider for testing."""
+    from unittest.mock import MagicMock
+
+    provider = MagicMock()
+    return provider
+
+
+@pytest.fixture
+def auth_override(setup_test_data):
+    """LEGACY: Override authentication for tests.
+
+    DEPRECATED: Use override_auth_dependencies fixture instead.
+    Kept for backward compatibility with existing tests.
+    """
+    from dakora_server.auth import validate_project_access, get_auth_context, get_current_user_id, AuthContext
+    from dakora_server.main import app
+
+    user_id, workspace_id, project_id = setup_test_data
+
+    # Override get_auth_context to return test auth context
+    async def mock_get_auth_context():
+        return AuthContext(user_id=user_id, project_id=None, auth_method="test")
+
+    # Override validate_project_access to return the project UUID directly
+    async def mock_validate_project_access():
+        return UUID(project_id)
+
+    # Override get_current_user_id to return the user UUID directly
+    async def mock_get_current_user_id():
+        return UUID(user_id)
+
+    app.dependency_overrides[get_auth_context] = mock_get_auth_context
+    app.dependency_overrides[validate_project_access] = mock_validate_project_access
+    app.dependency_overrides[get_current_user_id] = mock_get_current_user_id
+    yield
+    app.dependency_overrides.clear()
