@@ -44,7 +44,8 @@ class TestPromptsAPI:
 
         result = await client.prompts.render("greeting", {"name": "Alice"})
 
-        assert result == "Hello Alice!"
+        assert result.text == "Hello Alice!"
+        assert result.prompt_id == "greeting"
 
     async def test_render_prompt_with_multiple_inputs(self, client, mock_api):
         """Test rendering with multiple input variables"""
@@ -60,8 +61,8 @@ class TestPromptsAPI:
             {"name": "Alice", "role": "Developer"}
         )
 
-        assert "Alice" in result
-        assert "Developer" in result
+        assert "Alice" in result.text
+        assert "Developer" in result.text
 
     async def test_render_prompt_not_found(self, client, mock_api):
         """Test rendering a non-existent prompt"""

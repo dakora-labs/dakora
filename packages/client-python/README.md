@@ -30,7 +30,7 @@ result = await dakora.prompts.render(
 print(result.rendered)
 
 # Cloud
-dakora = Dakora("https://api.dakora.cloud", api_key="dk_xxx")
+dakora = Dakora("https://api.dakora.io", api_key="dk_xxx")
 result = await dakora.prompts.render("greeting", {"name": "Bob"})
 ```
 
