@@ -106,7 +106,7 @@ async def test_execute_prompt_quota_exceeded(test_client, test_engine, setup_tes
         conn.execute(
             update(workspace_quotas_table)
             .where(workspace_quotas_table.c.workspace_id == UUID(workspace_id))
-            .values(tokens_used_month=100_000, tokens_limit_month=100_000)
+            .values(tokens_used_month=100_000)
         )
 
     response = test_client.post(

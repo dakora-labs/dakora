@@ -349,7 +349,6 @@ def setup_test_data(db_engine):
                 workspace_id=workspace_id,
                 tier="free",
                 tokens_used_month=0,
-                tokens_limit_month=100_000,
                 current_period_start=now,
                 current_period_end=now + timedelta(days=30),
             )
