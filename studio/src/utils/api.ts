@@ -1,4 +1,4 @@
-import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKey, ModelsResponse, ExecutionRequest, ExecutionResponse, ExecutionHistoryResponse } from '../types';
+import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKey, ModelsResponse, ExecutionRequest, ExecutionResponse, ExecutionHistoryResponse, ExecutionListResponse, ExecutionListFilters, ExecutionDetail, ExecutionListItem } from '../types';
 
 interface UserContext {
   user_id: string;
@@ -29,6 +29,30 @@ async function handleResponse<T>(response: Response): Promise<T> {
     throw new ApiError(errorData.detail || `HTTP ${response.status}`, response.status);
   }
   return response.json();
+}
+
+function buildQueryString(params: Record<string, unknown> | ExecutionListFilters): string {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((entry) => {
+        if (entry !== undefined && entry !== null && entry !== '') {
+          searchParams.append(key, String(entry));
+        }
+      });
+      continue;
+    }
+
+    searchParams.append(key, String(value));
+  }
+
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
 }
 
 /**
@@ -263,6 +287,248 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         headers: authHeaders,
       });
       return handleResponse<ModelsResponse>(response);
+    },
+
+    async getExecutions(projectId: string, filters: ExecutionListFilters = {}): Promise<ExecutionListResponse> {
+      const authHeaders = await getAuthHeaders();
+      const query = buildQueryString(filters);
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/executions${query}`, {
+        headers: authHeaders,
+      });
+
+      const data = await handleResponse<unknown>(response);
+
+      const toExecutionListItem = (entry: any): ExecutionListItem => {
+        const traceIdRaw = entry?.trace_id ?? entry?.traceId ?? '';
+        const traceId = typeof traceIdRaw === 'string' ? traceIdRaw : String(traceIdRaw ?? '');
+
+        const createdAtRaw = entry?.created_at ?? entry?.createdAt ?? null;
+        const createdAt =
+          typeof createdAtRaw === 'string'
+            ? createdAtRaw
+            : createdAtRaw instanceof Date
+              ? createdAtRaw.toISOString()
+              : createdAtRaw ? new Date(createdAtRaw).toISOString() : null;
+
+        const tokensIn = entry?.tokens_in ?? entry?.tokensIn ?? null;
+        const tokensOut = entry?.tokens_out ?? entry?.tokensOut ?? null;
+        const latencyMs = entry?.latency_ms ?? entry?.latencyMs ?? null;
+        const costUsd = entry?.cost_usd ?? entry?.costUsd ?? null;
+        const templateCountSource =
+          entry?.template_count ??
+          entry?.templateCount ??
+          (Array.isArray(entry?.template_usages) ? entry.template_usages.length : undefined);
+        let templateCount = 0;
+        if (typeof templateCountSource === 'number' && Number.isFinite(templateCountSource)) {
+          templateCount = templateCountSource;
+        } else if (templateCountSource !== undefined && templateCountSource !== null) {
+          const numeric = Number(templateCountSource);
+          if (Number.isFinite(numeric)) {
+            templateCount = numeric;
+          }
+        }
+
+        return {
+          traceId,
+          createdAt,
+          provider: entry?.provider ?? null,
+          model: entry?.model ?? null,
+          tokensIn,
+          tokensOut,
+          latencyMs,
+          costUsd,
+          sessionId: entry?.session_id ?? entry?.sessionId ?? undefined,
+          agentId: entry?.agent_id ?? entry?.agentId ?? undefined,
+          templateCount,
+        };
+      };
+
+      if (Array.isArray(data)) {
+        const normalized = data.map(toExecutionListItem);
+        return {
+          executions: normalized,
+          total: normalized.length + (filters.offset ?? 0),
+          limit: filters.limit ?? normalized.length,
+          offset: filters.offset ?? 0,
+        };
+      }
+
+      if (data && typeof data === 'object') {
+        const executionsRaw = Array.isArray((data as any).executions) ? (data as any).executions : [];
+        const normalized = executionsRaw.map(toExecutionListItem);
+        return {
+          executions: normalized,
+          total: typeof (data as any).total === 'number'
+            ? (data as any).total
+            : normalized.length + (filters.offset ?? 0),
+          limit: typeof (data as any).limit === 'number'
+            ? (data as any).limit
+            : filters.limit ?? normalized.length,
+          offset: typeof (data as any).offset === 'number'
+            ? (data as any).offset
+            : filters.offset ?? 0,
+        };
+      }
+
+      return {
+        executions: [],
+        total: 0,
+        limit: filters.limit ?? 0,
+        offset: filters.offset ?? 0,
+      };
+    },
+
+    async getExecution(projectId: string, traceId: string): Promise<ExecutionDetail> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}`, {
+        headers: authHeaders,
+      });
+
+      const data = await handleResponse<any>(response);
+
+      const normalizeNumber = (value: unknown): number | null => {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          return value;
+        }
+        if (value === null || value === undefined) {
+          return null;
+        }
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : null;
+      };
+
+      const resolvedTraceIdRaw = data?.trace_id ?? data?.traceId ?? traceId;
+      const resolvedTraceId: string =
+        typeof resolvedTraceIdRaw === 'string'
+          ? resolvedTraceIdRaw
+          : String(resolvedTraceIdRaw ?? traceId ?? '');
+      const createdAtRaw = data?.created_at ?? data?.createdAt ?? null;
+      const createdAt =
+        typeof createdAtRaw === 'string'
+          ? createdAtRaw
+          : createdAtRaw instanceof Date
+            ? createdAtRaw.toISOString()
+            : createdAtRaw
+              ? new Date(createdAtRaw).toISOString()
+              : null;
+
+      const tokensIn = normalizeNumber(data?.tokens_in ?? data?.tokens?.in);
+      const tokensOut = normalizeNumber(data?.tokens_out ?? data?.tokens?.out);
+      const tokensTotalRaw = normalizeNumber(data?.tokens_total ?? data?.tokens?.total);
+      const tokensTotal =
+        tokensTotalRaw ??
+        (tokensIn !== null || tokensOut !== null
+          ? (tokensIn ?? 0) + (tokensOut ?? 0)
+          : null);
+
+      const parseJsonIfString = <T>(value: unknown): T | null => {
+        if (value === null || value === undefined) {
+          return null;
+        }
+        if (typeof value === 'object') {
+          return value as T;
+        }
+        if (typeof value === 'string') {
+          try {
+            return JSON.parse(value) as T;
+          } catch {
+            return null;
+          }
+        }
+        return null;
+      };
+
+      const conversationRaw =
+        data?.conversation_history ??
+        data?.conversationHistory ??
+        parseJsonIfString<any[]>(data?.conversation_history_json) ??
+        [];
+      const conversationHistory = Array.isArray(conversationRaw)
+        ? conversationRaw
+            .filter((entry) => entry && typeof entry === 'object')
+            .map((entry) => ({
+              role: entry.role ?? entry?.speaker ?? 'assistant',
+              content: (() => {
+                const contentRaw = entry.content ?? entry?.message ?? '';
+                if (typeof contentRaw === 'string') {
+                  return contentRaw;
+                }
+                try {
+                  return JSON.stringify(contentRaw, null, 2);
+                } catch {
+                  return String(contentRaw);
+                }
+              })(),
+              name: entry.name ?? null,
+              timestamp: entry.timestamp ?? entry.time ?? null,
+              metadata: entry.metadata ?? null,
+            }))
+        : [];
+
+      const templateUsagesRaw =
+        data?.template_usages ??
+        data?.templates_used ??
+        data?.templateUsages ??
+        [];
+
+      const templateUsages = Array.isArray(templateUsagesRaw)
+        ? templateUsagesRaw
+            .filter((item) => item && typeof item === 'object')
+            .map((item, index) => ({
+              traceId: resolvedTraceId,
+              promptId: item.prompt_id ?? item.promptId ?? '',
+              version: item.version ?? item.template_version ?? '',
+              inputs: (() => {
+                const raw = item.inputs ?? item.inputs_json ?? null;
+                if (raw === null || raw === undefined) {
+                  return null;
+                }
+                if (typeof raw === 'object') {
+                  return raw;
+                }
+                if (typeof raw === 'string') {
+                  try {
+                    return JSON.parse(raw);
+                  } catch {
+                    return { value: raw };
+                  }
+                }
+                return raw;
+              })(),
+              position:
+                typeof item.position === 'number'
+                  ? item.position
+                  : Number.isFinite(Number(item.position))
+                    ? Number(item.position)
+                    : index,
+              renderedPrompt: item.rendered_prompt ?? item.renderedPrompt ?? undefined,
+            }))
+        : [];
+
+      const metadataParsed = parseJsonIfString<Record<string, unknown>>(data?.metadata);
+      const metadata =
+        metadataParsed ??
+        (data?.metadata && typeof data.metadata === 'object' ? data.metadata : null);
+
+      return {
+        traceId: resolvedTraceId,
+        createdAt,
+        conversationHistory,
+        metadata,
+        provider: data?.provider ?? null,
+        model: data?.model ?? null,
+        tokens: {
+          in: tokensIn ?? null,
+          out: tokensOut ?? null,
+          total: tokensTotal,
+        },
+        costUsd: normalizeNumber(data?.cost_usd ?? data?.costUsd),
+        latencyMs: normalizeNumber(data?.latency_ms ?? data?.latencyMs),
+        sessionId: data?.session_id ?? data?.sessionId ?? null,
+        agentId: data?.agent_id ?? data?.agentId ?? null,
+        parentTraceId: data?.parent_trace_id ?? data?.parentTraceId ?? null,
+        templateUsages,
+      };
     },
 
     async executePrompt(projectId: string, promptId: string, request: ExecutionRequest): Promise<ExecutionResponse> {

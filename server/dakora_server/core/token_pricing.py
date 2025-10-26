@@ -12,12 +12,16 @@ This would allow:
 - Historical cost tracking (cost at execution time vs current cost)
 """
 
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, Union, Any
 
-# Pricing table: (provider, model) -> (input_cost_per_1k, output_cost_per_1k)
-# Costs are in USD per 1,000 tokens
-# TODO: Move to database table for dynamic updates
-PRICING_TABLE: Dict[Tuple[str, str], Tuple[float, float]] = {
+# Pricing table: (provider, model) -> pricing entry
+# Pricing entries may be one of:
+# - (input_per_1k, output_per_1k)  -- flat pricing tuple
+# - dict with keys for tiered pricing and thresholds, e.g. {
+#     'type': 'tiered', 'input_low': ..., 'input_high': ..., 'output_low': ..., 'output_high': ..., 'tier_threshold': ...
+#   }
+# This allows centralizing more complex pricing rules in one place.
+PRICING_TABLE: Dict[Tuple[str, str], Union[Tuple[float, float], Dict[str, Any]]] = {
     # OpenAI Models
     ("openai", "gpt-4"): (0.03, 0.06),
     ("openai", "gpt-4-32k"): (0.06, 0.12),
@@ -52,6 +56,16 @@ PRICING_TABLE: Dict[Tuple[str, str], Tuple[float, float]] = {
     ("google", "gemini-ultra"): (0.00125, 0.00375),
     ("google", "gemini-1.5-pro"): (0.00125, 0.00375),
     ("google", "gemini-1.5-flash"): (0.000075, 0.0003),
+    # Tiered pricing example for modern Gemini models
+    ("google", "gemini-2.5-pro"): {
+        "type": "tiered",
+        "input_low": 0.00125,
+        "input_high": 0.0025,
+        "output_low": 0.01,
+        "output_high": 0.015,
+        "tier_threshold": 200000,
+    },
+    ("google", "gemini-2.5-flash"): {"type": "flat", "input": 0.0003, "output": 0.0025},
 }
 
 
@@ -94,27 +108,53 @@ class TokenPricingService:
         provider_norm = self._normalize_provider(provider)
         model_norm = self._normalize_model(model)
         
-        # Look up pricing
+        # Look up pricing entry
         key = (provider_norm, model_norm)
-        if key not in self.pricing_table:
-            # Try without version suffix (e.g., gpt-4 from gpt-4-turbo)
+        entry = self.pricing_table.get(key)
+
+        # Try simpler base model match if not found, e.g., gpt-4 from gpt-4-turbo
+        if entry is None:
             model_parts = model_norm.split("-")
             if len(model_parts) >= 2:
                 model_base = "-".join(model_parts[0:2])
                 key = (provider_norm, model_base)
-                
-                if key not in self.pricing_table:
-                    return None
+                entry = self.pricing_table.get(key)
+
+        if entry is None:
+            return None
+
+        # Entry can be a flat tuple or a dict describing type
+        if isinstance(entry, tuple):
+            input_cost_per_1k, output_cost_per_1k = entry
+        elif isinstance(entry, dict):
+            etype = entry.get("type")
+            if etype == "tiered":
+                threshold = entry.get("tier_threshold", float("inf"))
+                # tokens_in is guaranteed non-None by earlier validation
+                if tokens_in > threshold:
+                    input_cost_per_1k = entry.get("input_high")
+                    output_cost_per_1k = entry.get("output_high")
+                else:
+                    input_cost_per_1k = entry.get("input_low")
+                    output_cost_per_1k = entry.get("output_low")
+            elif etype == "flat":
+                input_cost_per_1k = entry.get("input")
+                output_cost_per_1k = entry.get("output")
             else:
+                # Unknown dict shape
                 return None
-        
-        input_cost_per_1k, output_cost_per_1k = self.pricing_table[key]
-        
+        else:
+            return None
+
+        # Validate numeric pricing values
+        if input_cost_per_1k is None or output_cost_per_1k is None:
+            return None
+
         # Calculate cost
         input_cost = (tokens_in / 1000) * input_cost_per_1k
         output_cost = (tokens_out / 1000) * output_cost_per_1k
         total_cost = input_cost + output_cost
-        
+
         return round(total_cost, 8)  # Round to 8 decimal places
     
     def _normalize_provider(self, provider: str) -> str:
@@ -149,8 +189,47 @@ class TokenPricingService:
         """
         provider_norm = self._normalize_provider(provider)
         model_norm = self._normalize_model(model)
-        key = (provider_norm, model_norm)
-        return self.pricing_table.get(key)
+
+        entry = self.pricing_table.get((provider_norm, model_norm))
+        if entry is None:
+            # Try base model
+            parts = model_norm.split("-")
+            if len(parts) >= 2:
+                base = "-".join(parts[0:2])
+                entry = self.pricing_table.get((provider_norm, base))
+
+        if entry is None:
+            return None
+
+        if isinstance(entry, tuple):
+            # Ensure both elements are floats
+            try:
+                return (float(entry[0]), float(entry[1]))
+            except Exception:
+                return None
+
+        if isinstance(entry, dict):
+            etype = entry.get("type")
+            if etype == "tiered":
+                in_low = entry.get("input_low")
+                out_low = entry.get("output_low")
+                if in_low is None or out_low is None:
+                    return None
+                try:
+                    return (float(in_low), float(out_low))
+                except Exception:
+                    return None
+            elif etype == "flat":
+                in_flat = entry.get("input")
+                out_flat = entry.get("output")
+                if in_flat is None or out_flat is None:
+                    return None
+                try:
+                    return (float(in_flat), float(out_flat))
+                except Exception:
+                    return None
+
+        return None
 
 
 # Singleton instance for easy access

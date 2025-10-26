@@ -160,3 +160,75 @@ export interface ExecutionHistoryResponse {
   executions: ExecutionHistoryItem[];
   total: number;
 }
+
+export interface ExecutionListFilters {
+  session_id?: string | null;
+  agent_id?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  prompt_id?: string | null;
+  has_templates?: boolean;
+  min_cost?: number;
+  start?: string;
+  end?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ExecutionListItem {
+  traceId: string;
+  createdAt: string | null;
+  provider: string | null;
+  model: string | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  latencyMs: number | null;
+  costUsd: number | null;
+  sessionId?: string | null;
+  agentId?: string | null;
+  templateCount: number;
+}
+
+export interface ExecutionListResponse {
+  executions: ExecutionListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ConversationMessage {
+  role: string;
+  content: string;
+  name?: string | null;
+  timestamp?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface TemplateUsageEntry {
+  traceId: string;
+  promptId: string;
+  version: string;
+  inputs: Record<string, unknown> | null;
+  position: number;
+  renderedPrompt?: string;
+}
+
+export interface ExecutionDetail {
+  traceId: string;
+  createdAt: string | null;
+  conversationHistory: ConversationMessage[];
+  metadata: Record<string, unknown> | null;
+  provider: string | null;
+  model: string | null;
+  tokens: {
+    in: number | null;
+    out: number | null;
+    total: number | null;
+  };
+  costUsd: number | null;
+  latencyMs: number | null;
+  sessionId?: string | null;
+  agentId?: string | null;
+  parentTraceId?: string | null;
+  templateUsages: TemplateUsageEntry[];
+}

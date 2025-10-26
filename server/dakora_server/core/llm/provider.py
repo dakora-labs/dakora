@@ -1,7 +1,7 @@
 """LLM provider protocol and data models."""
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, Optional
 
 
 @dataclass
@@ -12,7 +12,7 @@ class ExecutionResult:
     tokens_input: int
     tokens_output: int
     tokens_total: int
-    cost_usd: float
+    cost_usd: Optional[float]
     latency_ms: int
     model: str
     provider: str
@@ -25,8 +25,8 @@ class ModelInfo:
     id: str  # "gpt-4o", "claude-3-5-sonnet"
     name: str  # "GPT-4o"
     provider: str  # "azure_openai", "anthropic"
-    input_cost_per_1k: float
-    output_cost_per_1k: float
+    input_cost_per_1k: Optional[float]
+    output_cost_per_1k: Optional[float]
     max_tokens: int
 
 

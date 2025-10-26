@@ -5,20 +5,12 @@ from typing import Any
 
 from openai import AsyncAzureOpenAI
 
-from .provider import ExecutionResult, LLMProvider, ModelInfo
+from .provider import ExecutionResult, ModelInfo
+from ..token_pricing import get_pricing_service
 
 
 class AzureOpenAIProvider:
     """Provider for Azure OpenAI."""
-
-    # Model pricing (per 1K tokens)
-    PRICING = {
-        "gpt-5-mini": {"input": 0.000125, "output": 0.001},
-        "gpt-4o": {"input": 0.0025, "output": 0.01},
-        "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
-        "gpt-4-turbo": {"input": 0.01, "output": 0.03},
-        "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
-    }
 
     # Model max tokens
     MAX_TOKENS = {
@@ -91,12 +83,17 @@ class AzureOpenAIProvider:
             tokens_output = usage.completion_tokens
             tokens_total = usage.total_tokens
 
-            # Calculate cost
-            pricing = self.PRICING.get(deployment, self.PRICING["gpt-4o"])
-            cost_usd = (
-                tokens_input / 1000 * pricing["input"]
-                + tokens_output / 1000 * pricing["output"]
+            # Calculate cost using centralized TokenPricingService when possible
+            pricing_service = get_pricing_service()
+            cost = pricing_service.calculate_cost(
+                provider="azure_openai",
+                model=deployment,
+                tokens_in=tokens_input,
+                tokens_out=tokens_output,
             )
+
+            # If pricing is not available centrally, return None for cost_usd
+            # so callers can decide how to handle unknown pricing.
 
             # Extract content
             content = response.choices[0].message.content or ""
@@ -106,7 +103,7 @@ class AzureOpenAIProvider:
                 tokens_input=tokens_input,
                 tokens_output=tokens_output,
                 tokens_total=tokens_total,
-                cost_usd=round(cost_usd, 6),
+                cost_usd=(round(cost, 6) if cost is not None else None),
                 latency_ms=latency_ms,
                 model=deployment,
                 provider="azure_openai",
@@ -123,17 +120,26 @@ class AzureOpenAIProvider:
             List of ModelInfo objects
         """
         models = []
-        for model_id, pricing in self.PRICING.items():
+        pricing_service = get_pricing_service()
+        for model_id, max_tokens in self.MAX_TOKENS.items():
+            svc_pricing = pricing_service.get_pricing("azure_openai", model_id)
+            if svc_pricing:
+                input_cost, output_cost = svc_pricing
+            else:
+                input_cost = None
+                output_cost = None
+
             models.append(
                 ModelInfo(
                     id=model_id,
                     name=self._format_model_name(model_id),
                     provider="azure_openai",
-                    input_cost_per_1k=pricing["input"],
-                    output_cost_per_1k=pricing["output"],
-                    max_tokens=self.MAX_TOKENS.get(model_id, 128000),
+                    input_cost_per_1k=input_cost,
+                    output_cost_per_1k=output_cost,
+                    max_tokens=max_tokens,
                 )
             )
+
         return models
 
     def _format_model_name(self, model_id: str) -> str:
