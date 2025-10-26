@@ -4,6 +4,8 @@ import os
 import pytest
 from dakora_client import Dakora
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestDakoraClient:
     """Test Dakora client initialization and configuration"""

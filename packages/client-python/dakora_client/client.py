@@ -154,6 +154,16 @@ class Dakora:
     def base_url(self) -> str:
         return self._base_url
 
+    @property
+    def project_id(self) -> str | None:
+        """
+        Get the project ID if it was explicitly set during initialization.
+        
+        Note: This returns the project_id only if it was provided to __init__.
+        To fetch the project_id from the API (if not set), use await _get_project_id().
+        """
+        return self._project_id
+
     def __build_default_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}
         if self.__api_key:

@@ -1,14 +1,17 @@
 """Tests for PromptsAPI"""
 
 import pytest
+import pytest_asyncio
 from httpx import Response
 from dakora_client import Dakora
+
+pytestmark = pytest.mark.asyncio
 
 
 class TestPromptsAPI:
     """Test PromptsAPI methods"""
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def client(self, mock_project_context):
         """Create a test client"""
         client = Dakora(api_key="dk_test")

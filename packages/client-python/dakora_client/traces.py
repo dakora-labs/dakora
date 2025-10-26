@@ -22,6 +22,7 @@ class TracesAPI:
         session_id: str,
         agent_id: str | None = None,
         parent_trace_id: str | None = None,
+        source: str | None = None,
         template_usages: list[dict[str, Any]] | None = None,
         conversation_history: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
@@ -41,6 +42,7 @@ class TracesAPI:
             session_id: Session/conversation identifier
             agent_id: Agent identifier (optional)
             parent_trace_id: Parent trace ID for nested calls (optional)
+            source: Source system identifier (e.g., "maf", "langchain")
             template_usages: List of templates used in this execution
             conversation_history: Full conversation context
             metadata: Additional metadata (user_id, tags, etc.)
@@ -60,6 +62,7 @@ class TracesAPI:
             ...     trace_id="trace-456",
             ...     session_id="session-789",
             ...     agent_id="support-v1",
+            ...     source="maf",
             ...     template_usages=[
             ...         {"prompt_id": "greeting", "version": "1.0.0", "inputs": {...}},
             ...     ],
@@ -75,6 +78,7 @@ class TracesAPI:
             "parent_trace_id": parent_trace_id,
             "session_id": session_id,
             "agent_id": agent_id,
+            "source": source,
             "template_usages": template_usages,
             "conversation_history": conversation_history,
             "metadata": metadata,
