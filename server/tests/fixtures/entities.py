@@ -14,10 +14,13 @@ from dakora_server.core.database import (
     users_table,
     workspaces_table,
     workspace_members_table,
+    workspace_quotas_table,
     projects_table,
     prompts_table,
     prompt_parts_table,
     api_keys_table,
+    optimization_runs_table,
+    prompt_executions_table,
 )
 from tests.factories import (
     create_test_user,
@@ -133,9 +136,9 @@ def test_project(
 def cleanup_project_data(db_engine, test_project) -> Generator[None, None, None]:
     """Automatically clean up project-specific data after each test.
 
-    This fixture runs after every test to clean up prompts, parts, and API keys
-    created during the test. This allows tests to share session-scoped fixtures
-    while keeping data isolated.
+    This fixture runs after every test to clean up prompts, parts, API keys,
+    optimization runs, executions, and reset workspace quota. This allows tests
+    to share session-scoped fixtures while keeping data isolated.
 
     Uses db_engine to create a fresh connection for cleanup, ensuring it sees
     all committed changes from the test regardless of connection state.
@@ -144,12 +147,28 @@ def cleanup_project_data(db_engine, test_project) -> Generator[None, None, None]
     """
     yield
 
-    project_id, _, _ = test_project
+    project_id, workspace_id, _ = test_project
 
     # Clean up data created during the test using a fresh connection
     from dakora_server.core.database import get_connection
+    from sqlalchemy import update
+
     with get_connection(db_engine) as conn:
+        # Delete project-scoped data
         conn.execute(delete(api_keys_table).where(api_keys_table.c.project_id == project_id))
         conn.execute(delete(prompt_parts_table).where(prompt_parts_table.c.project_id == project_id))
         conn.execute(delete(prompts_table).where(prompts_table.c.project_id == project_id))
+        conn.execute(delete(optimization_runs_table).where(optimization_runs_table.c.project_id == project_id))
+        conn.execute(delete(prompt_executions_table).where(prompt_executions_table.c.project_id == project_id))
+
+        # Reset workspace quota usage to 0 (but keep the quota record)
+        conn.execute(
+            update(workspace_quotas_table)
+            .where(workspace_quotas_table.c.workspace_id == workspace_id)
+            .values(
+                optimization_runs_used_month=0,
+                tokens_used_month=0,
+            )
+        )
+
         conn.commit()

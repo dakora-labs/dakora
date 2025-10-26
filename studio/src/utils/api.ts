@@ -1,4 +1,29 @@
-import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKey, ModelsResponse, ExecutionRequest, ExecutionResponse, ExecutionHistoryResponse, ExecutionListResponse, ExecutionListFilters, ExecutionDetail, ExecutionListItem } from '../types';
+import type {
+  Template,
+  RenderRequest,
+  RenderResponse,
+  HealthResponse,
+  PartListResponse,
+  PromptPart,
+  CreatePartRequest,
+  UpdatePartRequest,
+  ApiKeyListResponse,
+  ApiKeyCreateRequest,
+  ApiKeyCreateResponse,
+  ApiKey,
+  ModelsResponse,
+  ExecutionRequest,
+  ExecutionResponse,
+  ExecutionHistoryResponse,
+  ExecutionListResponse,
+  ExecutionListFilters,
+  ExecutionDetail,
+  ExecutionListItem,
+  OptimizePromptRequest,
+  OptimizePromptResponse,
+  OptimizationRunsResponse,
+  QuotaInfo,
+} from '../types';
 
 interface UserContext {
   user_id: string;
@@ -550,6 +575,35 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         headers: authHeaders,
       });
       return handleResponse<ExecutionHistoryResponse>(response);
+    },
+
+    async optimizePrompt(projectId: string, promptId: string, request: OptimizePromptRequest): Promise<OptimizePromptResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(promptId)}/optimize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(request),
+      });
+      return handleResponse<OptimizePromptResponse>(response);
+    },
+
+    async getQuotaInfo(workspaceId: string): Promise<QuotaInfo> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/workspaces/${encodeURIComponent(workspaceId)}/quota`, {
+        headers: authHeaders,
+      });
+      return handleResponse<QuotaInfo>(response);
+    },
+
+    async getOptimizationRuns(projectId: string, promptId: string): Promise<OptimizationRunsResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(promptId)}/optimization-runs`, {
+        headers: authHeaders,
+      });
+      return handleResponse<OptimizationRunsResponse>(response);
     },
   };
 }

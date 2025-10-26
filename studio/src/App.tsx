@@ -9,6 +9,7 @@ import { PromptLibraryPage } from './pages/PromptLibraryPage';
 import { NewPromptPartPage } from './pages/NewPromptPartPage';
 import { PromptPartPage } from './pages/PromptPartPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { OptimizePromptPage } from './pages/OptimizePromptPage';
 import { ProjectRedirect } from './components/ProjectRedirect';
 import { UserContextProvider } from './contexts/UserContext';
 import { ExecutionsPage } from './pages/ExecutionsPage';
@@ -26,6 +27,7 @@ function App() {
               <Route path="/project/:projectSlug/prompts" element={<DashboardPage />} />
               <Route path="/project/:projectSlug/prompts/new" element={<NewPromptPage />} />
               <Route path="/project/:projectSlug/prompt/edit" element={<PromptEditPage />} />
+              <Route path="/project/:projectSlug/prompt/optimize" element={<OptimizePromptPage />} />
               <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
               <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
               <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
@@ -52,6 +54,7 @@ function App() {
         <Route path="/project/:projectSlug/prompts" element={<DashboardPage />} />
         <Route path="/project/:projectSlug/prompts/new" element={<NewPromptPage />} />
         <Route path="/project/:projectSlug/prompt/edit" element={<PromptEditPage />} />
+        <Route path="/project/:projectSlug/prompt/optimize" element={<OptimizePromptPage />} />
         <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
         <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
         <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />

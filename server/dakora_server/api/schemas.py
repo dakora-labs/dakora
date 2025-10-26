@@ -124,3 +124,60 @@ class ExecutionRecord(BaseModel):
 class ExecutionsResponse(BaseModel):
     executions: List[ExecutionRecord]
     total: int
+
+
+# Optimization schemas
+
+class OptimizePromptRequest(BaseModel):
+    """Request to optimize a prompt template."""
+    test_cases: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Optional test cases for evaluation. If not provided, synthetic cases will be generated.",
+    )
+
+
+class OptimizationInsight(BaseModel):
+    """A human-readable insight about an optimization improvement."""
+    category: str = Field(description="Category of improvement (e.g., 'clarity', 'specificity', 'efficiency')")
+    description: str = Field(description="Human-readable description of the improvement")
+    impact: str = Field(description="Expected impact (e.g., 'reduces ambiguity', 'improves output quality')")
+
+
+class OptimizePromptResponse(BaseModel):
+    """Response from prompt optimization."""
+    optimization_id: str = Field(description="Unique ID for this optimization run")
+    original_template: str = Field(description="Original template text")
+    optimized_template: str = Field(description="Optimized template text")
+    insights: List[OptimizationInsight] = Field(description="List of improvements made")
+    token_reduction_pct: Optional[float] = Field(description="Percentage reduction in tokens (negative if increased)")
+    created_at: str = Field(description="ISO timestamp of optimization")
+
+
+class OptimizationRunRecord(BaseModel):
+    """Record of a past optimization run."""
+    optimization_id: str
+    prompt_id: str
+    version: str
+    original_template: str
+    optimized_template: str
+    insights: List[OptimizationInsight]
+    token_reduction_pct: Optional[float]
+    applied: bool = Field(description="Whether this optimization was applied to create a new prompt version")
+    created_at: str
+
+
+class OptimizationRunsResponse(BaseModel):
+    """List of optimization runs for a prompt."""
+    optimization_runs: List[OptimizationRunRecord]
+    total: int
+
+
+class QuotaInfo(BaseModel):
+    """Workspace quota information."""
+    tier: str = Field(description="Quota tier (e.g., 'free', 'starter', 'pro')")
+    optimizations_used: int = Field(description="Number of optimizations used this month")
+    optimizations_limit: int = Field(description="Maximum optimizations allowed this month")
+    optimizations_remaining: int = Field(description="Remaining optimizations this month")
+    usage_percentage: float = Field(description="Usage as a percentage (0-100)")
+    period_start: str = Field(description="ISO timestamp of current billing period start")
+    period_end: str = Field(description="ISO timestamp of current billing period end")
