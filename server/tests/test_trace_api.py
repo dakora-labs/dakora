@@ -56,6 +56,7 @@ class TestCreateExecution:
                 "tokens_out": 15,
                 "cost_usd": 0.001,
                 "latency_ms": 250,
+                "source": "maf",
             },
         )
 
@@ -80,6 +81,10 @@ class TestCreateExecution:
                         "prompt_id": "greeting-template",
                         "version": "1.0.0",
                         "inputs": {"name": "Alice"},
+                        "metadata": {"stage": "prompt"},
+                        "role": "system",
+                        "source": "instruction",
+                        "message_index": -1,
                     }
                 ],
                 "provider": "openai",
@@ -109,11 +114,17 @@ class TestCreateExecution:
                         "prompt_id": "system-prompt",
                         "version": "1.0.0",
                         "inputs": {},
+                        "role": "system",
+                        "source": "instruction",
+                        "message_index": -1,
                     },
                     {
                         "prompt_id": "user-query",
                         "version": "2.1.0",
                         "inputs": {"query": "What is AI?"},
+                        "role": "user",
+                        "source": "message",
+                        "message_index": 1
                     },
                 ],
                 "provider": "anthropic",
@@ -212,6 +223,7 @@ class TestListExecutions:
                     "tokens_out": 20 + i,
                     "cost_usd": 0.001 * (i + 1),
                     "latency_ms": 100 + i * 50,
+                    "source": "maf",
                 },
             )
 
@@ -237,6 +249,7 @@ class TestListExecutions:
             assert "cost_usd" in execution
             assert "latency_ms" in execution
             assert "created_at" in execution
+            assert execution.get("source") == "maf"
 
     def test_list_executions_filter_by_session(self, test_project, test_client, override_auth_dependencies):
         """Test filtering executions by session_id"""
@@ -413,6 +426,7 @@ class TestGetExecution:
                 "tokens_out": 30,
                 "cost_usd": 0.002,
                 "latency_ms": 350,
+                "source": "maf",
             },
         )
 
@@ -435,6 +449,7 @@ class TestGetExecution:
         assert data["tokens_out"] == 30
         assert data["cost_usd"] == 0.002
         assert data["latency_ms"] == 350
+        assert data["source"] == "maf"
         assert "created_at" in data
         assert isinstance(data["templates_used"], list)
 
@@ -449,11 +464,19 @@ class TestGetExecution:
                 "prompt_id": "greeting",
                 "version": "1.0.0",
                 "inputs": {"name": "Bob"},
+                "metadata": {"phase": "system"},
+                "role": "system",
+                "source": "instruction",
+                "message_index": -1,
             },
             {
                 "prompt_id": "farewell",
                 "version": "1.2.0",
                 "inputs": {"name": "Bob"},
+                "metadata": {"phase": "user"},
+                "role": "user",
+                "source": "message",
+                "message_index": 0,
             },
         ]
 
@@ -481,10 +504,18 @@ class TestGetExecution:
         assert data["templates_used"][0]["version"] == "1.0.0"
         assert data["templates_used"][0]["inputs"] == {"name": "Bob"}
         assert data["templates_used"][0]["position"] == 0
+        assert data["templates_used"][0]["metadata"] == {"phase": "system"}
+        assert data["templates_used"][0]["role"] == "system"
+        assert data["templates_used"][0]["source"] == "instruction"
+        assert data["templates_used"][0]["message_index"] == -1
 
         assert data["templates_used"][1]["prompt_id"] == "farewell"
         assert data["templates_used"][1]["version"] == "1.2.0"
         assert data["templates_used"][1]["position"] == 1
+        assert data["templates_used"][1]["metadata"] == {"phase": "user"}
+        assert data["templates_used"][1]["role"] == "user"
+        assert data["templates_used"][1]["source"] == "message"
+        assert data["templates_used"][1]["message_index"] == 0
 
     def test_get_execution_not_found(self, test_project, test_client, override_auth_dependencies):
         """Test retrieving non-existent execution"""

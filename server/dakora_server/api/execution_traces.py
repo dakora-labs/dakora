@@ -43,6 +43,26 @@ async def create_execution(
     - Full conversation history storage
     - Session and agent tracking
     """
+    pricing_service = get_pricing_service()
+    calculated_cost: Optional[float] = None
+
+    if (
+        request.provider
+        and request.model
+        and (request.tokens_in is not None or request.tokens_out is not None)
+    ):
+        try:
+            calculated_cost = pricing_service.calculate_cost(
+                provider=request.provider,
+                model=request.model,
+                tokens_in=request.tokens_in or 0,
+                tokens_out=request.tokens_out or 0,
+            )
+        except Exception:
+            calculated_cost = None
+
+    cost_value = request.cost_usd if request.cost_usd is not None else calculated_cost
+
     with get_connection(engine) as conn:
         # Insert into logs table
         conn.execute(
@@ -53,13 +73,14 @@ async def create_execution(
                 parent_trace_id=request.parent_trace_id,
                 session_id=request.session_id,
                 agent_id=request.agent_id,
+                source=request.source,
                 conversation_history=request.conversation_history,
                 metadata=request.metadata,
                 provider=request.provider,
                 model=request.model,
                 tokens_in=request.tokens_in,
                 tokens_out=request.tokens_out,
-                cost_usd=request.cost_usd,
+                cost_usd=cost_value,
                 latency_ms=request.latency_ms,
             )
         )
@@ -74,6 +95,10 @@ async def create_execution(
                         version=template_usage.version,
                         inputs_json=template_usage.inputs,
                         position=idx,
+                        role=template_usage.role,
+                        source=template_usage.source,
+                        message_index=template_usage.message_index,
+                        metadata_json=template_usage.metadata,
                     )
                 )
 
@@ -109,6 +134,7 @@ async def list_executions(
                 traces_table.c.trace_id,
                 traces_table.c.session_id,
                 traces_table.c.agent_id,
+                traces_table.c.source,
                 traces_table.c.provider,
                 traces_table.c.model,
                 traces_table.c.tokens_in,
@@ -136,6 +162,7 @@ async def list_executions(
                     traces_table.c.trace_id,
                     traces_table.c.session_id,
                     traces_table.c.agent_id,
+                    traces_table.c.source,
                     traces_table.c.provider,
                     traces_table.c.model,
                     traces_table.c.tokens_in,
@@ -171,18 +198,21 @@ async def list_executions(
     executions: List[dict[str, Any]] = []
     for row in rows:
         # Calculate cost on-the-fly using current pricing
-        cost_usd = pricing_service.calculate_cost(
-            provider=row.provider,
-            model=row.model,
-            tokens_in=row.tokens_in,
-            tokens_out=row.tokens_out,
-        )
+        cost_usd = row.cost_usd
+        if cost_usd is None and row.provider and row.model:
+            cost_usd = pricing_service.calculate_cost(
+                provider=row.provider,
+                model=row.model,
+                tokens_in=row.tokens_in,
+                tokens_out=row.tokens_out,
+            )
         
         executions.append(
             {
                 "trace_id": row.trace_id,
                 "session_id": row.session_id,
                 "agent_id": row.agent_id,
+                "source": row.source,
                 "provider": row.provider,
                 "model": row.model,
                 "tokens_in": row.tokens_in,
@@ -237,7 +267,11 @@ async def get_execution(
                 "prompt_id": template_row.prompt_id,
                 "version": template_row.version,
                 "inputs": template_row.inputs_json,
+                "metadata": template_row.metadata_json,
                 "position": template_row.position,
+                "role": template_row.role,
+                "source": template_row.source,
+                "message_index": template_row.message_index,
             }
         )
 
@@ -246,6 +280,7 @@ async def get_execution(
         "parent_trace_id": log_row.parent_trace_id,
         "session_id": log_row.session_id,
         "agent_id": log_row.agent_id,
+        "source": log_row.source,
         "conversation_history": log_row.conversation_history,
         "metadata": log_row.metadata,
         "provider": log_row.provider,

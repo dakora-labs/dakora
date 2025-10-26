@@ -6,6 +6,7 @@ from dakora_server.core.database import (
     create_test_engine,
     wait_for_db,
     traces_table,
+    template_traces_table,
     get_database_url,
 )
 
@@ -81,7 +82,7 @@ class TestLogsTableSchema:
 
         required_columns = {
             # Primary key and trace identifiers
-            'id', 'trace_id', 'session_id', 'parent_trace_id', 'agent_id',
+            'id', 'trace_id', 'session_id', 'parent_trace_id', 'agent_id', 'source',
             # Project context
             'project_id',
             # Execution data (trace-based)
@@ -113,6 +114,7 @@ class TestLogsTableSchema:
         assert isinstance(traces_table.c.session_id.type, String)
         assert isinstance(traces_table.c.parent_trace_id.type, String)
         assert isinstance(traces_table.c.agent_id.type, String)
+        assert isinstance(traces_table.c.source.type, String)
         
         # Project context
         assert isinstance(traces_table.c.project_id.type, UUID)
@@ -138,3 +140,18 @@ class TestLogsTableSchema:
         assert isinstance(traces_table.c.inputs_json.type, Text)
         assert isinstance(traces_table.c.output_text.type, Text)
         assert isinstance(traces_table.c.cost.type, Float)
+
+    def test_template_traces_column_types(self):
+        """Test template traces table column types are correct"""
+        from sqlalchemy import Integer, String
+        from sqlalchemy.dialects.postgresql import JSONB
+
+        assert isinstance(template_traces_table.c.trace_id.type, String)
+        assert isinstance(template_traces_table.c.prompt_id.type, String)
+        assert isinstance(template_traces_table.c.version.type, String)
+        assert isinstance(template_traces_table.c.inputs_json.type, JSONB)
+        assert isinstance(template_traces_table.c.position.type, Integer)
+        assert isinstance(template_traces_table.c.role.type, String)
+        assert isinstance(template_traces_table.c.source.type, String)
+        assert isinstance(template_traces_table.c.message_index.type, Integer)
+        assert isinstance(template_traces_table.c.metadata_json.type, JSONB)

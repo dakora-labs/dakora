@@ -31,6 +31,7 @@ import time
 import requests
 from contextlib import contextmanager
 
+from dakora_server.config import settings
 from dakora_server.core.vault import Vault
 
 # Import all fixtures and factories for test usage
@@ -321,7 +322,15 @@ def test_client():
     from fastapi.testclient import TestClient
     from dakora_server.main import app
 
-    return TestClient(app)
+    original_auth_required = settings.auth_required
+    settings.auth_required = True
+
+    client = TestClient(app)
+    try:
+        yield client
+    finally:
+        client.close()
+        settings.auth_required = original_auth_required
 
 
 @pytest.fixture

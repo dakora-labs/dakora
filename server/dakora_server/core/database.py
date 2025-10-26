@@ -1,27 +1,28 @@
 """Database connection and schema management using SQLAlchemy Core"""
 
 from __future__ import annotations
+
+import logging
 import os
 import time
-import logging
-from typing import Optional, Any
 from contextlib import contextmanager
+from typing import Any, Optional
 
 from sqlalchemy import (
-    create_engine,
-    MetaData,
-    Table,
     Column,
-    Integer,
-    String,
-    Text,
-    Float,
     DateTime,
+    Float,
     ForeignKey,
+    Integer,
+    MetaData,
     Numeric,
+    String,
+    Table,
+    Text,
+    create_engine,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
@@ -41,8 +42,15 @@ traces_table = Table(
     Column("session_id", String(255), nullable=True, index=True),
     Column("parent_trace_id", String(255), nullable=True, index=True),  # For nested calls (future)
     Column("agent_id", String(255), nullable=True, index=True),
+    Column("source", String(50), nullable=True, index=True),
     # Project context
-    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True),
+    Column(
+        "project_id",
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    ),
     # Execution data
     Column("conversation_history", JSONB, nullable=True),  # Full conversation context
     Column("metadata", JSONB, nullable=True),  # Additional context (user_id, tags, etc.)
@@ -69,11 +77,21 @@ template_traces_table = Table(
     "template_traces",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
-    Column("trace_id", String(255), ForeignKey("execution_traces.trace_id", ondelete="CASCADE"), nullable=False, index=True),
+    Column(
+        "trace_id",
+        String(255),
+        ForeignKey("execution_traces.trace_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
     Column("prompt_id", String(255), nullable=False, index=True),
     Column("version", String(50), nullable=False),
     Column("inputs_json", JSONB, nullable=True),
     Column("position", Integer, nullable=True),  # Position in conversation (0=first, 1=second, etc.)
+    Column("role", String(50), nullable=True),
+    Column("source", String(50), nullable=True),
+    Column("message_index", Integer, nullable=True),
+    Column("metadata_json", JSONB, nullable=True),
     Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
 )
 
@@ -192,6 +210,7 @@ prompt_executions_table = Table(
     Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
     Column("prompt_id", String(255), nullable=False),
     Column("version", String(50), nullable=False),
+    Column("trace_id", String(255), nullable=True, index=True),
     # Execution details
     Column("inputs_json", JSONB, nullable=False),
     Column("model", String(100), nullable=False),
