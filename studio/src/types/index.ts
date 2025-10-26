@@ -135,6 +135,7 @@ export interface ExecutionRequest {
 
 export interface ExecutionResponse {
   execution_id: string;
+  trace_id?: string | null;
   content: string;
   metrics: ExecutionMetrics;
   model: string;
@@ -146,6 +147,7 @@ export interface ExecutionHistoryItem {
   execution_id: string;
   prompt_id: string;
   version: string;
+  trace_id?: string | null;
   inputs: Record<string, unknown>;
   model: string;
   provider: string;
@@ -321,4 +323,3 @@ export interface QuotaInfo {
   period_start: string;
   period_end: string;
 }
-

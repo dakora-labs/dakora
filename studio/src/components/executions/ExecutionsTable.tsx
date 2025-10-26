@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ProviderBadge } from './ProviderBadge';
 import type { ExecutionListItem } from '@/types';
-import { formatCurrency, formatNumber, formatRelativeTime } from '@/utils/format';
+import { formatCurrency, formatNumber, formatRelativeTime, parseApiDate } from '@/utils/format';
 import { cn } from '@/lib/utils';
 
 interface ExecutionsTableProps {
@@ -70,20 +70,17 @@ export function ExecutionsTable({
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="px-4 py-2 font-medium">Time</th>
-              <th className="px-4 py-2 font-medium">Trace ID</th>
               <th className="px-4 py-2 font-medium">Provider / Model</th>
               <th className="px-4 py-2 font-medium">Tokens In / Out</th>
               <th className="px-4 py-2 font-medium">Latency</th>
               <th className="px-4 py-2 font-medium text-right">Cost</th>
-              <th className="px-4 py-2 font-medium">Session</th>
               <th className="px-4 py-2 font-medium">Agent</th>
-              <th className="px-4 py-2 font-medium text-center">Templates</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && !loading ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
                   No executions found for the selected filters.
                 </td>
               </tr>
@@ -100,16 +97,12 @@ export function ExecutionsTable({
                         {formatRelativeTime(execution.createdAt)}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {execution.createdAt
-                          ? new Date(execution.createdAt).toLocaleString()
-                          : '—'}
+                        {(() => {
+                          const date = parseApiDate(execution.createdAt ?? null);
+                          return date ? date.toLocaleString() : '—';
+                        })()}
                       </span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <code className="text-xs bg-muted px-2 py-1 rounded-md">
-                      {execution.traceId.slice(0, 8)}
-                    </code>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -139,15 +132,6 @@ export function ExecutionsTable({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {execution.sessionId ? (
-                      <code className="text-xs bg-muted px-2 py-1 rounded-md">
-                        {execution.sessionId}
-                      </code>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
                     {execution.agentId ? (
                       <code className="text-xs bg-muted px-2 py-1 rounded-md">
                         {execution.agentId}
@@ -156,16 +140,13 @@ export function ExecutionsTable({
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="text-sm font-medium">{execution.templateCount}</span>
-                  </td>
                 </tr>
               ))
             )}
 
             {loading && rows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
                   Loading executions...
                 </td>
               </tr>

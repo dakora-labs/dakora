@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload } from 'lucide-react';
+import { useState, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -8,17 +9,21 @@ import { Separator } from '@/components/ui/separator';
 import { useModels, useExecutePrompt, useExecutionHistory } from '@/hooks/useApi';
 import type { ExecutionResponse, ExecutionHistoryItem, InputSpec } from '@/types';
 import { ProviderBadge } from './ProviderBadge';
+import { parseApiDate } from '@/utils/format';
 
 interface PromptExecutionProps {
   projectId: string;
   promptId: string;
   inputs: Record<string, InputSpec>;
+  projectSlug?: string | null;
 }
 
-export function PromptExecution({ projectId, promptId, inputs }: PromptExecutionProps) {
+export function PromptExecution({ projectId, promptId, inputs, projectSlug }: PromptExecutionProps) {
+  const navigate = useNavigate();
+  const resolvedProjectSlug = projectSlug ?? 'default';
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
-  const [inputValues, setInputValues] = useState<Record<string, unknown>>({});
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [lastExecution, setLastExecution] = useState<ExecutionResponse | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [invalidInputs, setInvalidInputs] = useState<Set<string>>(new Set());
@@ -49,20 +54,46 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
   }, [models, selectedModel]);
 
   useEffect(() => {
-    const defaultValues: Record<string, unknown> = {};
+    const defaultValues: Record<string, string> = {};
+
+    const serializeDefault = (value: unknown): string => {
+      if (value === undefined || value === null) {
+        return '';
+      }
+      if (typeof value === 'object') {
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch {
+          return '';
+        }
+      }
+      return String(value);
+    };
+
     Object.entries(inputs).forEach(([key, spec]) => {
       if (spec.default !== undefined) {
-        defaultValues[key] = spec.default;
-      } else if (spec.type === 'string') {
-        defaultValues[key] = '';
-      } else if (spec.type === 'number') {
-        defaultValues[key] = 0;
-      } else if (spec.type === 'boolean') {
-        defaultValues[key] = false;
-      } else if (spec.type === 'array<string>') {
-        defaultValues[key] = [];
-      } else if (spec.type === 'object') {
-        defaultValues[key] = {};
+        defaultValues[key] = serializeDefault(spec.default);
+        return;
+      }
+
+      switch (spec.type) {
+        case 'string':
+          defaultValues[key] = '';
+          break;
+        case 'number':
+          defaultValues[key] = '';
+          break;
+        case 'boolean':
+          defaultValues[key] = 'false';
+          break;
+        case 'array<string>':
+          defaultValues[key] = '';
+          break;
+        case 'object':
+          defaultValues[key] = '';
+          break;
+        default:
+          defaultValues[key] = '';
       }
     });
     setInputValues(defaultValues);
@@ -72,7 +103,13 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
     if (!selectedModelInfo) return;
 
     const missingInputs = Object.entries(inputs)
-      .filter(([key, spec]) => spec.required && !inputValues[key])
+      .filter(([key, spec]) => {
+        const raw = inputValues[key];
+        if (!spec.required) {
+          return false;
+        }
+        return raw === undefined || raw === null || String(raw).trim() === '';
+      })
       .map(([key]) => key);
 
     if (missingInputs.length > 0) {
@@ -86,9 +123,67 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
 
     setInvalidInputs(new Set());
 
+    const parseErrorKeys: string[] = [];
+    const transformedInputs: Record<string, unknown> = {};
+
+    const parseArray = (value: string) => {
+      return value
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    };
+
+    Object.entries(inputs).forEach(([key, spec]) => {
+      const rawValue = inputValues[key];
+      if (rawValue === undefined || String(rawValue).trim() === '') {
+        // skip optional empty values
+        return;
+      }
+
+      let parsed: unknown = rawValue;
+      const trimmed = rawValue.trim();
+
+      try {
+        switch (spec.type) {
+          case 'number': {
+            const numeric = Number(trimmed);
+            if (Number.isNaN(numeric)) {
+              throw new Error('Invalid number');
+            }
+            parsed = numeric;
+            break;
+          }
+          case 'boolean': {
+            const lowered = trimmed.toLowerCase();
+            parsed = lowered === 'true' || lowered === '1' || lowered === 'yes';
+            break;
+          }
+          case 'array<string>':
+            parsed = parseArray(trimmed);
+            break;
+          case 'object':
+            parsed = JSON.parse(trimmed);
+            break;
+          default:
+            parsed = rawValue;
+        }
+      } catch {
+        parseErrorKeys.push(key);
+      }
+
+      if (!parseErrorKeys.includes(key)) {
+        transformedInputs[key] = parsed;
+      }
+    });
+
+    if (parseErrorKeys.length > 0) {
+      setInvalidInputs(new Set(parseErrorKeys));
+      return;
+    }
+
     try {
       const result = await execute(promptId, {
-        inputs: inputValues,
+        inputs: transformedInputs,
         model: selectedModel,
         provider: selectedModelInfo.provider,
       });
@@ -108,16 +203,28 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
     }
   };
 
-  const formatCost = (cost: number) => {
+  const handleViewTrace = (event: ReactMouseEvent<HTMLButtonElement>, traceId: string) => {
+    event.stopPropagation();
+    navigate(`/project/${resolvedProjectSlug}/executions/${traceId}`);
+  };
+
+  const formatCost = (cost?: number | null) => {
+    if (cost === undefined || cost === null || Number.isNaN(cost)) {
+      return '—';
+    }
     return cost < 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toFixed(3)}`;
   };
 
-  const formatLatency = (ms: number) => {
+  const formatLatency = (ms?: number | null) => {
+    if (ms === undefined || ms === null || Number.isNaN(ms)) {
+      return '—';
+    }
     return ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseApiDate(dateStr);
+    if (!date) return '—';
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const seconds = Math.floor(diff / 1000);
@@ -189,8 +296,6 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
               </Button>
             </CollapsibleTrigger>
 
-            <Separator orientation="vertical" className="h-4" />
-
             <Button
               size="sm"
               onClick={handleExecute}
@@ -211,6 +316,10 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
           <div className="border-b border-border bg-muted/10 px-4 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
             {Object.entries(inputs).map(([key, spec]) => {
               const isInvalid = invalidInputs.has(key);
+              const rawValue = inputValues[key];
+              const displayValue =
+                rawValue === undefined || rawValue === null ? '' : rawValue;
+
               return (
                 <div key={key} className="flex items-center gap-3">
                   <label className={`text-xs font-medium w-24 shrink-0 ${isInvalid ? 'text-destructive' : ''}`}>
@@ -218,9 +327,12 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
                   </label>
                   <input
                     type={spec.type === 'number' ? 'number' : 'text'}
-                    value={inputValues[key] as string}
+                    value={displayValue}
                     onChange={(e) => {
-                      setInputValues({ ...inputValues, [key]: e.target.value });
+                      setInputValues({
+                        ...inputValues,
+                        [key]: e.target.value,
+                      });
                       if (invalidInputs.has(key)) {
                         const newInvalid = new Set(invalidInputs);
                         newInvalid.delete(key);
@@ -344,6 +456,19 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
                     {history.total}
                   </Badge>
                 </div>
+                <div className="flex items-center gap-2">
+                  {lastExecution?.trace_id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 text-xs"
+                      onClick={(event) => handleViewTrace(event, lastExecution.trace_id!)}
+                    >
+                      <BarChart3 className="w-3 h-3" />
+                      View trace
+                    </Button>
+                  )}
+                </div>
               </div>
             </CollapsibleTrigger>
 
@@ -357,6 +482,7 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
                       if (exec.output_text && exec.metrics) {
                         setLastExecution({
                           execution_id: exec.execution_id,
+                          trace_id: exec.trace_id ?? null,
                           content: exec.output_text,
                           metrics: exec.metrics,
                           model: exec.model,
@@ -382,6 +508,17 @@ export function PromptExecution({ projectId, promptId, inputs }: PromptExecution
                       <span className="text-xs text-muted-foreground">
                         {formatCost(exec.metrics.cost_usd)}
                       </span>
+                    )}
+                    {exec.trace_id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-auto h-6 gap-1 text-xs"
+                        onClick={(event) => handleViewTrace(event, exec.trace_id!)}
+                      >
+                        <BarChart3 className="w-3 h-3" />
+                        View trace
+                      </Button>
                     )}
                   </div>
                 ))}

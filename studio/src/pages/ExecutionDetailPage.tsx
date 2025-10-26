@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Copy, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Check, Copy, FileJson2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ProviderBadge } from '@/components/executions/ProviderBadge';
@@ -9,15 +9,15 @@ import { ConversationTimeline } from '@/components/executions/ConversationTimeli
 import { TemplateUsageList } from '@/components/executions/TemplateUsageList';
 import { MetadataPanel } from '@/components/executions/MetadataPanel';
 import { useExecutionDetail } from '@/hooks/useExecutions';
-import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import { formatTimestamp } from '@/utils/format';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function ExecutionDetailPage() {
   const navigate = useNavigate();
   const { projectSlug, traceId } = useParams<{ projectSlug?: string; traceId?: string }>();
-  const { projectId } = useAuthenticatedApi();
   const { execution, loading, error, refresh } = useExecutionDetail(traceId);
   const [copied, setCopied] = useState(false);
+  const [rawOpen, setRawOpen] = useState(false);
   const resolvedProjectSlug = projectSlug ?? 'default';
 
   const conversation = execution?.conversationHistory ?? [];
@@ -58,11 +58,6 @@ export function ExecutionDetailPage() {
     ];
   }, [execution]);
 
-  const apiBase = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
-  const rawJsonLink = execution && projectId
-    ? `${apiBase}/projects/${projectId}/executions/${execution.traceId}`
-    : null;
-
   const handleCopy = async () => {
     if (!execution) return;
     try {
@@ -75,7 +70,7 @@ export function ExecutionDetailPage() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-muted/20">
       <div className="border-b border-border bg-card px-6 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(`/project/${resolvedProjectSlug}/executions`)}>
@@ -93,6 +88,10 @@ export function ExecutionDetailPage() {
           <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
             Refresh
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setRawOpen(true)} disabled={!execution}>
+            <FileJson2 className="w-4 h-4 mr-2" />
+            View JSON
+          </Button>
           <Button variant="outline" size="sm" onClick={handleCopy}>
             {copied ? <Check className="w-4 h-4 mr-2 text-emerald-500" /> : <Copy className="w-4 h-4 mr-2" />}
             {copied ? 'Copied' : 'Copy ID'}
@@ -100,7 +99,8 @@ export function ExecutionDetailPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 space-y-4">
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-6xl mx-auto w-full px-6 py-6 space-y-5">
         {loading && !execution && (
           <Card className="p-6 text-center text-muted-foreground">
             Loading execution details...
@@ -123,26 +123,33 @@ export function ExecutionDetailPage() {
               latencyMs={execution.latencyMs}
             />
 
-            <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
+            <div className="grid gap-5 lg:grid-cols-[2fr,1fr]">
               <ConversationTimeline messages={conversation} />
               <div className="space-y-4">
-                <Card className="p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-base font-semibold">Context</h2>
+                <Card className="p-4 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-semibold">Context</h2>
+                      <p className="text-xs text-muted-foreground">
+                        Quick reference for identifiers and runtime details.
+                      </p>
+                    </div>
                     {execution.provider && <ProviderBadge provider={execution.provider} />}
                   </div>
-                  <dl className="space-y-2">
+                  <dl className="grid gap-4 sm:grid-cols-2">
                     {contextItems.map((item) => (
-                      <div key={item.label} className="flex flex-col gap-1">
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</dt>
-                        <dd className="text-sm text-foreground flex items-center gap-2">
-                          {item.value}
+                      <div key={item.label} className="rounded-lg border border-border/60 bg-background p-3">
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground flex items-center justify-between">
+                          <span>{item.label}</span>
                           {item.copyable && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopy}>
-                              <Copy className="w-4 h-4" />
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
+                              <Copy className="w-3 h-3" />
                               <span className="sr-only">Copy trace id</span>
                             </Button>
                           )}
+                        </dt>
+                        <dd className="mt-2 text-sm font-medium text-foreground break-all">
+                          {item.value}
                         </dd>
                       </div>
                     ))}
@@ -152,26 +159,6 @@ export function ExecutionDetailPage() {
                 <TemplateUsageList templateUsages={templateUsages} />
 
                 <MetadataPanel metadata={execution.metadata} />
-
-                <Card className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-base font-semibold">Raw Payload</h2>
-                    {rawJsonLink && (
-                      <a
-                        href={rawJsonLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs inline-flex items-center gap-1 text-primary hover:underline"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        Open JSON
-                      </a>
-                    )}
-                  </div>
-                  <pre className="rounded-md bg-background border border-border/60 p-3 text-xs text-muted-foreground overflow-x-auto">
-                    {JSON.stringify(execution, null, 2)}
-                  </pre>
-                </Card>
               </div>
             </div>
           </>
@@ -182,7 +169,21 @@ export function ExecutionDetailPage() {
             Execution not found.
           </Card>
         )}
+        </div>
       </div>
+
+      <Dialog open={rawOpen} onOpenChange={setRawOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Raw Execution JSON</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-auto rounded-md border border-border/60 bg-background p-4">
+            <pre className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
+              {execution ? JSON.stringify(execution, null, 2) : '—'}
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
