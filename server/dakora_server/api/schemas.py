@@ -29,6 +29,7 @@ class UpdateTemplateRequest(BaseModel):
 class TemplateResponse(BaseModel):
     id: str
     version: str
+    version_number: Optional[int] = Field(default=None, description="Auto-incrementing version number from versioning system")
     description: Optional[str]
     template: str
     inputs: Dict[str, Any]
@@ -218,3 +219,24 @@ class QuotaInfo(BaseModel):
     usage_percentage: float = Field(description="Usage as a percentage (0-100)")
     period_start: str = Field(description="ISO timestamp of current billing period start")
     period_end: str = Field(description="ISO timestamp of current billing period end")
+
+
+# Version schemas
+
+class VersionHistoryItem(BaseModel):
+    """Single version record in version history."""
+    version: int = Field(description="Version number")
+    content_hash: str = Field(description="SHA256 hash of version content")
+    created_at: str = Field(description="ISO timestamp of version creation")
+    created_by: str = Field(description="User ID who created this version")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Version metadata")
+
+
+class VersionHistoryResponse(BaseModel):
+    """List of all versions for a prompt."""
+    versions: List[VersionHistoryItem]
+
+
+class RollbackRequest(BaseModel):
+    """Request to rollback prompt to a specific version."""
+    version: int = Field(description="Version number to rollback to", gt=0)

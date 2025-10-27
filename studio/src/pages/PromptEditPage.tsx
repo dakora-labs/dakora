@@ -22,6 +22,7 @@ import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import { PromptPartsPanel } from '@/components/PromptPartsPanel';
 import { RichTemplateEditor, type RichTemplateEditorRef } from '@/components/RichTemplateEditor';
 import { PromptExecution } from '@/components/PromptExecution';
+import { VersionHistorySheet } from '@/components/VersionHistorySheet';
 import type { Template, InputSpec } from '@/types';
 
 type InputType = 'string' | 'number' | 'boolean' | 'array<string>' | 'object';
@@ -56,6 +57,7 @@ export function PromptEditPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showUnusedVarsDialog, setShowUnusedVarsDialog] = useState(false);
   const [unusedVars, setUnusedVars] = useState<string[]>([]);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   useEffect(() => {
     if (contextLoading || !projectId || !projectSlug) return;
@@ -249,6 +251,24 @@ export function PromptEditPage() {
     setTemplate(template.replace(partPattern, ''));
   }, [template]);
 
+  const handleRestoreVersion = async (version: number) => {
+    if (!promptId || !projectId) return;
+
+    try {
+      const restored = await api.rollbackPrompt(projectId, promptId, { version });
+      setPrompt(restored);
+      setDescription(restored.description || '');
+      setTemplate(restored.template);
+      const vars: VariableConfig[] = Object.entries(restored.inputs || {}).map(([name, spec]) => ({
+        name,
+        type: spec.type as InputType,
+      }));
+      setVariables(vars);
+    } catch (err) {
+      throw err;
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -280,7 +300,13 @@ export function PromptEditPage() {
           </Button>
           <div className="h-4 w-px bg-border" />
           <h1 className="text-lg font-semibold">{prompt.id}</h1>
-          <Badge variant="outline" className="text-xs">v{prompt.version}</Badge>
+          <Badge
+            variant="outline"
+            className="text-xs cursor-pointer hover:bg-accent transition-colors"
+            onClick={() => setShowVersionHistory(true)}
+          >
+            v{prompt.version_number || prompt.version}
+          </Badge>
         </div>
         <div className="flex items-center gap-2">
           {isEditing ? (
@@ -369,13 +395,6 @@ export function PromptEditPage() {
                     {prompt.description || 'No description'}
                   </p>
                 )}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">Version</Label>
-                  <Badge variant="secondary" className="text-xs">v{prompt.version}</Badge>
-                </div>
               </div>
 
               <div className="space-y-2">
@@ -572,6 +591,19 @@ export function PromptEditPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {projectId && promptId && (
+        <VersionHistorySheet
+          open={showVersionHistory}
+          onOpenChange={setShowVersionHistory}
+          projectId={projectId}
+          promptId={promptId}
+          currentVersion={String(prompt.version_number || 1)}
+          onRestore={handleRestoreVersion}
+          getVersionHistory={api.getVersionHistory}
+          getPromptVersion={api.getPromptVersion}
+        />
+      )}
     </div>
   );
 }

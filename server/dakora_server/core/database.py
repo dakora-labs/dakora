@@ -62,7 +62,7 @@ traces_table = Table(
     Column("tokens_out", Integer, nullable=True),
     Column("latency_ms", Integer, nullable=True),
     Column("cost_usd", Float, nullable=True),  # type: ignore[misc]
-    Column("created_at", DateTime, server_default=text("CURRENT_TIMESTAMP")),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')")),
     # Legacy columns (kept for backward compatibility)
     Column("prompt_id", String(255), nullable=True),
     Column("version", String(50), nullable=True),
@@ -103,7 +103,7 @@ users_table = Table(
     Column("clerk_user_id", String(255), nullable=False, unique=True, index=True),
     Column("email", String(255), nullable=False),
     Column("name", String(255), nullable=True),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
 )
 
 # Workspaces table definition (SQLAlchemy Core)
@@ -115,7 +115,7 @@ workspaces_table = Table(
     Column("name", String(255), nullable=False),
     Column("type", String(20), nullable=False),
     Column("owner_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
 )
 
 # Workspace members table definition (SQLAlchemy Core)
@@ -125,7 +125,7 @@ workspace_members_table = Table(
     Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False),
     Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
     Column("role", String(20), nullable=False),
-    Column("joined_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("joined_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
 )
 
 # Projects table definition (SQLAlchemy Core)
@@ -137,8 +137,8 @@ projects_table = Table(
     Column("slug", String(63), nullable=False),
     Column("name", String(255), nullable=False),
     Column("description", Text, nullable=True),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
-    Column("updated_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    Column("updated_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
 )
 
 # Prompts table definition (SQLAlchemy Core)
@@ -149,10 +149,26 @@ prompts_table = Table(
     Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
     Column("prompt_id", String(255), nullable=False),
     Column("version", String(50), nullable=False),
+    Column("version_number", Integer, server_default="1", nullable=False),
+    Column("content_hash", String(64), nullable=True),
     Column("description", Text, nullable=True),
     Column("storage_path", Text, nullable=False),
-    Column("last_updated_at", DateTime, server_default=text("NOW()"), nullable=False, index=True),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("last_updated_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False, index=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    Column("metadata", JSONB, nullable=True),
+)
+
+# Prompt versions table definition (SQLAlchemy Core)
+prompt_versions_table = Table(
+    "prompt_versions",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("prompt_id", UUID(as_uuid=True), ForeignKey("prompts.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("version_number", Integer, nullable=False),
+    Column("content_hash", String(64), nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False, index=True),
+    Column("created_by", UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    Column("storage_path", Text, nullable=False),
     Column("metadata", JSONB, nullable=True),
 )
 
@@ -167,8 +183,8 @@ prompt_parts_table = Table(
     Column("name", String(255), nullable=False),
     Column("description", Text, nullable=True),
     Column("content", Text, nullable=False),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
-    Column("updated_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    Column("updated_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
 )
 
 # API keys table definition (SQLAlchemy Core)
@@ -182,10 +198,10 @@ api_keys_table = Table(
     Column("key_prefix", String(8), nullable=False),
     Column("key_suffix", String(4), nullable=False),
     Column("key_hash", String(255), nullable=False, index=True),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
-    Column("last_used_at", DateTime, nullable=True),
-    Column("expires_at", DateTime, nullable=True, index=True),
-    Column("revoked_at", DateTime, nullable=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    Column("last_used_at", DateTime(timezone=True), nullable=True),
+    Column("expires_at", DateTime(timezone=True), nullable=True, index=True),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
 )
 
 # Workspace quotas table definition (SQLAlchemy Core)
@@ -196,10 +212,10 @@ workspace_quotas_table = Table(
     Column("tier", String(50), nullable=False, server_default="free"),
     Column("tokens_used_month", Integer, nullable=False, server_default="0"),
     Column("optimization_runs_used_month", Integer, nullable=False, server_default="0"),
-    Column("current_period_start", DateTime, nullable=False),
-    Column("current_period_end", DateTime, nullable=False),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False),
-    Column("updated_at", DateTime, server_default=text("NOW()"), nullable=False),
+    Column("current_period_start", DateTime(timezone=True), nullable=False),
+    Column("current_period_end", DateTime(timezone=True), nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    Column("updated_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
 )
 
 # Prompt executions table definition (SQLAlchemy Core)
@@ -228,7 +244,7 @@ prompt_executions_table = Table(
     # Metadata
     Column("user_id", String(255), nullable=False),
     Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False, index=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False, index=True),
 )
 
 # Optimization runs table definition (SQLAlchemy Core)
@@ -246,7 +262,7 @@ optimization_runs_table = Table(
     Column("applied", Integer, server_default="0", nullable=False),  # 0=not applied, 1=applied
     Column("user_id", String(255), nullable=False),
     Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
-    Column("created_at", DateTime, server_default=text("NOW()"), nullable=False, index=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False, index=True),
 )
 
 

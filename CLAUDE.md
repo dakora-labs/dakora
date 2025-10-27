@@ -129,7 +129,7 @@ export PATH="$HOME/.local/bin:$PATH" && uv run alembic current
 
 **Important:**
 - Always add new tables to `database.py`
-- Use UTC timestamps (no timezone)
+- **Timestamps**: Use `TIMESTAMP WITH TIME ZONE` (timestamptz) with `server_default=text("(NOW() AT TIME ZONE 'UTC')")`. This ensures all timestamps are stored in UTC and automatically handled correctly across timezones. SQLAlchemy type: `DateTime(timezone=True)`
 - Use SQLAlchemy Core statements for queries
 - Test locally before deploying
 - Write downgrade() logic

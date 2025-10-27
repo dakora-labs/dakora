@@ -1,6 +1,7 @@
 export interface Prompt {
   id: string;
   version: string;
+  version_number?: number | null;
   description?: string;
   template: string;
   inputs: Record<string, InputSpec>;
@@ -347,4 +348,21 @@ export interface QuotaInfo {
   usage_percentage: number;
   period_start: string;
   period_end: string;
+}
+
+export interface VersionHistoryItem {
+  version: number;
+  content_hash: string;
+  created_at: string;
+  created_by: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface VersionHistoryResponse {
+  versions: VersionHistoryItem[];
+  total: number;
+}
+
+export interface RollbackRequest {
+  version: number;
 }
