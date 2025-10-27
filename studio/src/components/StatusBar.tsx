@@ -1,22 +1,36 @@
 import { useState, useEffect } from 'react';
 import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, Database, Folder, Cloud } from 'lucide-react';
-import { api } from '../utils/api';
 import { Badge } from '@/components/ui/badge';
 import type { HealthResponse } from '../types';
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 
-export function StatusBar() {
+interface StatusBarProps {
+  projectSlug: string;
+}
+
+export function StatusBar({ projectSlug }: StatusBarProps) {
+  const { api, projectId } = useAuthenticatedApi();
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [promptCount, setPromptCount] = useState<number>(0);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkHealth = async () => {
+    const checkHealthAndStats = async () => {
       try {
+        // Fetch health data
         const healthData = await api.getHealth();
         setHealth(healthData);
+
+        // Fetch project stats if we have a project ID
+        if (projectId) {
+          const statsData = await api.getProjectStats(projectId);
+          setPromptCount(statsData.prompts_count);
+        }
+
         setConnected(true);
       } catch (error) {
-        console.error('Health check failed:', error);
+        console.error('Health/stats check failed:', error);
         setConnected(false);
         setHealth(null);
       } finally {
@@ -25,13 +39,13 @@ export function StatusBar() {
     };
 
     // Initial check
-    checkHealth();
+    checkHealthAndStats();
 
     // Check every 30 seconds
-    const interval = setInterval(checkHealth, 30000);
+    const interval = setInterval(checkHealthAndStats, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [projectId, api]);
 
   if (loading) {
     return (
@@ -86,10 +100,10 @@ export function StatusBar() {
             </div>
           )}
 
-          {/* Template Count */}
-          {health && (
+          {/* Prompt Count */}
+          {connected && (
             <Badge variant="outline" className="text-xs">
-              {health.templates_loaded} template{health.templates_loaded !== 1 ? 's' : ''}
+              {promptCount} prompt{promptCount !== 1 ? 's' : ''}
             </Badge>
           )}
         </div>

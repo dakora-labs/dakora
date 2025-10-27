@@ -1,6 +1,6 @@
 """Project-scoped prompts API routes."""
 
-from typing import List, Dict
+from typing import List, Dict, Any
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Depends, Response
 from sqlalchemy.engine import Engine
@@ -11,7 +11,7 @@ from ..core.exceptions import TemplateNotFound, ValidationError
 from ..core.prompt_manager import PromptManager
 from ..core.database import get_engine, prompts_table, get_connection, projects_table
 from ..auth import validate_project_access, get_project_vault
-from sqlalchemy import select
+from sqlalchemy import select, func
 from .schemas import (
     TemplateResponse,
     CreateTemplateRequest,
