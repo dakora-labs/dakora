@@ -1,12 +1,20 @@
 """Traces API client for managing execution traces and observability"""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from .client import Dakora
 
 logger = logging.getLogger("dakora_client.traces")
+
+
+class ExecutionListResponse(TypedDict):
+    """Response from list executions endpoint with pagination metadata"""
+    executions: list[dict[str, Any]]
+    total: int
+    limit: int
+    offset: int
 
 
 class TracesAPI:
@@ -106,7 +114,9 @@ class TracesAPI:
         prompt_id: str | None = None,
         agent_id: str | None = None,
         limit: int = 100,
-    ) -> list[dict[str, Any]]:
+        offset: int = 0,
+        include_metadata: bool = False,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """
         List execution traces with optional filters.
         
@@ -116,9 +126,13 @@ class TracesAPI:
             prompt_id: Filter by template ID (optional)
             agent_id: Filter by agent ID (optional)
             limit: Maximum number of results (default: 100)
+            offset: Pagination offset (default: 0)
+            include_metadata: If True, return dict with executions, total, limit, offset.
+                             If False, return just the executions list (default: False)
             
         Returns:
-            List of trace dictionaries
+            If include_metadata=False: List of trace dictionaries
+            If include_metadata=True: Dict with keys: executions, total, limit, offset
             
         Example:
             >>> # Get all traces for a session
@@ -126,16 +140,20 @@ class TracesAPI:
             ...     project_id="proj-123",
             ...     session_id="session-789"
             ... )
+            >>> print(f"Got {len(traces)} traces")
             >>> 
-            >>> # Get all traces using a specific template
-            >>> traces = await dakora.traces.list(
+            >>> # Get traces with pagination metadata
+            >>> result = await dakora.traces.list(
             ...     project_id="proj-123",
-            ...     prompt_id="greeting"
+            ...     limit=25,
+            ...     offset=0,
+            ...     include_metadata=True
             ... )
+            >>> print(f"Showing {len(result['executions'])} of {result['total']} traces")
         """
         url = f"/api/projects/{project_id}/executions"
         
-        params: dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
         if session_id:
             params["session_id"] = session_id
         if prompt_id:
@@ -148,9 +166,14 @@ class TracesAPI:
         logger.debug(f"GET {url} -> {response.status_code}")
 
         response.raise_for_status()
-        traces = response.json()
-        logger.info(f"Listed {len(traces)} traces")
-        return traces
+        data = response.json()
+        executions = data.get("executions", [])
+        total = data.get("total", 0)
+        logger.info(f"Listed {len(executions)} traces (total: {total})")
+        
+        if include_metadata:
+            return data
+        return executions
 
     async def get(
         self,
