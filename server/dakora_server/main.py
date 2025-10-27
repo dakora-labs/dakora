@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from .api import health, webhooks, project_prompts, project_parts, me, api_keys, project_executions, project_optimizations
+from .api import health, webhooks, projects, project_prompts, project_parts, me, api_keys, project_executions, project_optimizations
 
 
 def create_app() -> FastAPI:
@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
     app.include_router(me.router)
 
     # Project-scoped routes
+    app.include_router(projects.router)
     app.include_router(project_prompts.router)
     app.include_router(project_parts.router)
     app.include_router(api_keys.router)
