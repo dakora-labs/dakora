@@ -269,13 +269,13 @@ class PromptManager:
         yaml_content = render_yaml(spec, original_text=None)
         self.registry.backend.write_text(storage_path, yaml_content)
 
-    def _migrate_to_v1(self, prompt_id: str, version: int, content_hash: str, user_id: Optional[UUID]) -> None:
+    def _migrate_to_v1(self, prompt_id: str, version: int, content_hash: Optional[str], user_id: Optional[UUID]) -> None:
         """Migrate existing prompt file without version suffix to v{version}.yaml.
 
         Args:
             prompt_id: The prompt ID
             version: Current version number
-            content_hash: Content hash of current version
+            content_hash: Content hash of current version (will be calculated if None)
             user_id: User ID for version tracking (optional)
         """
         # Read existing file
@@ -286,6 +286,13 @@ class PromptManager:
             # Copy content to versioned path
             content = self.registry.backend.read_text(old_path)
             self.registry.backend.write_text(new_path, content)
+
+            # Calculate content hash if not provided (for pre-migration prompts)
+            if content_hash is None:
+                import yaml
+                data = yaml.safe_load(content)
+                spec = TemplateSpec.model_validate(data)
+                content_hash = self._calculate_content_hash(spec)
 
             # Create version history entry for the migrated version
             with get_connection(self.engine) as conn:
