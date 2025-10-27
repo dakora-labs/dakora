@@ -84,7 +84,7 @@ export function DashboardPage() {
                     <h3 className="font-medium">{prompt.id}</h3>
                   </div>
                   <Badge variant="outline" className="text-xs">
-                    v{prompt.version}
+                    v{prompt.version_number || prompt.version}
                   </Badge>
                 </div>
                 {prompt.description && (
