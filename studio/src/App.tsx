@@ -12,6 +12,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { OptimizePromptPage } from './pages/OptimizePromptPage';
 import { ProjectRedirect } from './components/ProjectRedirect';
 import { UserContextProvider } from './contexts/UserContext';
+import { ExecutionsPage } from './pages/ExecutionsPage';
+import { ExecutionDetailPage } from './pages/ExecutionDetailPage';
 
 function App() {
   if (AUTH_REQUIRED) {
@@ -29,6 +31,8 @@ function App() {
               <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
               <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
               <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
+              <Route path="/project/:projectSlug/executions" element={<ExecutionsPage />} />
+              <Route path="/project/:projectSlug/executions/:traceId" element={<ExecutionDetailPage />} />
               <Route path="/project/:projectSlug/settings" element={<SettingsPage />} />
             </Routes>
           </MainLayout>
@@ -54,6 +58,8 @@ function App() {
         <Route path="/project/:projectSlug/library" element={<PromptLibraryPage />} />
         <Route path="/project/:projectSlug/library/new" element={<NewPromptPartPage />} />
         <Route path="/project/:projectSlug/library/part" element={<PromptPartPage />} />
+        <Route path="/project/:projectSlug/executions" element={<ExecutionsPage />} />
+        <Route path="/project/:projectSlug/executions/:traceId" element={<ExecutionDetailPage />} />
         <Route path="/project/:projectSlug/settings" element={<SettingsPage />} />
       </Routes>
     </MainLayout>

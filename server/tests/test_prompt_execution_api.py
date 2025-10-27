@@ -20,7 +20,7 @@ async def test_execute_prompt_success(
 
     # Create a test prompt
     from dakora_server.core.database import prompts_table, get_connection
-    from sqlalchemy import insert
+    from sqlalchemy import insert, select
     from uuid import UUID
 
     prompt_id = "test-greeting"
@@ -81,11 +81,28 @@ async def test_execute_prompt_success(
                 assert response.status_code == 200
                 data = response.json()
                 assert "execution_id" in data
+                assert data["trace_id"]
                 assert data["content"] == "Hello Alice! How are you today?"
                 assert data["metrics"]["tokens_total"] == 30
                 assert data["metrics"]["cost_usd"] == 0.0015
                 assert data["model"] == "gpt-4o"
                 assert data["provider"] == "azure_openai"
+
+                from dakora_server.core.database import prompt_executions_table, get_connection
+
+                with get_connection(test_engine) as conn:
+                    stored = conn.execute(
+                        select(prompt_executions_table.c.trace_id)
+                        .where(
+                            prompt_executions_table.c.project_id == UUID(project_id),
+                            prompt_executions_table.c.prompt_id == prompt_id,
+                        )
+                        .order_by(prompt_executions_table.c.created_at.desc())
+                        .limit(1)
+                    ).fetchone()
+
+                assert stored is not None
+                assert stored.trace_id == data["trace_id"]
     finally:
         # Clear overrides
         app.dependency_overrides.pop(get_project_vault, None)
@@ -195,6 +212,7 @@ async def test_get_execution_history(test_client, test_engine, setup_test_data, 
                     project_id=UUID(project_id),
                     prompt_id=prompt_id,
                     version="1.0.0",
+                    trace_id=str(uuid4()),
                     inputs_json={"name": f"User{i}"},
                     model="gpt-4o",
                     provider="azure_openai",
@@ -221,6 +239,7 @@ async def test_get_execution_history(test_client, test_engine, setup_test_data, 
     assert len(data["executions"]) == 3
     assert data["executions"][0]["status"] == "success"
     assert data["executions"][0]["metrics"]["tokens_total"] == 30
+    assert all(exec["trace_id"] for exec in data["executions"])
 
 
 @pytest.mark.asyncio

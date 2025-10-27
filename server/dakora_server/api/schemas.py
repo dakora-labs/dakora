@@ -40,6 +40,66 @@ class RenderResponse(BaseModel):
     rendered: str
     inputs_used: Dict[str, Any]
 
+class TemplateUsage(BaseModel):
+    """Information about a template used in an execution"""
+    prompt_id: str
+    version: str
+    inputs: Dict[str, Any]
+    metadata: Optional[Dict[str, Any]] = None
+    role: Optional[str] = None
+    source: Optional[str] = None
+    message_index: Optional[int] = None
+
+
+class ExecutionCreate(BaseModel):
+    """Request to create an execution log entry"""
+    trace_id: str
+    parent_trace_id: Optional[str] = None
+    session_id: str
+    agent_id: Optional[str] = None
+    source: Optional[str] = None
+    template_usages: Optional[List[TemplateUsage]] = None
+    conversation_history: Optional[List[Dict[str, Any]]] = None
+    metadata: Optional[Dict[str, Any]] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    latency_ms: Optional[int] = None
+    cost_usd: Optional[float] = None
+
+
+class ExecutionResponse(BaseModel):
+    """Response after creating an execution log"""
+    trace_id: str
+    status: str = "logged"
+
+
+class ExecutionListItem(BaseModel):
+    """Summary information for a recorded execution trace."""
+    trace_id: str
+    parent_trace_id: Optional[str] = None
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    source: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    cost_usd: Optional[float] = None
+    latency_ms: Optional[int] = None
+    created_at: Optional[str] = None
+    template_count: int = 0
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class ExecutionListResponse(BaseModel):
+    """Paginated execution list response."""
+    executions: List[ExecutionListItem]
+    total: int
+    limit: int
+    offset: int
+
 
 class ExecuteRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
@@ -51,12 +111,17 @@ class ExecutionMetrics(BaseModel):
     tokens_input: int
     tokens_output: int
     tokens_total: int
-    cost_usd: float
+    # cost may be unknown for some executions/providers; allow None
+    cost_usd: Optional[float]
     latency_ms: int
 
 
 class ExecuteResponse(BaseModel):
     execution_id: str
+    trace_id: Optional[str] = Field(
+        default=None,
+        description="Trace identifier when execution is logged to observability",
+    )
     content: str
     metrics: ExecutionMetrics
     model: str
@@ -68,8 +133,9 @@ class ModelInfo(BaseModel):
     id: str
     name: str
     provider: str
-    input_cost_per_1k: float
-    output_cost_per_1k: float
+    # pricing may be unknown for some providers; allow None
+    input_cost_per_1k: Optional[float]
+    output_cost_per_1k: Optional[float]
     max_tokens: int
 
 
@@ -82,6 +148,7 @@ class ExecutionRecord(BaseModel):
     execution_id: str
     prompt_id: str
     version: str
+    trace_id: Optional[str] = None
     inputs: Dict[str, Any]
     model: str
     provider: str

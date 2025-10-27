@@ -6,27 +6,13 @@ from typing import Any
 import google.generativeai as genai
 
 from .provider import ExecutionResult, ModelInfo
+from ..token_pricing import get_pricing_service
 
 
 class GoogleGeminiProvider:
     """Provider for Google Gemini."""
 
-    # Model pricing (per 1K tokens)
-    # Source: https://ai.google.dev/gemini-api/docs/pricing
-    PRICING = {
-        "gemini-2.5-pro": {
-            # Tiered pricing based on prompt token count
-            "input_low": 0.00125,  # $1.25 per 1M tokens (prompts <= 200k tokens)
-            "input_high": 0.0025,  # $2.50 per 1M tokens (prompts > 200k tokens)
-            "output_low": 0.01,  # $10.00 per 1M tokens (prompts <= 200k tokens)
-            "output_high": 0.015,  # $15.00 per 1M tokens (prompts > 200k tokens)
-            "tier_threshold": 200000,  # 200k tokens
-        },
-        "gemini-2.5-flash": {
-            "input": 0.0003,  # $0.30 per 1M tokens (text)
-            "output": 0.0025,  # $2.50 per 1M tokens
-        },
-    }
+    # Pricing is centralized in TokenPricingService; providers do not keep local pricing.
 
     # Model max tokens (context window)
     MAX_TOKENS = {
@@ -93,26 +79,17 @@ class GoogleGeminiProvider:
             tokens_output = response.usage_metadata.candidates_token_count
             tokens_total = response.usage_metadata.total_token_count
 
-            # Calculate cost with tiered pricing for gemini-2.5-pro
-            pricing = self.PRICING.get(model, self.PRICING["gemini-2.5-flash"])
-
-            if "tier_threshold" in pricing:
-                # Tiered pricing (gemini-2.5-pro)
-                if tokens_input > pricing["tier_threshold"]:
-                    input_cost_per_1k = pricing["input_high"]
-                    output_cost_per_1k = pricing["output_high"]
-                else:
-                    input_cost_per_1k = pricing["input_low"]
-                    output_cost_per_1k = pricing["output_low"]
-            else:
-                # Flat pricing (gemini-2.5-flash)
-                input_cost_per_1k = pricing["input"]
-                output_cost_per_1k = pricing["output"]
-
-            cost_usd = (
-                tokens_input / 1000 * input_cost_per_1k
-                + tokens_output / 1000 * output_cost_per_1k
+            # Prefer centralized TokenPricingService for cost calculation
+            pricing_service = get_pricing_service()
+            cost = pricing_service.calculate_cost(
+                provider="google",
+                model=model,
+                tokens_in=tokens_input,
+                tokens_out=tokens_output,
             )
+
+            # If no centralized pricing is found, return cost=None to indicate unknown
+            # (upstream callers can decide how to display or charge for unknown costs).
 
             # Extract content
             content = response.text
@@ -122,7 +99,7 @@ class GoogleGeminiProvider:
                 tokens_input=tokens_input,
                 tokens_output=tokens_output,
                 tokens_total=tokens_total,
-                cost_usd=round(cost_usd, 6),
+                cost_usd=(round(cost, 6) if cost is not None else None),
                 latency_ms=latency_ms,
                 model=model,
                 provider="google_gemini",
@@ -139,14 +116,18 @@ class GoogleGeminiProvider:
             List of ModelInfo objects with base pricing (lower tier for tiered models)
         """
         models = []
-        for model_id, pricing in self.PRICING.items():
-            # Use lower tier pricing for display (most common case)
-            if "tier_threshold" in pricing:
-                input_cost = pricing["input_low"]
-                output_cost = pricing["output_low"]
+        pricing_service = get_pricing_service()
+
+        # Query pricing table keys for known models by asking the pricing service
+        # The TokenPricingService currently stores known models; iterate through
+        # the tokens in MAX_TOKENS as the authoritative model list for this provider.
+        for model_id, max_tokens in self.MAX_TOKENS.items():
+            svc_pricing = pricing_service.get_pricing("google", model_id)
+            if svc_pricing:
+                input_cost, output_cost = svc_pricing
             else:
-                input_cost = pricing["input"]
-                output_cost = pricing["output"]
+                input_cost = None
+                output_cost = None
 
             models.append(
                 ModelInfo(
@@ -155,9 +136,10 @@ class GoogleGeminiProvider:
                     provider="google_gemini",
                     input_cost_per_1k=input_cost,
                     output_cost_per_1k=output_cost,
-                    max_tokens=self.MAX_TOKENS.get(model_id, 1048576),
+                    max_tokens=max_tokens,
                 )
             )
+
         return models
 
     def _format_model_name(self, model_id: str) -> str:

@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from dakora_server.core.llm.google_gemini import GoogleGeminiProvider
 from dakora_server.core.llm.provider import ExecutionResult, ModelInfo
+from dakora_server.core.token_pricing import get_pricing_service
 
 
 class TestGoogleGeminiProvider:
@@ -149,11 +150,14 @@ class TestGoogleGeminiProvider:
         # Gemini 2.5 Flash pricing
         input_tokens = 1000
         output_tokens = 1000
-        pricing = provider.PRICING["gemini-2.5-flash"]
+        svc = get_pricing_service()
+        pricing = svc.get_pricing("google", "gemini-2.5-flash")
+        assert pricing is not None, "pricing for gemini-2.5-flash must exist in TokenPricingService"
+        input_cost_per_1k, output_cost_per_1k = pricing
 
         expected_cost = (
-            input_tokens / 1000 * pricing["input"]
-            + output_tokens / 1000 * pricing["output"]
+            input_tokens / 1000 * input_cost_per_1k
+            + output_tokens / 1000 * output_cost_per_1k
         )
 
         # Cost should be: 0.0003 + 0.0025 = 0.0028
@@ -164,11 +168,15 @@ class TestGoogleGeminiProvider:
         # Gemini 2.5 Pro pricing (low tier)
         input_tokens = 100000  # 100k tokens (below 200k threshold)
         output_tokens = 10000
-        pricing = provider.PRICING["gemini-2.5-pro"]
+        svc = get_pricing_service()
+        pricing = svc.get_pricing("google", "gemini-2.5-pro")
+        assert pricing is not None, "pricing for gemini-2.5-pro must exist in TokenPricingService"
+        # TokenPricingService may store tiered pricing; get_pricing returns the representative (low-tier) tuple
+        input_cost_per_1k, output_cost_per_1k = pricing
 
         expected_cost = (
-            input_tokens / 1000 * pricing["input_low"]
-            + output_tokens / 1000 * pricing["output_low"]
+            input_tokens / 1000 * input_cost_per_1k
+            + output_tokens / 1000 * output_cost_per_1k
         )
 
         # Cost should be: 100 * 0.00125 + 10 * 0.01 = 0.125 + 0.1 = 0.225
@@ -179,11 +187,13 @@ class TestGoogleGeminiProvider:
         # Gemini 2.5 Pro pricing (high tier)
         input_tokens = 250000  # 250k tokens (above 200k threshold)
         output_tokens = 10000
-        pricing = provider.PRICING["gemini-2.5-pro"]
-
-        expected_cost = (
-            input_tokens / 1000 * pricing["input_high"]
-            + output_tokens / 1000 * pricing["output_high"]
+        svc = get_pricing_service()
+        # For high-tier calculation we can call calculate_cost directly which applies tier thresholds
+        expected_cost = svc.calculate_cost(
+            provider="google",
+            model="gemini-2.5-pro",
+            tokens_in=input_tokens,
+            tokens_out=output_tokens,
         )
 
         # Cost should be: 250 * 0.0025 + 10 * 0.015 = 0.625 + 0.15 = 0.775

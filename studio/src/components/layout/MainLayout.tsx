@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { FileText, Menu, ChevronLeft, Library, Settings } from 'lucide-react';
+import { Activity, FileText, Menu, ChevronLeft, Library, Settings } from 'lucide-react';
 import { StatusBar } from '../StatusBar';
 import { AppTopBar } from './AppTopBar';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,51 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   const isActive = (path: string) => location.pathname.includes(path);
 
+  const navigationSections = [
+    {
+      key: 'prompts',
+      title: null as string | null,
+      items: [
+        {
+          label: 'Prompts',
+          icon: FileText,
+          to: `/project/${projectSlug}/prompts`,
+          match: '/prompts',
+        },
+        {
+          label: 'Library',
+          icon: Library,
+          to: `/project/${projectSlug}/library`,
+          match: '/library',
+        },
+      ],
+    },
+    {
+      key: 'observability',
+      title: 'Observability',
+      items: [
+        {
+          label: 'Executions',
+          icon: Activity,
+          to: `/project/${projectSlug}/executions`,
+          match: '/executions',
+        },
+      ],
+    },
+    {
+      key: 'manage',
+      title: 'Manage',
+      items: [
+        {
+          label: 'Settings',
+          icon: Settings,
+          to: `/project/${projectSlug}/settings`,
+          match: '/settings',
+        },
+      ],
+    },
+  ];
+
   return (
     <div className="h-screen bg-background flex flex-col">
       <AppTopBar />
@@ -32,54 +77,40 @@ export function MainLayout({ children }: MainLayoutProps) {
         )}
       >
         <nav className="flex-1 p-3 pt-4">
-          <Link
-            to={`/project/${projectSlug}/prompts`}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
-              isActive('/prompts')
-                ? "bg-muted hover:bg-muted"
-                : "hover:bg-muted/50"
-            )}
-          >
-            <FileText className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-            {sidebarOpen && <span>Prompts</span>}
-          </Link>
-          <Link
-            to={`/project/${projectSlug}/library`}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
-              isActive('/library')
-                ? "bg-muted hover:bg-muted"
-                : "hover:bg-muted/50"
-            )}
-          >
-            <Library className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-            {sidebarOpen && <span>Library</span>}
-          </Link>
+          {navigationSections.map((section, index) => (
+            <div key={section.key} className={cn(index > 0 && "mt-6")}>
+              {section.title && (
+                sidebarOpen ? (
+                  <div className="mb-2 px-3">
+                    <div className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">
+                      {section.title}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-2 h-px bg-border" />
+                )
+              )}
 
-          {sidebarOpen && (
-            <div className="mt-6 mb-2 px-3">
-              <div className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">
-                Manage
-              </div>
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
+                      isActive(item.match)
+                        ? "bg-muted hover:bg-muted"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+                    {sidebarOpen && <span>{item.label}</span>}
+                  </Link>
+                );
+              })}
             </div>
-          )}
-          {!sidebarOpen && (
-            <div className="mt-6 mb-2 h-px bg-border" />
-          )}
-
-          <Link
-            to={`/project/${projectSlug}/settings`}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-normal transition-colors mb-1",
-              isActive('/settings')
-                ? "bg-muted hover:bg-muted"
-                : "hover:bg-muted/50"
-            )}
-          >
-            <Settings className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-            {sidebarOpen && <span>Settings</span>}
-          </Link>
+          ))}
         </nav>
 
         <div className="p-3">

@@ -1,16 +1,23 @@
 """API endpoints for prompt execution and history"""
 
 from typing import Dict, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 import json
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, insert, delete, desc, func
+from sqlalchemy import select, insert, delete, desc, func, update
 from sqlalchemy.engine import Engine
 
 from dakora_server.auth import get_auth_context, validate_project_access, get_project_vault
-from dakora_server.core.database import get_engine, get_connection, prompt_executions_table
+from dakora_server.core.database import (
+    get_engine,
+    get_connection,
+    prompt_executions_table,
+    traces_table,
+    template_traces_table,
+)
 from dakora_server.core.llm.registry import ProviderRegistry
 from dakora_server.core.llm.quota import QuotaService
 from dakora_server.core.renderer import Renderer
@@ -26,6 +33,8 @@ from dakora_server.api.schemas import (
 )
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 @router.post("/api/projects/{project_id}/prompts/{prompt_id}/execute")
@@ -91,6 +100,7 @@ async def execute_prompt(
     output_text = None
     error_message = None
     execution_result = None
+    trace_id: str | None = None
 
     try:
         execution_result = await provider.execute(
@@ -105,14 +115,17 @@ async def execute_prompt(
     # Store execution record
     execution_id = None
     with get_connection(engine) as conn:
+        trace_value: str | None = str(uuid4()) if execution_status == "success" else None
+        trace_id = trace_value
         result = conn.execute(
             insert(prompt_executions_table).values(
                 project_id=project_id,
                 prompt_id=prompt_id,
                 version=template_spec.version,
+                trace_id=trace_value,
                 inputs_json=request.inputs,
                 model=model,
-                provider=execution_result.provider if execution_result else "azure_openai",
+                provider=execution_result.provider if execution_result else request.provider,
                 output_text=output_text,
                 error_message=error_message,
                 status=execution_status,
@@ -127,7 +140,81 @@ async def execute_prompt(
         )
         row = result.fetchone()
         execution_id = str(row[0])
-        created_at = row[1].isoformat()
+        created_at_dt = row[1]
+        created_at = (
+            created_at_dt.isoformat()
+            if isinstance(created_at_dt, datetime)
+            else datetime.utcnow().isoformat()
+        )
+
+        if execution_status == "success" and execution_result and trace_value:
+            try:
+                user_id = getattr(auth_context, "user_id", None)
+                session_id = f"manual:{str(uuid4())}"
+
+                inputs_json_str = json.dumps(request.inputs or {}, default=str)
+
+                conn.execute(
+                    insert(traces_table).values(
+                        project_id=project_id,
+                        trace_id=trace_value,
+                        session_id=session_id,
+                        source="dakora-studio",
+                        agent_id=None,
+                        conversation_history=[
+                            {"role": "user", "content": rendered_prompt},
+                            {"role": "assistant", "content": execution_result.content},
+                        ],
+                        metadata={
+                            "prompt_id": prompt_id,
+                            "version": template_spec.version,
+                            "execution_id": execution_id,
+                            "user_id": user_id,
+                        },
+                        provider=execution_result.provider,
+                        model=execution_result.model,
+                        tokens_in=execution_result.tokens_input,
+                        tokens_out=execution_result.tokens_output,
+                        latency_ms=execution_result.latency_ms,
+                        cost_usd=float(execution_result.cost_usd)
+                        if execution_result.cost_usd is not None
+                        else None,
+                        created_at=created_at_dt,
+                        prompt_id=prompt_id,
+                        version=template_spec.version,
+                        inputs_json=inputs_json_str,
+                        output_text=execution_result.content,
+                        cost=float(execution_result.cost_usd)
+                        if execution_result.cost_usd is not None
+                        else None,
+                    )
+                )
+
+                conn.execute(
+                    insert(template_traces_table).values(
+                        trace_id=trace_value,
+                        prompt_id=prompt_id,
+                        source="dakora-studio",
+                        version=template_spec.version,
+                        inputs_json=request.inputs,
+                        position=0,
+                    )
+                )
+
+                trace_id = trace_value
+            except Exception as trace_error:  # pragma: no cover
+                logger.warning(
+                    "Failed to log manual execution trace for prompt %s: %s",
+                    prompt_id,
+                    trace_error,
+                    exc_info=True,
+                )
+                trace_id = None
+                conn.execute(
+                    update(prompt_executions_table)
+                    .where(prompt_executions_table.c.id == UUID(execution_id))
+                    .values(trace_id=None)
+                )
 
         # Cleanup: keep only 20 most recent executions per prompt
         # Count total executions for this prompt
@@ -168,11 +255,13 @@ async def execute_prompt(
 
     # Return error if execution failed
     if execution_status == "error":
+        trace_id = None
         raise HTTPException(status_code=500, detail=error_message)
 
     # Return success response
     return ExecuteResponse(
         execution_id=execution_id,
+        trace_id=trace_id,
         content=execution_result.content,
         metrics=ExecutionMetrics(
             tokens_input=execution_result.tokens_input,
@@ -266,6 +355,7 @@ async def get_execution_history(
                 execution_id=str(row.id),
                 prompt_id=row.prompt_id,
                 version=row.version,
+                trace_id=row.trace_id,
                 inputs=row.inputs_json,
                 model=row.model,
                 provider=row.provider,

@@ -136,6 +136,7 @@ export interface ExecutionRequest {
 
 export interface ExecutionResponse {
   execution_id: string;
+  trace_id?: string | null;
   content: string;
   metrics: ExecutionMetrics;
   model: string;
@@ -147,6 +148,7 @@ export interface ExecutionHistoryItem {
   execution_id: string;
   prompt_id: string;
   version: string;
+  trace_id?: string | null;
   inputs: Record<string, unknown>;
   model: string;
   provider: string;
@@ -162,6 +164,147 @@ export interface ExecutionHistoryResponse {
   total: number;
 }
 
+export interface ExecutionListFilters {
+  session_id?: string | null;
+  agent_id?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  prompt_id?: string | null;
+  has_templates?: boolean;
+  min_cost?: number;
+  start?: string;
+  end?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ExecutionListItem {
+  traceId: string;
+  createdAt: string | null;
+  provider: string | null;
+  model: string | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  latencyMs: number | null;
+  costUsd: number | null;
+  sessionId?: string | null;
+  agentId?: string | null;
+  parentTraceId?: string | null;
+  templateCount: number;
+}
+
+export interface ExecutionListResponse {
+  executions: ExecutionListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ConversationMessage {
+  role: string;
+  content: string;
+  name?: string | null;
+  timestamp?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface TemplateUsageEntry {
+  traceId: string;
+  promptId: string;
+  version: string;
+  inputs: Record<string, unknown> | null;
+  position: number;
+  renderedPrompt?: string;
+}
+
+export interface ExecutionDetail {
+  traceId: string;
+  createdAt: string | null;
+  conversationHistory: ConversationMessage[];
+  metadata: Record<string, unknown> | null;
+  provider: string | null;
+  model: string | null;
+  tokens: {
+    in: number | null;
+    out: number | null;
+    total: number | null;
+  };
+  costUsd: number | null;
+  latencyMs: number | null;
+  sessionId?: string | null;
+  agentId?: string | null;
+  parentTraceId?: string | null;
+  templateUsages: TemplateUsageEntry[];
+}
+
+export interface RelatedTraceInfo {
+  trace_id: string;
+  agent_id: string | null;
+  created_at: string | null;
+  latency_ms: number | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+}
+
+export interface SessionAgentInfo {
+  agent_id: string;
+  trace_count: number;
+}
+
+export interface RelatedTracesResponse {
+  trace_id: string;
+  parent: RelatedTraceInfo | null;
+  children: RelatedTraceInfo[];
+  siblings: RelatedTraceInfo[];
+  session_agents: SessionAgentInfo[];
+}
+
+export interface OptimizationInsight {
+  category: string;
+  description: string;
+  impact: string;
+}
+
+export interface OptimizePromptRequest {
+  test_cases?: Record<string, unknown>[] | null;
+}
+
+export interface OptimizePromptResponse {
+  optimization_id: string;
+  original_template: string;
+  optimized_template: string;
+  insights: OptimizationInsight[];
+  token_reduction_pct: number;
+  created_at: string;
+}
+
+export interface OptimizationRunRecord {
+  optimization_id: string;
+  prompt_id: string;
+  version: string;
+  original_template: string;
+  optimized_template: string;
+  insights: OptimizationInsight[];
+  token_reduction_pct: number;
+  applied: boolean;
+  created_at: string;
+}
+
+export interface OptimizationRunsResponse {
+  optimization_runs: OptimizationRunRecord[];
+  total: number;
+}
+
+export interface QuotaInfo {
+  optimizations_used: number;
+  optimizations_limit: number;
+  optimizations_remaining: number;
+  usage_percentage: number;
+  period_start: string;
+  period_end: string;
+}
 export interface OptimizationInsight {
   category: string;
   description: string;

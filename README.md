@@ -121,7 +121,7 @@ from dakora_client import create_client
 dakora = create_client("http://localhost:54321")
 
 # Cloud
-dakora = create_client("https://api.dakora.cloud", api_key="dk_xxx")
+dakora = create_client("https://api.dakora.io", api_key="dk_xxx")
 
 # List templates
 templates = await dakora.prompts.list()
@@ -168,7 +168,7 @@ dakora start
 dakora stop
 
 # Link to cloud instance
-dakora link https://api.dakora.cloud
+dakora link https://api.dakora.io
 
 # Show version
 dakora version

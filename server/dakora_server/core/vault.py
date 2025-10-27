@@ -9,7 +9,6 @@ from .renderer import Renderer
 from .registry import LocalRegistry, Registry
 from .model import TemplateSpec
 from .exceptions import ValidationError, RenderError, DakoraError
-from .logging import Logger
 
 
 class Vault:
@@ -42,7 +41,6 @@ class Vault:
     registry: Registry
     config: Dict[str, Any]
     renderer: Renderer
-    logger: Optional[Logger]
     _cache: Dict[str, TemplateSpec]
     _lock: RLock
 
@@ -108,10 +106,6 @@ class Vault:
             raise DakoraError(f"Invalid registry type: {type(registry)}")
 
         self.renderer = Renderer()
-        config_dict: Dict[str, Any] = self.config  # type: ignore
-        self.logger = (
-            Logger() if config_dict.get("logging", {}).get("enabled") else None
-        )
         self._cache: Dict[str, TemplateSpec] = {}
         self._lock = RLock()
 
@@ -136,10 +130,6 @@ class Vault:
         instance.registry = registry
         instance.config = config
         instance.renderer = Renderer()
-        config_dict: Dict[str, Any] = config
-        instance.logger = (
-            Logger() if config_dict.get("logging", {}).get("enabled") else None
-        )
         instance._cache = {}
         instance._lock = RLock()
         return instance
@@ -224,11 +214,7 @@ class Vault:
 
     # Resource management -------------------------------------------------
     def close(self) -> None:
-        if self.logger:
-            try:
-                self.logger.close()
-            except Exception:
-                pass
+        pass
 
     def __enter__(self) -> "Vault":  # pragma: no cover - convenience
         return self
@@ -298,6 +284,4 @@ class TemplateHandle:
         }
         out: Any = func(prompt)
         rec["output"] = out
-        if self.vault.logger:
-            self.vault.logger.write(self.id, self.version, rec["inputs"], rec["output"])
         return out

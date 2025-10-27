@@ -20,12 +20,22 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Convert all timestamp columns to timestamptz with UTC defaults."""
-
-    # logs table
-    op.alter_column('logs', 'created_at',
-                   type_=sa.DateTime(timezone=True),
-                   server_default=sa.text("(NOW() AT TIME ZONE 'UTC')"),
-                   existing_nullable=True)
+    
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    
+    # Handle logs/execution_traces table (may be either name depending on migration path)
+    # Check for execution_traces first (new name), then logs (old name)
+    if 'execution_traces' in inspector.get_table_names():
+        op.alter_column('execution_traces', 'created_at',
+                       type_=sa.DateTime(timezone=True),
+                       server_default=sa.text("(NOW() AT TIME ZONE 'UTC')"),
+                       existing_nullable=True)
+    elif 'logs' in inspector.get_table_names():
+        op.alter_column('logs', 'created_at',
+                       type_=sa.DateTime(timezone=True),
+                       server_default=sa.text("(NOW() AT TIME ZONE 'UTC')"),
+                       existing_nullable=True)
 
     # users table
     op.alter_column('users', 'created_at',
@@ -225,8 +235,16 @@ def downgrade() -> None:
                    server_default=sa.text("NOW()"),
                    existing_nullable=False)
 
-    # logs table
-    op.alter_column('logs', 'created_at',
-                   type_=sa.DateTime(timezone=False),
-                   server_default=sa.text("CURRENT_TIMESTAMP"),
-                   existing_nullable=True)
+    # Handle logs/execution_traces table (may be either name depending on migration path)
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    if 'execution_traces' in inspector.get_table_names():
+        op.alter_column('execution_traces', 'created_at',
+                       type_=sa.DateTime(timezone=False),
+                       server_default=sa.text("CURRENT_TIMESTAMP"),
+                       existing_nullable=True)
+    elif 'logs' in inspector.get_table_names():
+        op.alter_column('logs', 'created_at',
+                       type_=sa.DateTime(timezone=False),
+                       server_default=sa.text("CURRENT_TIMESTAMP"),
+                       existing_nullable=True)

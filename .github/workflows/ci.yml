@@ -176,7 +176,7 @@ jobs:
 
     - name: Run client tests
       working-directory: ./packages/client-python
-      run: uv run pytest tests/ -v
+      run: uv run pytest tests_client/ -v
 
   version-check:
     runs-on: ubuntu-latest

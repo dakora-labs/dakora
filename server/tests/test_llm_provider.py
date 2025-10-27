@@ -8,6 +8,7 @@ from dakora_server.core.llm import (
     ModelInfo,
     ProviderRegistry,
 )
+from dakora_server.core.token_pricing import get_pricing_service
 
 
 class TestAzureOpenAIProvider:
@@ -118,15 +119,25 @@ class TestAzureOpenAIProvider:
         # GPT-4o pricing
         input_tokens = 1000
         output_tokens = 1000
-        pricing = provider.PRICING["gpt-4o"]
+        svc = get_pricing_service()
+        pricing = svc.get_pricing("azure_openai", "gpt-4o")
+        assert pricing is not None, "pricing for gpt-4o must exist in TokenPricingService"
+        input_cost_per_1k, output_cost_per_1k = pricing
 
         expected_cost = (
-            input_tokens / 1000 * pricing["input"]
-            + output_tokens / 1000 * pricing["output"]
+            input_tokens / 1000 * input_cost_per_1k
+            + output_tokens / 1000 * output_cost_per_1k
         )
 
-        # Cost should be calculated correctly
-        assert expected_cost == 0.0025 + 0.01
+        # Cost should match the central pricing service calculation
+        svc_calc = svc.calculate_cost(
+            provider="azure_openai",
+            model="gpt-4o",
+            tokens_in=input_tokens,
+            tokens_out=output_tokens,
+        )
+
+        assert expected_cost == svc_calc
 
 
 class TestProviderRegistry:

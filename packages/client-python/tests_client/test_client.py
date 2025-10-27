@@ -4,6 +4,8 @@ import os
 import pytest
 from dakora_client import Dakora
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestDakoraClient:
     """Test Dakora client initialization and configuration"""
@@ -16,7 +18,7 @@ class TestDakoraClient:
             project_id="test-project",
         )
 
-        assert client.api_key == "dk_test_key"
+        assert client.has_api_key() is True
         assert client.base_url == "https://test.dakora.io"
         assert client._project_id == "test-project"
         assert client.prompts is not None
@@ -30,7 +32,7 @@ class TestDakoraClient:
 
         client = Dakora()
 
-        assert client.api_key == "dk_env_key"
+        assert client.has_api_key() is True
         assert client.base_url == "https://env.dakora.io"
 
         await client.close()
@@ -41,6 +43,7 @@ class TestDakoraClient:
 
         assert client.base_url == "https://api.dakora.io"
         assert client._project_id is None
+        assert client.has_api_key() is False
 
         await client.close()
 

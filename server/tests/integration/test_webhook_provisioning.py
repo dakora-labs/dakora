@@ -4,6 +4,15 @@ import pytest
 from sqlalchemy import select, text
 
 from dakora_server.core.database import metadata
+from dakora_server import config as _config
+
+
+@pytest.fixture(autouse=True)
+def disable_clerk_signature_verification(monkeypatch):
+    """Disable Clerk webhook signature verification for tests by clearing the secret."""
+    # Ensure the verify function will skip verification path
+    monkeypatch.setattr("dakora_server.config.settings.clerk_webhook_secret", None)
+    yield
 
 
 @pytest.fixture(autouse=True)
