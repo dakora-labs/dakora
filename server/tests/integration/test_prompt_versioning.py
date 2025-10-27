@@ -292,14 +292,16 @@ def prompt_manager(db_connection, test_project, storage_backend):
     """Create a PromptManager instance for testing."""
     from dakora_server.core.registry import TemplateRegistry
 
+    project_id, _, _ = test_project
+
     registry = TemplateRegistry(
-        storage_backend, prefix=f"projects/{test_project}"
+        storage_backend, prefix=f"projects/{project_id}"
     )
 
     manager = PromptManager(
         registry=registry,
         engine=db_connection.engine,
-        project_id=test_project,
+        project_id=project_id,
     )
 
     return manager
@@ -308,32 +310,41 @@ def prompt_manager(db_connection, test_project, storage_backend):
 @pytest.fixture
 def test_user(db_connection):
     """Create a test user."""
-    return create_test_user(db_connection, clerk_user_id="test_versioning_user")
+    user_id = create_test_user(db_connection, clerk_user_id="test_versioning_user")
+    db_connection.commit()
+    return user_id
 
 
 @pytest.fixture
 def test_workspace(db_connection, test_user):
     """Create a test workspace."""
-    return create_test_workspace(
+    workspace_id, owner_id = create_test_workspace(
         db_connection,
         owner_id=test_user,
         slug="test-versioning-workspace",
     )
+    db_connection.commit()
+    return workspace_id, owner_id
 
 
 @pytest.fixture
 def test_project(db_connection, test_workspace):
     """Create a test project."""
-    return create_test_project(
+    workspace_id, owner_id = test_workspace
+    project_id, _, _ = create_test_project(
         db_connection,
-        workspace_id=test_workspace,
+        workspace_id=workspace_id,
         slug="test-versioning-project",
     )
+    db_connection.commit()
+    return project_id, workspace_id, owner_id
 
 
 @pytest.fixture
 def storage_backend(tmp_path):
     """Create a local storage backend for testing."""
-    from dakora_server.core.registry.backends import LocalStorageBackend
+    from dakora_server.core.registry.backends import LocalFSBackend
 
-    return LocalStorageBackend(root_dir=str(tmp_path))
+    # Ensure the directory exists
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    return LocalFSBackend(root=str(tmp_path))
