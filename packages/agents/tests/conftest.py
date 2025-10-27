@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 def mock_dakora_client():
     """Mock Dakora client for testing"""
     client = MagicMock()
+    client.project_id = "test-project-123"
     client.traces = MagicMock()
     client.traces.create = AsyncMock(return_value={"id": "test-trace-123"})
     client.prompts = MagicMock()

@@ -4,8 +4,10 @@ This test suite covers the trace-based execution logging system
 for observability from MAF middleware.
 """
 
-import pytest
+from datetime import datetime
 from uuid import uuid4
+
+import pytest
 
 
 @pytest.mark.integration
@@ -189,23 +191,38 @@ class TestCreateExecution:
 class TestListExecutions:
     """Tests for GET /api/projects/{project_id}/executions"""
 
-    def test_list_executions_empty(self, test_project, test_client, override_auth_dependencies):
-        """Test listing executions when none exist"""
-        project_id, _, _ = test_project
+    @staticmethod
+    def _parse_response(response):
+        data = response.json()
+        assert isinstance(data, dict)
+        assert "executions" in data
+        assert "total" in data
+        assert "limit" in data
+        assert "offset" in data
+        return data
 
-        response = test_client.get(f"/api/projects/{project_id}/executions")
+    def test_list_executions_empty(self, test_project, test_client, override_auth_dependencies):
+        """Test listing executions with a filter that yields no results"""
+        project_id, _, _ = test_project
+        missing_session_id = str(uuid4())
+
+        response = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"session_id": missing_session_id},
+        )
 
         assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-        # May have some executions from other tests, so just check it's a list
+        data = self._parse_response(response)
+        assert data["executions"] == []
+        assert data["total"] == 0
+        assert data["limit"] == 25  # default page size
+        assert data["offset"] == 0
 
     def test_list_executions_with_data(self, test_project, test_client, override_auth_dependencies):
         """Test listing executions after creating some"""
         project_id, _, _ = test_project
         session_id = str(uuid4())
 
-        # Create multiple executions
         trace_ids = []
         for i in range(3):
             trace_id = str(uuid4())
@@ -227,28 +244,28 @@ class TestListExecutions:
                 },
             )
 
-        # List executions
-        response = test_client.get(f"/api/projects/{project_id}/executions")
+        response = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"session_id": session_id, "limit": 10},
+        )
 
         assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
+        data = self._parse_response(response)
+        executions = data["executions"]
 
-        # Find our executions in the list
-        our_executions = [e for e in data if e["trace_id"] in trace_ids]
-        assert len(our_executions) == 3
+        assert len(executions) == 3
+        assert data["total"] == 3
+        assert data["limit"] == 10
+        assert data["offset"] == 0
 
-        # Verify structure of returned data
-        for execution in our_executions:
-            assert "trace_id" in execution
-            assert "session_id" in execution
-            assert "provider" in execution
-            assert "model" in execution
-            assert "tokens_in" in execution
-            assert "tokens_out" in execution
-            assert "cost_usd" in execution
-            assert "latency_ms" in execution
-            assert "created_at" in execution
+        returned_ids = {execution["trace_id"] for execution in executions}
+        assert returned_ids == set(trace_ids)
+
+        for execution in executions:
+            assert execution["session_id"] == session_id
+            assert execution["provider"] == "openai"
+            assert execution["model"] == "gpt-4"
+            assert execution["template_count"] == 0
             assert execution.get("source") == "maf"
 
     def test_list_executions_filter_by_session(self, test_project, test_client, override_auth_dependencies):
@@ -257,7 +274,6 @@ class TestListExecutions:
         session_id_1 = str(uuid4())
         session_id_2 = str(uuid4())
 
-        # Create executions in different sessions
         trace_1 = str(uuid4())
         trace_2 = str(uuid4())
 
@@ -271,26 +287,25 @@ class TestListExecutions:
             json={"trace_id": trace_2, "session_id": session_id_2},
         )
 
-        # Filter by session_id_1
         response = test_client.get(
             f"/api/projects/{project_id}/executions",
             params={"session_id": session_id_1},
         )
 
         assert response.status_code == 200
-        data = response.json()
+        data = self._parse_response(response)
+        executions = data["executions"]
 
-        # Should only contain executions from session_id_1
-        matching = [e for e in data if e["trace_id"] == trace_1]
+        matching = [entry for entry in executions if entry["trace_id"] == trace_1]
         assert len(matching) == 1
         assert matching[0]["session_id"] == session_id_1
+        assert data["total"] == 1
 
     def test_list_executions_filter_by_agent(self, test_project, test_client, override_auth_dependencies):
         """Test filtering executions by agent_id"""
         project_id, _, _ = test_project
         session_id = str(uuid4())
 
-        # Create executions with different agents
         trace_1 = str(uuid4())
         trace_2 = str(uuid4())
 
@@ -304,18 +319,19 @@ class TestListExecutions:
             json={"trace_id": trace_2, "session_id": session_id, "agent_id": "agent-B"},
         )
 
-        # Filter by agent-A
         response = test_client.get(
             f"/api/projects/{project_id}/executions",
-            params={"agent_id": "agent-A"},
+            params={"agent_id": "agent-A", "session_id": session_id},
         )
 
         assert response.status_code == 200
-        data = response.json()
+        data = self._parse_response(response)
+        executions = data["executions"]
 
-        matching = [e for e in data if e["trace_id"] == trace_1]
+        matching = [entry for entry in executions if entry["trace_id"] == trace_1]
         assert len(matching) == 1
         assert matching[0]["agent_id"] == "agent-A"
+        assert data["total"] == 1
 
     def test_list_executions_filter_by_prompt(self, test_project, test_client, override_auth_dependencies):
         """Test filtering executions by prompt_id"""
@@ -323,7 +339,6 @@ class TestListExecutions:
         session_id = str(uuid4())
         prompt_id = "test-prompt"
 
-        # Create execution with template usage
         trace_1 = str(uuid4())
         trace_2 = str(uuid4())
 
@@ -349,47 +364,248 @@ class TestListExecutions:
             },
         )
 
-        # Filter by prompt_id
         response = test_client.get(
             f"/api/projects/{project_id}/executions",
-            params={"prompt_id": prompt_id},
+            params={"prompt_id": prompt_id, "session_id": session_id},
         )
 
         assert response.status_code == 200
-        data = response.json()
+        data = self._parse_response(response)
+        executions = data["executions"]
 
-        # Should find trace_1
-        matching = [e for e in data if e["trace_id"] == trace_1]
+        matching = [entry for entry in executions if entry["trace_id"] == trace_1]
         assert len(matching) == 1
+        assert matching[0]["template_count"] == 1
+        assert data["total"] == 1
 
     def test_list_executions_pagination(self, test_project, test_client, override_auth_dependencies):
         """Test pagination of execution list"""
         project_id, _, _ = test_project
         session_id = str(uuid4())
 
-        # Create multiple executions
-        for i in range(5):
+        created_ids = []
+        for _ in range(5):
+            trace_id = str(uuid4())
+            created_ids.append(trace_id)
             test_client.post(
                 f"/api/projects/{project_id}/executions",
-                json={"trace_id": str(uuid4()), "session_id": session_id},
+                json={"trace_id": trace_id, "session_id": session_id},
             )
 
-        # Test limit
+        response_page_one = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"limit": 2, "session_id": session_id},
+        )
+
+        assert response_page_one.status_code == 200
+        data_page_one = self._parse_response(response_page_one)
+        assert len(data_page_one["executions"]) == 2
+        assert data_page_one["limit"] == 2
+        assert data_page_one["offset"] == 0
+        assert data_page_one["total"] == 5
+
+        response_page_two = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"limit": 2, "offset": 2, "session_id": session_id},
+        )
+
+        assert response_page_two.status_code == 200
+        data_page_two = self._parse_response(response_page_two)
+        assert len(data_page_two["executions"]) == 2
+        assert data_page_two["offset"] == 2
+        assert data_page_two["total"] == 5
+        returned_ids = {entry["trace_id"] for entry in data_page_two["executions"]}
+        assert returned_ids.issubset(set(created_ids))
+
+    def test_list_executions_filter_by_provider_model_and_cost(self, test_project, test_client, override_auth_dependencies):
+        """Ensure provider, model, and min_cost filters work together."""
+        project_id, _, _ = test_project
+        session_id = str(uuid4())
+
+        trace_openai_low = str(uuid4())
+        trace_azure_mid = str(uuid4())
+        trace_openai_high = str(uuid4())
+
+        test_client.post(
+            f"/api/projects/{project_id}/executions",
+            json={
+                "trace_id": trace_openai_low,
+                "session_id": session_id,
+                "provider": "openai",
+                "model": "gpt-4-turbo",
+                "cost_usd": 0.001,
+            },
+        )
+
+        test_client.post(
+            f"/api/projects/{project_id}/executions",
+            json={
+                "trace_id": trace_azure_mid,
+                "session_id": session_id,
+                "provider": "azure_openai",
+                "model": "gpt-4o",
+                "cost_usd": 0.05,
+            },
+        )
+
+        test_client.post(
+            f"/api/projects/{project_id}/executions",
+            json={
+                "trace_id": trace_openai_high,
+                "session_id": session_id,
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+                "cost_usd": 0.25,
+            },
+        )
+
         response = test_client.get(
             f"/api/projects/{project_id}/executions",
-            params={"limit": 2},
+            params={
+                "provider": "OpenAI",
+                "model": "4o",
+                "min_cost": 0.1,
+                "session_id": session_id,
+            },
         )
 
         assert response.status_code == 200
-        # Response should respect limit parameter
+        data = self._parse_response(response)
+        executions = data["executions"]
 
-        # Test offset
-        response = test_client.get(
+        assert len(executions) == 1
+        assert executions[0]["trace_id"] == trace_openai_high
+        assert executions[0]["provider"] == "openai"
+        assert executions[0]["model"] == "gpt-4o-mini"
+        assert data["total"] == 1
+
+    def test_list_executions_has_templates_toggle(self, test_project, test_client, override_auth_dependencies):
+        """Verify has_templates filter includes or excludes linked templates."""
+        project_id, _, _ = test_project
+        session_id = str(uuid4())
+
+        template_trace = str(uuid4())
+        no_template_trace = str(uuid4())
+
+        test_client.post(
             f"/api/projects/{project_id}/executions",
-            params={"limit": 10, "offset": 0},
+            json={
+                "trace_id": template_trace,
+                "session_id": session_id,
+                "template_usages": [
+                    {"prompt_id": "prompt-one", "version": "1.0.0", "inputs": {}}
+                ],
+            },
         )
 
-        assert response.status_code == 200
+        test_client.post(
+            f"/api/projects/{project_id}/executions",
+            json={
+                "trace_id": no_template_trace,
+                "session_id": session_id,
+            },
+        )
+
+        response_has_templates = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"has_templates": True, "session_id": session_id},
+        )
+        assert response_has_templates.status_code == 200
+        data_has_templates = self._parse_response(response_has_templates)
+        assert {entry["trace_id"] for entry in data_has_templates["executions"]} == {template_trace}
+        assert data_has_templates["executions"][0]["template_count"] == 1
+        assert data_has_templates["total"] == 1
+
+        response_no_templates = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"has_templates": False, "session_id": session_id},
+        )
+        assert response_no_templates.status_code == 200
+        data_no_templates = self._parse_response(response_no_templates)
+        assert {entry["trace_id"] for entry in data_no_templates["executions"]} == {no_template_trace}
+        assert data_no_templates["executions"][0]["template_count"] == 0
+        assert data_no_templates["total"] == 1
+
+    def test_list_executions_date_range_filters(self, test_project, test_client, override_auth_dependencies):
+        """Ensure start/end filters respect created_at timestamps."""
+        project_id, _, _ = test_project
+        session_id = str(uuid4())
+
+        early_trace = str(uuid4())
+        test_client.post(
+            f"/api/projects/{project_id}/executions",
+            json={"trace_id": early_trace, "session_id": session_id},
+        )
+
+        midpoint = datetime.utcnow().isoformat()
+
+        late_trace = str(uuid4())
+        test_client.post(
+            f"/api/projects/{project_id}/executions",
+            json={"trace_id": late_trace, "session_id": session_id},
+        )
+
+        response_start = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"session_id": session_id, "start": midpoint},
+        )
+        assert response_start.status_code == 200
+        data_start = self._parse_response(response_start)
+        assert {entry["trace_id"] for entry in data_start["executions"]} == {late_trace}
+        assert data_start["total"] == 1
+
+        response_end = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"session_id": session_id, "end": midpoint},
+        )
+        assert response_end.status_code == 200
+        data_end = self._parse_response(response_end)
+        assert {entry["trace_id"] for entry in data_end["executions"]} == {early_trace}
+        assert data_end["total"] == 1
+
+    def test_list_executions_pagination_with_page_params(self, test_project, test_client, override_auth_dependencies):
+        """Verify page/page_size parameters translate to correct offset."""
+        project_id, _, _ = test_project
+        session_id = str(uuid4())
+        trace_ids = []
+
+        for _ in range(3):
+            trace_id = str(uuid4())
+            trace_ids.append(trace_id)
+            test_client.post(
+                f"/api/projects/{project_id}/executions",
+                json={"trace_id": trace_id, "session_id": session_id},
+            )
+
+        response_page_two = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"session_id": session_id, "page": 2, "page_size": 1},
+        )
+        assert response_page_two.status_code == 200
+        data_page_two = self._parse_response(response_page_two)
+        assert len(data_page_two["executions"]) == 1
+        assert data_page_two["limit"] == 1
+        assert data_page_two["offset"] == 1
+        assert data_page_two["total"] == 3
+        assert data_page_two["executions"][0]["trace_id"] in set(trace_ids)
+
+        response_page_three = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"session_id": session_id, "page": 3, "page_size": 1},
+        )
+        assert response_page_three.status_code == 200
+        data_page_three = self._parse_response(response_page_three)
+        assert len(data_page_three["executions"]) == 1
+        assert data_page_three["offset"] == 2
+
+    def test_list_executions_invalid_date_range(self, test_project, test_client, override_auth_dependencies):
+        """Invalid date range should yield 400."""
+        project_id, _, _ = test_project
+        response = test_client.get(
+            f"/api/projects/{project_id}/executions",
+            params={"start": "2024-01-02T00:00:00", "end": "2024-01-01T00:00:00"},
+        )
+        assert response.status_code == 400
 
 
 @pytest.mark.integration

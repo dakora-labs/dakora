@@ -1,63 +1,72 @@
-"""Helper functions for using Dakora with Agent Framework"""
+"""Helper utilities for integrating Dakora with Microsoft Agent Framework."""
 
-from typing import TYPE_CHECKING
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Final, Protocol, runtime_checkable
 
 from agent_framework import ChatMessage, Role
 
 if TYPE_CHECKING:
     from dakora_client.types import RenderResult
 
+__all__ = ["to_message", "to_instruction_template"]
+
+DAKORA_CONTEXT_ATTR: Final[str] = "_dakora_context"
+
+
+@runtime_checkable
+class _SupportsTemplateContext(Protocol):
+    """Structural type describing the render result data we rely on."""
+
+    text: str
+    prompt_id: str
+    version: str
+    inputs: dict[str, Any]
+    metadata: dict[str, Any]
+
+    def to_template_usage(
+        self,
+        *,
+        role: str | None = "system",
+        source: str = "instruction",
+        message_index: int | None = None,
+    ) -> dict[str, Any]:
+        ...
+
 
 def to_message(
-    render_result: "RenderResult",
+    render_result: _SupportsTemplateContext,
     role: Role = Role.USER,
 ) -> ChatMessage:
     """
-    Convert Dakora render result to Agent Framework message with metadata.
-    
-    This preserves template information for automatic linking by DakoraTraceMiddleware.
-    The middleware extracts _dakora_context and creates template_executions records.
-    
-    Args:
-        render_result: Result from dakora.prompts.render()
-        role: Message role (default: USER)
-    
-    Returns:
-        ChatMessage with attached template metadata
-    
-    Example:
-        ```python
-        from dakora_client import Dakora
-        from dakora_af import to_message
-        from agent_framework import ChatAgent, Role
-        
-        dakora = Dakora("https://api.dakora.io")
-        
-        # Render Dakora template
-        greeting = await dakora.prompts.render(
-            "customer-greeting",
-            {"customer_name": "Alice", "tier": "premium"}
-        )
-        
-        # Convert to AF message (preserves template metadata)
-        message = to_message(greeting, role=Role.SYSTEM)
-        
-        # Use in agent
-        agent = ChatAgent(...)
-        result = await agent.run([message, ...])
-        
-        # ✅ Execution linked to "customer-greeting" template in Dakora Studio
-        ```
+    Convert a Dakora render result into a Microsoft Agent Framework message.
+
+    The returned message contains the rendered text and embeds Dakora metadata so
+    :class:`~dakora_agents.maf.middleware.DakoraTraceMiddleware` can automatically
+    associate the execution with the originating template.
     """
     message = ChatMessage(role=role, text=render_result.text)
-    
-    # Attach Dakora metadata to message for middleware extraction
-    # This is read by DakoraTraceMiddleware.process() to create template linkage
-    message._dakora_context = {
+
+    dakora_context = {
         "prompt_id": render_result.prompt_id,
         "version": render_result.version,
-        "inputs": render_result.inputs,
-        "metadata": render_result.metadata,
+        "inputs": dict(render_result.inputs or {}),
+        "metadata": dict(render_result.metadata or {}),
     }
-    
+    setattr(message, DAKORA_CONTEXT_ATTR, dakora_context)  # type: ignore[attr-defined]
+
     return message
+
+
+def to_instruction_template(render_result: _SupportsTemplateContext) -> dict[str, Any]:
+    """
+    Build a template usage payload from a render result for agent instructions.
+
+    This delegates to :meth:`dakora_client.types.RenderResult.to_template_usage`
+    so middleware callers do not need to handcraft the payload.
+    """
+    return render_result.to_template_usage(
+        role="system",
+        source="instruction",
+        message_index=None,
+    )

@@ -150,7 +150,7 @@ async def execute_prompt(
         if execution_status == "success" and execution_result and trace_value:
             try:
                 user_id = getattr(auth_context, "user_id", None)
-                session_id = f"manual:{user_id}" if user_id else None
+                session_id = f"manual:{str(uuid4())}"
 
                 inputs_json_str = json.dumps(request.inputs or {}, default=str)
 
@@ -159,13 +159,13 @@ async def execute_prompt(
                         project_id=project_id,
                         trace_id=trace_value,
                         session_id=session_id,
+                        source="dakora-studio",
                         agent_id=None,
                         conversation_history=[
                             {"role": "user", "content": rendered_prompt},
                             {"role": "assistant", "content": execution_result.content},
                         ],
                         metadata={
-                            "source": "dakora-studio",
                             "prompt_id": prompt_id,
                             "version": template_spec.version,
                             "execution_id": execution_id,
@@ -194,6 +194,7 @@ async def execute_prompt(
                     insert(template_traces_table).values(
                         trace_id=trace_value,
                         prompt_id=prompt_id,
+                        source="dakora-studio",
                         version=template_spec.version,
                         inputs_json=request.inputs,
                         position=0,

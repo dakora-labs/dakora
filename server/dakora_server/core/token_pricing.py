@@ -31,6 +31,8 @@ PRICING_TABLE: Dict[Tuple[str, str], Union[Tuple[float, float], Dict[str, Any]]]
     ("openai", "gpt-4o-mini"): (0.00015, 0.0006),
     ("openai", "gpt-3.5-turbo"): (0.0015, 0.002),
     ("openai", "gpt-3.5-turbo-16k"): (0.003, 0.004),
+    ("openai", "gpt-5"): (0.05, 0.12),
+    ("openai", "gpt-5-mini"): (0.0025, 0.006),
     
     # Azure OpenAI (same pricing as OpenAI)
     ("azure_openai", "gpt-4"): (0.03, 0.06),
@@ -40,6 +42,8 @@ PRICING_TABLE: Dict[Tuple[str, str], Union[Tuple[float, float], Dict[str, Any]]]
     ("azure_openai", "gpt-4o-mini"): (0.00015, 0.0006),
     ("azure_openai", "gpt-35-turbo"): (0.0015, 0.002),
     ("azure_openai", "gpt-35-turbo-16k"): (0.003, 0.004),
+    ("azure_openai", "gpt-5"): (0.05, 0.12),
+    ("azure_openai", "gpt-5-mini"): (0.0025, 0.006),
     
     # Anthropic Models
     ("anthropic", "claude-3-opus-20240229"): (0.015, 0.075),
@@ -72,14 +76,21 @@ PRICING_TABLE: Dict[Tuple[str, str], Union[Tuple[float, float], Dict[str, Any]]]
 class TokenPricingService:
     """Service for calculating LLM execution costs based on token usage."""
     
-    def __init__(self, pricing_table: Optional[Dict[Tuple[str, str], Tuple[float, float]]] = None):
+    def __init__(
+        self,
+        pricing_table: Optional[Dict[Tuple[str, str], Union[Tuple[float, float], Dict[str, Any]]]] = None,
+    ):
         """
         Initialize pricing service.
         
         Args:
             pricing_table: Optional custom pricing table. Defaults to PRICING_TABLE.
         """
-        self.pricing_table = pricing_table or PRICING_TABLE
+        # pricing_table can contain either flat tuples or dict entries (tiered/flat)
+        # Annotate attribute so static checkers know the value shape.
+        self.pricing_table: Dict[Tuple[str, str], Union[Tuple[float, float], Dict[str, Any]]] = (
+            pricing_table or PRICING_TABLE
+        )
     
     def calculate_cost(
         self,
@@ -126,7 +137,7 @@ class TokenPricingService:
         # Entry can be a flat tuple or a dict describing type
         if isinstance(entry, tuple):
             input_cost_per_1k, output_cost_per_1k = entry
-        elif isinstance(entry, dict):
+        else:
             etype = entry.get("type")
             if etype == "tiered":
                 threshold = entry.get("tier_threshold", float("inf"))
@@ -143,8 +154,6 @@ class TokenPricingService:
             else:
                 # Unknown dict shape
                 return None
-        else:
-            return None
 
         # Validate numeric pricing values
         if input_cost_per_1k is None or output_cost_per_1k is None:
@@ -207,8 +216,7 @@ class TokenPricingService:
                 return (float(entry[0]), float(entry[1]))
             except Exception:
                 return None
-
-        if isinstance(entry, dict):
+        else:
             etype = entry.get("type")
             if etype == "tiered":
                 in_low = entry.get("input_low")

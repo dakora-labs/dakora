@@ -12,12 +12,10 @@ from dakora_agents.maf import create_dakora_middleware, to_message
 class TestIntegration:
     """Integration tests simulating real usage patterns"""
     
-    async def test_agent_with_middleware(self, mock_dakora_client, project_id):
+    async def test_agent_with_middleware(self, mock_dakora_client):
         """Test that middleware works with ChatAgent"""
         middleware = create_dakora_middleware(
             dakora_client=mock_dakora_client,
-            project_id=project_id,
-            agent_id="test-agent",
         )
         
         # Create a mock chat client
@@ -32,13 +30,14 @@ class TestIntegration:
             name="TestAgent",
             chat_client=mock_chat_client,
             instructions="You are a test assistant",
+            metadata={"dakora_agent_id": "test-agent"},
             middleware=[middleware]
         )
         
         # Verify middleware is attached
         assert middleware in agent.middleware
     
-    async def test_template_workflow(self, mock_dakora_client, project_id):
+    async def test_template_workflow(self, mock_dakora_client):
         """Test complete workflow: render template -> to_message -> agent"""
         from agent_framework import ChatOptions
         
@@ -58,7 +57,6 @@ class TestIntegration:
         # Create middleware
         middleware = create_dakora_middleware(
             dakora_client=mock_dakora_client,
-            project_id=project_id,
         )
         
         # Simulate agent processing
@@ -80,8 +78,12 @@ class TestIntegration:
         assert mock_dakora_client.traces.create.called
         call_args = mock_dakora_client.traces.create.call_args[1]
         assert len(call_args["template_usages"]) == 1
+        usage = call_args["template_usages"][0]
+        assert usage["prompt_id"] == "test-prompt"
+        assert usage["role"] == "system"
+        assert usage["source"] == "message"
     
-    async def test_multi_turn_conversation(self, mock_dakora_client, project_id):
+    async def test_multi_turn_conversation(self, mock_dakora_client):
         """Test middleware tracks multi-turn conversations with same session"""
         from agent_framework import ChatOptions
         
@@ -89,7 +91,6 @@ class TestIntegration:
         
         middleware = create_dakora_middleware(
             dakora_client=mock_dakora_client,
-            project_id=project_id,
             session_id=session_id,
         )
         
@@ -133,7 +134,7 @@ class TestIntegration:
         assert call1_args["session_id"] == session_id
         assert call2_args["session_id"] == session_id
     
-    async def test_multi_agent_workflow(self, mock_dakora_client, project_id):
+    async def test_multi_agent_workflow(self, mock_dakora_client):
         """Test multiple agents sharing same session"""
         from agent_framework import ChatOptions
         
@@ -142,16 +143,12 @@ class TestIntegration:
         # Agent 1
         agent1_middleware = create_dakora_middleware(
             dakora_client=mock_dakora_client,
-            project_id=project_id,
-            agent_id="researcher",
             session_id=session_id,
         )
-        
+
         # Agent 2
         agent2_middleware = create_dakora_middleware(
             dakora_client=mock_dakora_client,
-            project_id=project_id,
-            agent_id="writer",
             session_id=session_id,
         )
         
@@ -164,13 +161,15 @@ class TestIntegration:
             chat_client=mock_chat_client,
             chat_options=ChatOptions()
         )
-        
+        context1.chat_options.metadata = {"dakora_agent_id": "researcher"}
+
         context2 = ChatContext(
             messages=[ChatMessage(role=Role.USER, text="Write article")],
             metadata={},
             chat_client=mock_chat_client,
             chat_options=ChatOptions()
         )
+        context2.chat_options.metadata = {"dakora_agent_id": "writer"}
         
         async def mock_next(ctx: ChatContext) -> None:
             ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Done"))

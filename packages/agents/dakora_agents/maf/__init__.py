@@ -12,10 +12,11 @@ from .middleware import (
     DakoraTraceMiddleware,
     create_dakora_middleware,
 )
-from .helpers import to_message
+from .helpers import to_instruction_template, to_message
 
 __all__ = [
     "DakoraTraceMiddleware",
     "create_dakora_middleware",
     "to_message",
+    "to_instruction_template",
 ]

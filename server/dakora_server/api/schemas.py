@@ -74,6 +74,32 @@ class ExecutionResponse(BaseModel):
     status: str = "logged"
 
 
+class ExecutionListItem(BaseModel):
+    """Summary information for a recorded execution trace."""
+    trace_id: str
+    parent_trace_id: Optional[str] = None
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    source: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    cost_usd: Optional[float] = None
+    latency_ms: Optional[int] = None
+    created_at: Optional[str] = None
+    template_count: int = 0
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class ExecutionListResponse(BaseModel):
+    """Paginated execution list response."""
+    executions: List[ExecutionListItem]
+    total: int
+    limit: int
+    offset: int
+
+
 class ExecuteRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
     model: Optional[str] = Field(default=None, description="Model to use (defaults to workspace default)")

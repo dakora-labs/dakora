@@ -38,31 +38,27 @@ from dakora_client import Dakora
 from dakora_agents.maf import create_dakora_middleware
 
 async def main():
-    # Initialize Dakora client
-    dakora = Dakora(
-        base_url="http://localhost:54321",
-        api_key="dk_your_api_key"
-    )
-    
-    # Get prompt template from Dakora
-    instructions = await dakora.prompts.render("weather_agent_v1", {})
-    
-    # Create middleware
+    # Initialize Dakora client (local dev server runs on :54321 by default)
+    dakora = Dakora(base_url="http://localhost:54321", api_key="dk_your_api_key")
+
+    # Render a prompt template from Dakora (returns a RenderResult)
+    instructions_result = await dakora.prompts.render("weather_agent_v1", {})
+
+    # Create middleware (pass the RenderResult as the instruction)
     middleware = create_dakora_middleware(
         dakora_client=dakora,
-        prompt_id="weather_agent_v1",
-        prompt_version="1.0.0",
+        instruction=instructions_result,
     )
-    
-    # Create agent with middleware
+
+    # Create agent with middleware. Use the rendered text for agent.instructions
     agent = ChatAgent(
         name="WeatherAgent",
         chat_client=OpenAIChatClient(),
-        instructions=instructions,
+        instructions=instructions_result.text,
         tools=[get_weather],
-        middleware=[middleware]
+        middleware=[middleware],
     )
-    
+
     # Run agent - metrics automatically logged to Dakora
     result = await agent.run("What's the weather in Seattle?")
     print(result)
@@ -80,34 +76,34 @@ import uuid
 # Generate session ID for this workflow
 session_id = str(uuid.uuid4())
 
-# Agent 1: Researcher
+researcher_instructions = await dakora.prompts.render("research_prompt", {})
+writer_instructions = await dakora.prompts.render("writer_prompt", {})
+
 researcher = ChatAgent(
     name="Researcher",
     chat_client=OpenAIChatClient(),
-    instructions=await dakora.prompts.render("research_prompt", {}),
+    instructions=researcher_instructions.text,
     middleware=[
         create_dakora_middleware(
             dakora_client=dakora,
-            prompt_id="research_prompt",
+            instruction=researcher_instructions,
             session_id=session_id  # Same session ID
         )
     ]
 )
 
-# Agent 2: Writer
 writer = ChatAgent(
     name="Writer",
     chat_client=OpenAIChatClient(),
-    instructions=await dakora.prompts.render("writer_prompt", {}),
+    instructions=writer_instructions.text,
     middleware=[
         create_dakora_middleware(
             dakora_client=dakora,
-            prompt_id="writer_prompt",
+            instruction=writer_instructions,
             session_id=session_id  # Same session ID
         )
     ]
 )
-
 # Run workflow - all activities tracked under same session
 research = await researcher.run("Research quantum computing")
 article = await writer.run(f"Write article: {research}")
@@ -142,27 +138,32 @@ Logging is asynchronous and won't slow down your agents. Failed logs won't crash
 ```python
 def create_dakora_middleware(
     dakora_client: Dakora,
-    prompt_id: str,
-    prompt_version: str = "1.0.0",
+    *,
+    project_id: str | None = None,
+    agent_id: str | None = None,
     session_id: str | None = None,
-    conversation_id: str | None = None,
+    instruction_template: dict[str, Any] | RenderResult | None = None,
+    instruction: RenderResult | None = None,
+    parent_trace_id: str | None = None,
 ) -> ChatMiddleware:
     """
     Create Dakora tracking middleware for MAF agents.
     
     Args:
         dakora_client: Initialized Dakora client
-        prompt_id: ID of the Dakora prompt template
-        prompt_version: Version of the prompt template
-        session_id: Optional session ID for multi-agent tracking
-        conversation_id: Optional conversation/thread ID
+        project_id: Override Dakora project (defaults to client setting)
+        agent_id: Default agent identifier for traces
+        session_id: Optional session identifier for multi-agent tracking
+        instruction_template: Legacy dictionary or RenderResult for instruction linkage
+        instruction: Preferred RenderResult returned by `dakora.prompts.render()`
+        parent_trace_id: Optional parent trace for nested workflows
         
     Returns:
         ChatMiddleware instance ready to use with agents
     """
 ```
 
-### `DakoraTrackingMiddleware`
+### `DakoraTraceMiddleware`
 
 Class-based middleware for advanced use cases:
 
