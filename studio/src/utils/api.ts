@@ -23,6 +23,7 @@ import type {
   OptimizePromptResponse,
   OptimizationRunsResponse,
   QuotaInfo,
+  RelatedTracesResponse,
 } from '../types';
 
 interface UserContext {
@@ -364,6 +365,7 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
           costUsd,
           sessionId: entry?.session_id ?? entry?.sessionId ?? undefined,
           agentId: entry?.agent_id ?? entry?.agentId ?? undefined,
+          parentTraceId: entry?.parent_trace_id ?? entry?.parentTraceId ?? undefined,
           templateCount,
         };
       };
@@ -554,6 +556,14 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         parentTraceId: data?.parent_trace_id ?? data?.parentTraceId ?? null,
         templateUsages,
       };
+    },
+
+    async getRelatedTraces(projectId: string, traceId: string): Promise<RelatedTracesResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}/related`, {
+        headers: authHeaders,
+      });
+      return handleResponse<RelatedTracesResponse>(response);
     },
 
     async executePrompt(projectId: string, promptId: string, request: ExecutionRequest): Promise<ExecutionResponse> {

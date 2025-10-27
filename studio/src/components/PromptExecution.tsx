@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload, BarChart3 } from 'lucide-react';
+import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload, BarChart3, Code, FileText, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -10,6 +10,8 @@ import { useModels, useExecutePrompt, useExecutionHistory } from '@/hooks/useApi
 import type { ExecutionResponse, ExecutionHistoryItem, InputSpec } from '@/types';
 import { ProviderBadge } from './ProviderBadge';
 import { parseApiDate } from '@/utils/format';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface PromptExecutionProps {
   projectId: string;
@@ -27,10 +29,32 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug }: Pr
   const [lastExecution, setLastExecution] = useState<ExecutionResponse | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [invalidInputs, setInvalidInputs] = useState<Set<string>>(new Set());
+  const [showRaw, setShowRaw] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const { models, loading: modelsLoading } = useModels(projectId);
   const { execute, loading: executing, error: executeError } = useExecutePrompt(projectId);
   const { history, refetch: refetchHistory } = useExecutionHistory(projectId, promptId);
+
+  // Detect if content looks like markdown
+  const hasMarkdownSyntax = (content: string): boolean => {
+    const markdownPatterns = [
+      /^#{1,6}\s/m,
+      /\*\*.*\*\*/,
+      /\*.*\*/,
+      /\[.*\]\(.*\)/,
+      /^[-*+]\s/m,
+      /^\d+\.\s/m,
+      /```/,
+      /`[^`]+`/,
+      /^>\s/m,
+      /\|.*\|/,
+    ];
+    
+    return markdownPatterns.some(pattern => pattern.test(content));
+  };
+
+  const hasMarkdown = lastExecution?.content ? hasMarkdownSyntax(lastExecution.content) : false;
 
   const modelsByProvider = useMemo(() => {
     if (!models) return {};
@@ -197,12 +221,6 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug }: Pr
     }
   };
 
-  const handleCopyOutput = () => {
-    if (lastExecution?.content) {
-      navigator.clipboard.writeText(lastExecution.content);
-    }
-  };
-
   const handleViewTrace = (event: ReactMouseEvent<HTMLButtonElement>, traceId: string) => {
     event.stopPropagation();
     navigate(`/project/${resolvedProjectSlug}/executions/${traceId}`);
@@ -366,34 +384,74 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug }: Pr
         <Collapsible defaultOpen>
           <div className="border-b border-border bg-card">
             <CollapsibleTrigger asChild>
-              <div className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors">
-                <div className="flex items-center gap-2">
-                  <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform" />
-                  <span className="text-sm font-medium">Execution Results</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCopyOutput();
-                  }}
-                  className="h-6 gap-1.5 text-xs"
-                >
-                  <Copy className="w-3 h-3" />
-                  Copy
-                </Button>
+              <div className="px-4 py-2.5 flex items-center gap-2 cursor-pointer hover:bg-muted/30 transition-colors">
+                <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform" />
+                <span className="text-sm font-medium">Execution Results</span>
               </div>
             </CollapsibleTrigger>
 
             <CollapsibleContent>
               <div className="px-4 py-3 space-y-3 animate-in slide-in-from-top-2 duration-250">
                 <div className="space-y-2">
-                  <span className="text-xs font-medium text-muted-foreground">Response</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Response</span>
+                    <div className="flex items-center gap-2">
+                      {hasMarkdown && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowRaw(!showRaw)}
+                          className="h-6 gap-1.5 text-xs"
+                        >
+                          {showRaw ? (
+                            <>
+                              <FileText className="w-3 h-3" />
+                              Markdown
+                            </>
+                          ) : (
+                            <>
+                              <Code className="w-3 h-3" />
+                              Raw
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(lastExecution.content);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="h-6 gap-1.5 text-xs"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            Copy
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                   <div className="p-3 bg-muted/30 rounded border border-border">
-                    <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                      {lastExecution.content}
-                    </pre>
+                    {showRaw || !hasMarkdown ? (
+                      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+                        {lastExecution.content}
+                      </pre>
+                    ) : (
+                      <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {lastExecution.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -448,27 +506,12 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug }: Pr
         <Collapsible defaultOpen={false}>
           <div className="border-b border-border bg-card">
             <CollapsibleTrigger asChild>
-              <div className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors">
-                <div className="flex items-center gap-2">
-                  <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform" />
-                  <span className="text-sm font-medium">Run History</span>
-                  <Badge variant="secondary" className="text-xs h-5">
-                    {history.total}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  {lastExecution?.trace_id && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 gap-1 text-xs"
-                      onClick={(event) => handleViewTrace(event, lastExecution.trace_id!)}
-                    >
-                      <BarChart3 className="w-3 h-3" />
-                      View trace
-                    </Button>
-                  )}
-                </div>
+              <div className="px-4 py-2.5 flex items-center gap-2 cursor-pointer hover:bg-muted/30 transition-colors">
+                <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform" />
+                <span className="text-sm font-medium">Run History</span>
+                <Badge variant="secondary" className="text-xs h-5">
+                  {history.total}
+                </Badge>
               </div>
             </CollapsibleTrigger>
 

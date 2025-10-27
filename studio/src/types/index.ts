@@ -173,6 +173,8 @@ export interface ExecutionListFilters {
   min_cost?: number;
   start?: string;
   end?: string;
+  page?: number;
+  page_size?: number;
   limit?: number;
   offset?: number;
 }
@@ -188,6 +190,7 @@ export interface ExecutionListItem {
   costUsd: number | null;
   sessionId?: string | null;
   agentId?: string | null;
+  parentTraceId?: string | null;
   templateCount: number;
 }
 
@@ -233,6 +236,28 @@ export interface ExecutionDetail {
   agentId?: string | null;
   parentTraceId?: string | null;
   templateUsages: TemplateUsageEntry[];
+}
+
+export interface RelatedTraceInfo {
+  trace_id: string;
+  agent_id: string | null;
+  created_at: string | null;
+  latency_ms: number | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+}
+
+export interface SessionAgentInfo {
+  agent_id: string;
+  trace_count: number;
+}
+
+export interface RelatedTracesResponse {
+  trace_id: string;
+  parent: RelatedTraceInfo | null;
+  children: RelatedTraceInfo[];
+  siblings: RelatedTraceInfo[];
+  session_agents: SessionAgentInfo[];
 }
 
 export interface OptimizationInsight {

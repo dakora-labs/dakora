@@ -89,3 +89,88 @@
 .cl-modalFooter {
   display: none !important;
 }
+
+/* Markdown prose styles */
+.prose {
+  @apply text-foreground max-w-none;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  @apply font-semibold text-foreground mt-6 mb-3;
+}
+
+.prose h1 { @apply text-2xl; }
+.prose h2 { @apply text-xl; }
+.prose h3 { @apply text-lg; }
+.prose h4 { @apply text-base; }
+
+.prose p {
+  @apply my-3 leading-relaxed;
+}
+
+.prose ul,
+.prose ol {
+  @apply my-3 pl-6;
+}
+
+.prose li {
+  @apply my-1;
+}
+
+.prose ul > li {
+  @apply list-disc;
+}
+
+.prose ol > li {
+  @apply list-decimal;
+}
+
+.prose code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.prose pre {
+  @apply bg-slate-950 text-slate-200 p-4 rounded-lg overflow-x-auto my-4 border border-slate-800;
+}
+
+.prose pre code {
+  @apply bg-transparent p-0 text-slate-200;
+}
+
+.prose a {
+  @apply text-blue-600 hover:text-blue-700 underline;
+}
+
+.prose strong {
+  @apply font-semibold text-foreground;
+}
+
+.prose em {
+  @apply italic;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-border pl-4 italic text-muted-foreground my-4;
+}
+
+.prose table {
+  @apply w-full my-4 border-collapse;
+}
+
+.prose th,
+.prose td {
+  @apply border border-border px-3 py-2 text-left;
+}
+
+.prose th {
+  @apply bg-muted font-semibold;
+}
+
+.prose hr {
+  @apply my-6 border-border;
+}

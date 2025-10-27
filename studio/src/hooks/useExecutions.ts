@@ -4,6 +4,7 @@ import type {
   ExecutionDetail,
   ExecutionListFilters,
   ExecutionListItem,
+  RelatedTracesResponse,
 } from '@/types';
 
 interface UseExecutionsResult {
@@ -149,5 +150,49 @@ export function useExecutionDetail(traceId: string | undefined): UseExecutionDet
     loading,
     error,
     refresh: fetchExecution,
+  };
+}
+
+interface UseRelatedTracesResult {
+  related: RelatedTracesResponse | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+}
+
+export function useRelatedTraces(traceId: string | undefined): UseRelatedTracesResult {
+  const { api, projectId, contextLoading } = useAuthenticatedApi();
+  const [related, setRelated] = useState<RelatedTracesResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRelated = useCallback(async () => {
+    if (!traceId || !projectId || contextLoading) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.getRelatedTraces(projectId, traceId);
+      setRelated(response);
+    } catch (err) {
+      console.error('Failed to load related traces', err);
+      setError(err instanceof Error ? err.message : 'Failed to load related traces');
+    } finally {
+      setLoading(false);
+    }
+  }, [api, contextLoading, projectId, traceId]);
+
+  useEffect(() => {
+    fetchRelated();
+  }, [fetchRelated]);
+
+  return {
+    related,
+    loading,
+    error,
+    refresh: fetchRelated,
   };
 }
