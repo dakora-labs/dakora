@@ -407,7 +407,7 @@ class DakoraTraceMiddleware(ChatMiddleware):
 from dakora_client import Dakora
 from dakora_af import DakoraTraceMiddleware
 
-dakora = Dakora("https://api.dakora.cloud", api_key="dk_xxx")
+dakora = Dakora("https://api.dakora.io", api_key="dk_xxx")
 
 agent = await AzureAIAgentClient().create_agent(
     name="Support",
