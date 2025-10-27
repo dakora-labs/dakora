@@ -1,4 +1,4 @@
-import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKey, ModelsResponse, ExecutionRequest, ExecutionResponse, ExecutionHistoryResponse, OptimizePromptRequest, OptimizePromptResponse, OptimizationRunsResponse, QuotaInfo } from '../types';
+import type { Template, RenderRequest, RenderResponse, HealthResponse, PartListResponse, PromptPart, CreatePartRequest, UpdatePartRequest, ApiKeyListResponse, ApiKeyCreateRequest, ApiKeyCreateResponse, ApiKey, ModelsResponse, ExecutionRequest, ExecutionResponse, ExecutionHistoryResponse, OptimizePromptRequest, OptimizePromptResponse, OptimizationRunsResponse, QuotaInfo, VersionHistoryResponse, RollbackRequest } from '../types';
 
 interface UserContext {
   user_id: string;
@@ -313,6 +313,35 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         headers: authHeaders,
       });
       return handleResponse<OptimizationRunsResponse>(response);
+    },
+
+    async getVersionHistory(projectId: string, promptId: string): Promise<VersionHistoryResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(promptId)}/versions`, {
+        headers: authHeaders,
+      });
+      return handleResponse<VersionHistoryResponse>(response);
+    },
+
+    async getPromptVersion(projectId: string, promptId: string, version: number): Promise<Template> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(promptId)}/versions/${version}`, {
+        headers: authHeaders,
+      });
+      return handleResponse<Template>(response);
+    },
+
+    async rollbackPrompt(projectId: string, promptId: string, request: RollbackRequest): Promise<Template> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(promptId)}/rollback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(request),
+      });
+      return handleResponse<Template>(response);
     },
   };
 }
