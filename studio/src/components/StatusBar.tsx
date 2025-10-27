@@ -4,11 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import type { HealthResponse } from '../types';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 
-interface StatusBarProps {
-  projectSlug: string;
-}
-
-export function StatusBar({ projectSlug }: StatusBarProps) {
+export function StatusBar() {
   const { api, projectId } = useAuthenticatedApi();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [promptCount, setPromptCount] = useState<number>(0);

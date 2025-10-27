@@ -96,7 +96,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           <div className="flex-1 overflow-auto">
             {children}
           </div>
-          <StatusBar projectSlug={projectSlug} />
+          <StatusBar />
         </div>
       </div>
     </div>
