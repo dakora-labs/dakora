@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import (
     health,
     webhooks,
-    project_prompts,
+    projects, project_prompts,
     project_parts,
     me,
     api_keys,
@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(me.router)
 
     # Project-scoped routes
+    app.include_router(projects.router)
     app.include_router(project_prompts.router)
     app.include_router(project_parts.router)
     app.include_router(api_keys.router)

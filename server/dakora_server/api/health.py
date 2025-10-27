@@ -3,9 +3,9 @@
 import time
 from typing import Any, cast
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import text
+from sqlalchemy import text, select, func
 from ..core.vault import Vault
-from ..core.database import get_engine, get_connection
+from ..core.database import get_engine, get_connection, prompts_table
 from ..config import get_vault
 
 router = APIRouter(prefix="/api", tags=["health"])
@@ -16,13 +16,19 @@ async def health_check(vault: Vault = Depends(get_vault)) -> dict[str, Any]:
     """Health check endpoint.
 
     Returns:
-        dict containing health status, template count, and vault configuration.
+        dict containing health status, distinct prompt count, and vault configuration.
 
     Raises:
         HTTPException: 503 if vault is unhealthy or cannot be accessed.
     """
     try:
-        template_count = len(list(vault.list()))
+        # Count distinct prompts from database (not versions)
+        engine = get_engine()
+        with get_connection(engine) as conn:
+            stmt = select(func.count(func.distinct(prompts_table.c.prompt_id)))
+            result = conn.execute(stmt)
+            prompt_count = result.scalar() or 0
+
         config = vault.config
         registry_type: str = str(config.get("registry", "local"))
 
@@ -43,7 +49,7 @@ async def health_check(vault: Vault = Depends(get_vault)) -> dict[str, Any]:
 
         return {
             "status": "healthy",
-            "templates_loaded": template_count,
+            "prompts_count": prompt_count,
             "vault_config": vault_config,
         }
     except Exception as e:

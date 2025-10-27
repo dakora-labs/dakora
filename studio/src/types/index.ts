@@ -25,7 +25,7 @@ export interface RenderResponse {
 
 export interface HealthResponse {
   status: string;
-  templates_loaded: number;
+  prompts_count: number;
   vault_config: {
     registry_type: 'local' | 'azure';
     prompt_dir?: string;

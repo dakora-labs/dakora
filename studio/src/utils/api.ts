@@ -117,6 +117,14 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       return handleResponse<HealthResponse>(response);
     },
 
+    async getProjectStats(projectId: string): Promise<{ prompts_count: number }> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/stats`, {
+        headers: authHeaders,
+      });
+      return handleResponse<{ prompts_count: number }>(response);
+    },
+
     async getPrompts(projectId: string): Promise<string[]> {
       const authHeaders = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts`, {
