@@ -8,8 +8,7 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "dakora-client>=1.0.0",
-    "httpx>=0.25.0",
+    "dakora-client~=1.0.0",  # Compatible version (1.0.x only)
 ]
 
 classifiers = [
@@ -33,6 +32,9 @@ all = [
 Homepage = "https://github.com/dakora-labs/dakora"
 Repository = "https://github.com/dakora-labs/dakora.git"
 Issues = "https://github.com/dakora-labs/dakora/issues"
+
+[tool.uv.sources]
+dakora-client = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

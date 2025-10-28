@@ -1,4 +1,4 @@
-name: Release Python SDK (dakora-client)
+name: Release Python SDK (dakora-client + dakora-agents)
 
 on:
   workflow_dispatch:
@@ -35,11 +35,13 @@ jobs:
     - name: Set up Python 3.11
       run: uv python install 3.11
 
-    - name: Update SDK version
+    - name: Update versions for both packages
       run: |
-        cd packages/client-python
         # Install tomli-w for TOML writing
         uv pip install tomli-w
+
+        # Update dakora-client version
+        cd packages/client-python
         uv run python -c "
         import tomllib
         import tomli_w
@@ -53,68 +55,143 @@ jobs:
             tomli_w.dump(data, f)
         "
 
-    - name: Install dependencies
-      run: |
-        cd packages/client-python
-        uv sync
+        # Update dakora-agents version
+        cd ../agents
+        uv run python -c "
+        import tomllib
+        import tomli_w
 
-    - name: Run SDK tests
+        with open('pyproject.toml', 'rb') as f:
+            data = tomllib.load(f)
+
+        data['project']['version'] = '${{ inputs.version }}'
+
+        with open('pyproject.toml', 'wb') as f:
+            tomli_w.dump(data, f)
+        "
+
+        echo "✅ Updated both packages to version ${{ inputs.version }}"
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run client tests
       run: |
         cd packages/client-python
         uv run pytest tests/ -v
 
-    - name: Build SDK package
+    - name: Run agents tests
+      run: |
+        cd packages/agents
+        uv run pytest tests/ -v
+
+    - name: Build client package
       run: |
         cd packages/client-python
         uv build
 
-    - name: Check package
+    - name: Build agents package
+      run: |
+        cd packages/agents
+        uv build
+
+    - name: Check client package
       run: |
         cd packages/client-python
         uv tool install twine
         uv tool run twine check dist/*
 
-    - name: Smoke test SDK
+    - name: Check agents package
+      run: |
+        cd packages/agents
+        uv tool run twine check dist/*
+
+    - name: Smoke test client
       run: |
         cd packages/client-python
-        python -m venv /tmp/test-sdk
-        /tmp/test-sdk/bin/pip install dist/*.whl
-        /tmp/test-sdk/bin/python -c "from dakora_client import Dakora; print('✅ SDK import successful')"
+        python -m venv /tmp/test-client
+        /tmp/test-client/bin/pip install dist/*.whl
+        /tmp/test-client/bin/python -c "from dakora_client import Dakora; print('✅ Client import successful')"
 
-    - name: Publish to PyPI
+    - name: Smoke test agents
+      run: |
+        cd packages/agents
+        python -m venv /tmp/test-agents
+        /tmp/test-agents/bin/pip install ../client-python/dist/*.whl
+        /tmp/test-agents/bin/pip install dist/*.whl
+        /tmp/test-agents/bin/python -c "import dakora_agents; from dakora_client import Dakora; print('✅ Agents import successful')"
+
+    - name: Publish dakora-client to PyPI (FIRST)
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
         cd packages/client-python
         uv tool run twine upload dist/*
+        echo "✅ Published dakora-client==${{ inputs.version }} to PyPI"
 
-    - name: Create git tag
+    - name: Wait for PyPI propagation
+      run: |
+        echo "Waiting 30 seconds for PyPI to propagate dakora-client..."
+        sleep 30
+
+    - name: Publish dakora-agents to PyPI (SECOND)
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        cd packages/agents
+        uv tool run twine upload dist/*
+        echo "✅ Published dakora-agents==${{ inputs.version }} to PyPI"
+
+    - name: Create git tag and commit
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add packages/client-python/pyproject.toml
-        git commit -m "chore: bump Python SDK version to ${{ inputs.version }}"
-        git tag -a "client-python-v${{ inputs.version }}" -m "Python SDK Release v${{ inputs.version }}"
+        git add packages/client-python/pyproject.toml packages/agents/pyproject.toml
+        git commit -m "chore: bump Python packages to v${{ inputs.version }}
+
+        - dakora-client: ${{ inputs.version }}
+        - dakora-agents: ${{ inputs.version }}"
+        git tag -a "python-sdk-v${{ inputs.version }}" -m "Python SDK Release v${{ inputs.version }}"
         git push origin main
-        git push origin "client-python-v${{ inputs.version }}"
+        git push origin "python-sdk-v${{ inputs.version }}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create GitHub Release
       uses: ncipollo/release-action@v1
       with:
-        tag: "client-python-v${{ inputs.version }}"
+        tag: "python-sdk-v${{ inputs.version }}"
         name: "Python SDK v${{ inputs.version }}"
         body: |
           ## Dakora Python SDK v${{ inputs.version }}
 
-          Install with:
+          This release includes both packages synchronized at version ${{ inputs.version }}:
+
+          ### Installation
+
+          **Core client:**
           ```bash
           pip install dakora-client==${{ inputs.version }}
           ```
 
+          **With agent framework integrations:**
+          ```bash
+          # Microsoft Agent Framework (MAF)
+          pip install dakora-client[maf]==${{ inputs.version }}
+
+          # All integrations
+          pip install dakora-client[agents]==${{ inputs.version }}
+          ```
+
+          ### Packages Released
+          - `dakora-client==${{ inputs.version }}` - Core SDK for API interactions
+          - `dakora-agents==${{ inputs.version }}` - Agent framework integrations
+
           ### Usage
+
+          **Core client:**
           ```python
           from dakora_client import Dakora
 
@@ -126,6 +203,38 @@ jobs:
               result = await client.prompts.render("my-prompt", {"input": "value"})
               await client.close()
           ```
+
+          **With MAF middleware:**
+          ```python
+          from dakora_client import Dakora
+          from agent_framework import ChatAgent
+          from agent_framework.openai import OpenAIChatClient
+
+          # Create client and render prompt
+          dakora = Dakora(base_url="http://localhost:54321", api_key="your-key")
+          instructions = await dakora.prompts.render("agent-prompt", {})
+
+          # Create middleware (imported from dakora-agents)
+          from dakora_agents.maf import create_dakora_middleware
+          middleware = create_dakora_middleware(
+              dakora_client=dakora,
+              instruction=instructions,
+          )
+
+          # Create agent with observability
+          agent = ChatAgent(
+              chat_client=OpenAIChatClient(),
+              instructions=instructions.text,
+              middleware=[middleware],
+          )
+
+          # Metrics automatically logged to Dakora
+          result = await agent.run("Your query")
+          ```
+
+          ### Version Synchronization
+          Both packages are released together with matching versions to ensure compatibility.
+          The `~=` version constraint ensures they work together correctly.
         draft: false
         prerelease: false
         token: ${{ secrets.GITHUB_TOKEN }}
