@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Plus, Trash2, Copy, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { Slider } from '@/components/ui/slider';
 import {
   Dialog,
   DialogContent,
@@ -33,13 +34,15 @@ import {
 import { useApiKeys, useCreateApiKey, useDeleteApiKey } from '@/hooks/useApi';
 import type { ApiKey } from '@/types';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { useToast } from '@/hooks/use-toast';
 
 export function SettingsPage() {
   const { projectSlug } = useParams<{ projectSlug: string }>();
-  const { projectId, userContext } = useAuthenticatedApi();
+  const { projectId, userContext, api } = useAuthenticatedApi();
   const { apiKeys, loading, error, refetch } = useApiKeys(projectId);
   const { createApiKey, loading: creating, error: createError } = useCreateApiKey(projectId);
   const { deleteApiKey, loading: deleting } = useDeleteApiKey(projectId);
+  const { toast } = useToast();
 
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
@@ -47,6 +50,12 @@ export function SettingsPage() {
   const [createdKey, setCreatedKey] = useState<{ key: string; name: string | null } | null>(null);
   const [keyToCopy, setKeyToCopy] = useState<string | null>(null);
   const [keyToDelete, setKeyToDelete] = useState<ApiKey | null>(null);
+
+  const [budgetUsd, setBudgetUsd] = useState<string>('');
+  const [alertThreshold, setAlertThreshold] = useState<number>(80);
+  const [enforcementMode, setEnforcementMode] = useState<string>('strict');
+  const [savingBudget, setSavingBudget] = useState(false);
+  const [budgetLoading, setBudgetLoading] = useState(true);
 
   const handleCreateKey = async () => {
     if (!newKeyName.trim()) {
@@ -100,6 +109,69 @@ export function SettingsPage() {
     return formatDate(expiresAt);
   };
 
+  useEffect(() => {
+    if (!projectId) return;
+
+    const loadBudget = async () => {
+      try {
+        setBudgetLoading(true);
+        const budget = await api.getBudget(projectId);
+
+        if (budget.budget_usd !== null) {
+          setBudgetUsd(budget.budget_usd.toString());
+        }
+        setAlertThreshold(budget.alert_threshold_pct || 80);
+        setEnforcementMode(budget.enforcement_mode || 'strict');
+      } catch (error) {
+        console.error('Failed to load budget:', error);
+      } finally {
+        setBudgetLoading(false);
+      }
+    };
+
+    loadBudget();
+  }, [projectId, api]);
+
+  const handleSaveBudget = async () => {
+    if (!projectId) return;
+
+    setSavingBudget(true);
+    try {
+      await api.updateBudget(projectId, {
+        budget_monthly_usd: budgetUsd ? parseFloat(budgetUsd) : null,
+        alert_threshold_pct: alertThreshold,
+        enforcement_mode: enforcementMode,
+      });
+
+      toast({
+        title: 'Budget Settings Saved',
+        description: 'Your budget configuration has been updated successfully.',
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save budget settings';
+      toast({
+        title: 'Error Saving Budget',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingBudget(false);
+    }
+  };
+
+  const getEnforcementModeDescription = () => {
+    switch (enforcementMode) {
+      case 'strict':
+        return 'Agent executions will be blocked when budget is exceeded';
+      case 'alert':
+        return 'Warnings logged but executions allowed';
+      case 'off':
+        return 'Budget tracked but not enforced';
+      default:
+        return '';
+    }
+  };
+
 
   return (
     <div className="h-full overflow-auto bg-background">
@@ -122,7 +194,7 @@ export function SettingsPage() {
           </div>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-5 mb-4">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold mb-0.5">API Keys</h2>
@@ -187,6 +259,76 @@ export function SettingsPage() {
                   </Button>
                 </div>
               ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold mb-0.5">Budget Controls</h2>
+            <p className="text-xs text-muted-foreground">
+              Set monthly spending limits to prevent cost overruns
+            </p>
+          </div>
+
+          {budgetLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading budget settings...</div>
+          ) : (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="budget">Monthly Budget (USD)</Label>
+                <Input
+                  id="budget"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="No limit"
+                  value={budgetUsd}
+                  onChange={(e) => setBudgetUsd(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty for unlimited spending
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="enforcement-mode">Enforcement Mode</Label>
+                <Select value={enforcementMode} onValueChange={setEnforcementMode}>
+                  <SelectTrigger id="enforcement-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="strict">Strict - Block executions when exceeded</SelectItem>
+                    <SelectItem value="alert">Alert - Log warnings but allow executions</SelectItem>
+                    <SelectItem value="off">Off - Track only, no enforcement</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {getEnforcementModeDescription()}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="alert-threshold">
+                  Warning Threshold: {alertThreshold}%
+                </Label>
+                <Slider
+                  id="alert-threshold"
+                  min={50}
+                  max={100}
+                  step={5}
+                  value={[alertThreshold]}
+                  onValueChange={(value) => setAlertThreshold(value[0])}
+                  className="py-2"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Show warning when budget reaches this percentage
+                </p>
+              </div>
+
+              <Button onClick={handleSaveBudget} disabled={savingBudget}>
+                {savingBudget ? 'Saving...' : 'Save Budget Settings'}
+              </Button>
             </div>
           )}
         </Card>

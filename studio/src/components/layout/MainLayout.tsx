@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { Activity, FileText, Menu, ChevronLeft, Library, Settings } from 'lucide-react';
+import { Activity, FileText, Menu, ChevronLeft, Library, Settings, LayoutDashboard } from 'lucide-react';
 import { StatusBar } from '../StatusBar';
 import { AppTopBar } from './AppTopBar';
 import { cn } from '@/lib/utils';
@@ -23,9 +23,15 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   const navigationSections = [
     {
-      key: 'prompts',
+      key: 'main',
       title: null as string | null,
       items: [
+        {
+          label: 'Dashboard',
+          icon: LayoutDashboard,
+          to: `/project/${projectSlug}/dashboard`,
+          match: '/dashboard',
+        },
         {
           label: 'Prompts',
           icon: FileText,
