@@ -139,6 +139,9 @@ projects_table = Table(
     Column("description", Text, nullable=True),
     Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
     Column("updated_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    Column("budget_monthly_usd", Numeric(10, 2), nullable=True),
+    Column("alert_threshold_pct", Integer, server_default=text("80"), nullable=False),
+    Column("budget_enforcement_mode", String(20), server_default=text("'strict'"), nullable=False),
 )
 
 # Prompts table definition (SQLAlchemy Core)

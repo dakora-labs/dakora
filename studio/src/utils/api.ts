@@ -117,12 +117,26 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       return handleResponse<HealthResponse>(response);
     },
 
-    async getProjectStats(projectId: string): Promise<{ prompts_count: number }> {
+    async getProjectStats(projectId: string): Promise<{
+      prompts_count: number;
+      total_cost: number;
+      total_executions: number;
+      avg_cost_per_execution: number;
+      daily_costs: Array<{ date: string; cost: number }>;
+      top_prompts: Array<{ prompt_id: string; name: string; cost: number; execution_count: number }>;
+    }> {
       const authHeaders = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/stats`, {
         headers: authHeaders,
       });
-      return handleResponse<{ prompts_count: number }>(response);
+      return handleResponse<{
+        prompts_count: number;
+        total_cost: number;
+        total_executions: number;
+        avg_cost_per_execution: number;
+        daily_costs: Array<{ date: string; cost: number }>;
+        top_prompts: Array<{ prompt_id: string; name: string; cost: number; execution_count: number }>;
+      }>(response);
     },
 
     async getPrompts(projectId: string): Promise<string[]> {
@@ -651,6 +665,50 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         body: JSON.stringify(request),
       });
       return handleResponse<Template>(response);
+    },
+
+    async getBudget(projectId: string): Promise<{
+      exceeded: boolean;
+      budget_usd: number | null;
+      current_spend_usd: number;
+      percentage_used: number;
+      alert_threshold_pct: number;
+      enforcement_mode: string;
+      status: 'unlimited' | 'ok' | 'warning' | 'exceeded';
+    }> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/budget`, {
+        headers: authHeaders,
+      });
+      return handleResponse(response);
+    },
+
+    async updateBudget(
+      projectId: string,
+      request: {
+        budget_monthly_usd?: number | null;
+        alert_threshold_pct?: number;
+        enforcement_mode?: string;
+      }
+    ): Promise<{
+      exceeded: boolean;
+      budget_usd: number | null;
+      current_spend_usd: number;
+      percentage_used: number;
+      alert_threshold_pct: number;
+      enforcement_mode: string;
+      status: 'unlimited' | 'ok' | 'warning' | 'exceeded';
+    }> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/budget`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(request),
+      });
+      return handleResponse(response);
     },
   };
 }

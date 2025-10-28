@@ -2,8 +2,8 @@ import { Navigate } from 'react-router-dom';
 import { useUserContext } from '@/contexts/UserContext';
 
 /**
- * Redirects authenticated users to their default project.
- * Uses UserContext to get project_slug and redirects to /project/{project_slug}/prompts
+ * Redirects authenticated users to their default project dashboard.
+ * Uses UserContext to get project_slug and redirects to /project/{project_slug}
  */
 export function ProjectRedirect() {
   const { userContext, loading, error } = useUserContext();
@@ -36,5 +36,5 @@ export function ProjectRedirect() {
   }
 
   // Redirect to project-scoped route
-  return <Navigate to={`/project/${userContext.project_slug}/prompts`} replace />;
+  return <Navigate to={`/project/${userContext.project_slug}/dashboard`} replace />;
 }

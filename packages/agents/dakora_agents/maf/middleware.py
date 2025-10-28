@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from datetime import datetime
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Final
 
-from agent_framework import ChatContext, ChatMiddleware
+import httpx
+from agent_framework import ChatContext, ChatMiddleware, ChatMessage, ChatResponse, Role
 from dakora_client import Dakora
 
 if TYPE_CHECKING:
@@ -44,6 +46,7 @@ class DakoraTraceMiddleware(ChatMiddleware):
         project_id: str | None = None,
         agent_id: str | None = None,
         parent_trace_id: str | None = None,
+        budget_check_cache_ttl: int = 30,
     ) -> None:
         """
         Configure the middleware.
@@ -58,6 +61,7 @@ class DakoraTraceMiddleware(ChatMiddleware):
             project_id: Optional project override. Defaults to the client project.
             agent_id: Static agent identifier applied to all traces.
             parent_trace_id: Optional parent trace identifier for trace linking.
+            budget_check_cache_ttl: Cache TTL for budget checks in seconds (default: 30).
         """
         self.dakora = dakora_client
         self.project_id = project_id or getattr(dakora_client, "project_id", None)
@@ -65,6 +69,9 @@ class DakoraTraceMiddleware(ChatMiddleware):
         self.session_id = session_id or str(uuid.uuid4())
         self.parent_trace_id = parent_trace_id
         self.last_trace_id: str | None = None
+        self.budget_check_cache_ttl = budget_check_cache_ttl
+        self._budget_cache: dict[str, Any] | None = None
+        self._budget_cache_time: datetime | None = None
         self.instruction_template = self._normalize_template_usage(
             instruction_template,
             default_role="system",
@@ -121,6 +128,86 @@ class DakoraTraceMiddleware(ChatMiddleware):
 
         return agent_id, parent_trace_id, agent_metadata
 
+    async def _check_budget_with_cache(self, project_id: str) -> dict[str, Any]:
+        """
+        Check budget with TTL-based caching to reduce latency.
+
+        Cache prevents excessive API calls for high-frequency agents.
+
+        Args:
+            project_id: Project identifier
+
+        Returns:
+            Budget status dictionary
+        """
+        now = datetime.now()
+
+        # Return cached result if still valid
+        if (
+            self._budget_cache is not None
+            and self._budget_cache_time is not None
+            and (now - self._budget_cache_time).total_seconds() < self.budget_check_cache_ttl
+        ):
+            logger.debug(
+                f"Using cached budget status "
+                f"(age: {(now - self._budget_cache_time).total_seconds():.1f}s)"
+            )
+            return self._budget_cache
+
+        # Fetch fresh budget status
+        try:
+            base_url = getattr(self.dakora, "base_url", None) or getattr(self.dakora, "_base_url", None)
+            api_key = getattr(self.dakora, "api_key", None) or getattr(self.dakora, "_api_key", None)
+
+            if not base_url:
+                logger.warning("Dakora base_url not found - skipping budget check")
+                return {"exceeded": False, "status": "check_skipped"}
+
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                headers = {}
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
+
+                response = await client.get(
+                    f"{base_url}/api/projects/{project_id}/budget",
+                    headers=headers,
+                )
+                response.raise_for_status()
+                budget_status = response.json()
+
+            # Cache the result
+            self._budget_cache = budget_status
+            self._budget_cache_time = now
+
+            return budget_status
+
+        except httpx.TimeoutException:
+            logger.warning("Budget check timeout - allowing execution (fail-open)")
+            return {"exceeded": False, "status": "check_timeout"}
+        except Exception as e:
+            logger.warning(f"Budget check failed: {e} - allowing execution (fail-open)")
+            return {"exceeded": False, "status": "check_failed"}
+
+    def _format_budget_error(self, budget_status: dict[str, Any]) -> str:
+        """Format user-friendly budget exceeded message.
+
+        Args:
+            budget_status: Budget status dictionary
+
+        Returns:
+            Formatted error message
+        """
+        return (
+            f"❌ Budget Limit Reached\n\n"
+            f"Your project has reached its monthly budget limit.\n\n"
+            f"Budget: ${budget_status.get('budget_usd', 0):.2f}\n"
+            f"Current Spend: ${budget_status.get('current_spend_usd', 0):.2f}\n\n"
+            f"To continue:\n"
+            f"1. Increase your budget in Dakora Studio Settings\n"
+            f"2. Switch to 'alert' mode to allow executions with warnings\n"
+            f"3. Wait until next month (budget resets on the 1st)"
+        )
+
     async def process(
         self,
         context: ChatContext,
@@ -159,6 +246,49 @@ class DakoraTraceMiddleware(ChatMiddleware):
             context.metadata[PARENT_TRACE_METADATA_KEY] = parent_trace_id
         else:
             context.metadata.pop(PARENT_TRACE_METADATA_KEY, None)
+
+        # 🆕 CHECK BUDGET BEFORE EXECUTION
+        if project_id:
+            budget_status = await self._check_budget_with_cache(project_id)
+
+            if budget_status.get("exceeded", False):
+                enforcement_mode = budget_status.get("enforcement_mode", "strict")
+
+                if enforcement_mode == "strict":
+                    # STRICT MODE: Block execution
+                    context.terminate = True
+                    context.result = ChatResponse(
+                        messages=[
+                            ChatMessage(
+                                role=Role.ASSISTANT,
+                                text=self._format_budget_error(budget_status),
+                            )
+                        ]
+                    )
+                    logger.warning(
+                        f"Execution BLOCKED: Budget exceeded for project {project_id} "
+                        f"(${budget_status.get('current_spend_usd', 0):.2f} / "
+                        f"${budget_status.get('budget_usd', 0):.2f})"
+                    )
+                    return  # Exit early - no LLM call
+
+                elif enforcement_mode == "alert":
+                    # ALERT MODE: Log warning but allow execution
+                    logger.warning(
+                        f"Budget EXCEEDED but allowing execution (alert mode): "
+                        f"Project {project_id} "
+                        f"(${budget_status.get('current_spend_usd', 0):.2f} / "
+                        f"${budget_status.get('budget_usd', 0):.2f})"
+                    )
+
+            elif budget_status.get("status") == "warning":
+                # At warning threshold
+                logger.info(
+                    f"Budget WARNING: Project {project_id} at "
+                    f"{budget_status.get('percentage_used', 0):.1f}% "
+                    f"(${budget_status.get('current_spend_usd', 0):.2f} / "
+                    f"${budget_status.get('budget_usd', 0):.2f})"
+                )
 
         start_time = perf_counter()
 
@@ -384,8 +514,23 @@ def create_dakora_middleware(
     instruction_template: dict[str, Any] | RenderResult | None = None,
     instruction: RenderResult | None = None,
     parent_trace_id: str | None = None,
+    budget_check_cache_ttl: int = 30,
 ) -> DakoraTraceMiddleware:
-    """Convenience factory for :class:`DakoraTraceMiddleware` instances."""
+    """Convenience factory for :class:`DakoraTraceMiddleware` instances.
+
+    Args:
+        dakora_client: Dakora client instance.
+        project_id: Optional project override.
+        agent_id: Static agent identifier.
+        session_id: Optional conversation/session identifier.
+        instruction_template: Optional template usage information (deprecated, use instruction).
+        instruction: Optional template usage information for agent instructions.
+        parent_trace_id: Optional parent trace identifier.
+        budget_check_cache_ttl: Cache TTL for budget checks in seconds (default: 30).
+
+    Returns:
+        Configured DakoraTraceMiddleware instance.
+    """
     if instruction is not None and instruction_template is not None:
         logger.warning(
             "Both 'instruction' and 'instruction_template' were provided to create_dakora_middleware; preferring 'instruction'."
@@ -400,4 +545,5 @@ def create_dakora_middleware(
         project_id=project_id,
         agent_id=agent_id,
         parent_trace_id=parent_trace_id,
+        budget_check_cache_ttl=budget_check_cache_ttl,
     )
