@@ -20,10 +20,18 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
+[project.optional-dependencies]
+# Agent framework integrations (installs dakora-agents)
+maf = ["dakora-agents[maf]~=1.0.0"]  # Must match major.minor version
+agents = ["dakora-agents[all]~=1.0.0"]  # Must match major.minor version
+
 [project.urls]
-Homepage = "https://github.com/bogdan-pistol/dakora"
-Repository = "https://github.com/bogdan-pistol/dakora.git"
-Issues = "https://github.com/bogdan-pistol/dakora/issues"
+Homepage = "https://github.com/dakora-labs/dakora"
+Repository = "https://github.com/dakora-labs/dakora.git"
+Issues = "https://github.com/dakora-labs/dakora/issues"
+
+[tool.uv.sources]
+dakora-agents = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

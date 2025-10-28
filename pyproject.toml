@@ -4,6 +4,7 @@
 members = [
     "server",
     "packages/client-python",
+    "packages/agents",
     "cli",
 ]
 
