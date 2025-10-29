@@ -655,9 +655,13 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "agent-framework-core" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
 ]
 maf = [
     { name = "agent-framework-core" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
 ]
 
 [package.dev-dependencies]
@@ -672,6 +676,10 @@ requires-dist = [
     { name = "agent-framework-core", marker = "extra == 'all'", specifier = ">=1.0.0b251016" },
     { name = "agent-framework-core", marker = "extra == 'maf'", specifier = ">=1.0.0b251016" },
     { name = "dakora-client", editable = "packages/client-python" },
+    { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.20.0" },
+    { name = "opentelemetry-api", marker = "extra == 'maf'", specifier = ">=1.20.0" },
+    { name = "opentelemetry-sdk", marker = "extra == 'all'", specifier = ">=1.20.0" },
+    { name = "opentelemetry-sdk", marker = "extra == 'maf'", specifier = ">=1.20.0" },
 ]
 provides-extras = ["maf", "all"]
 
