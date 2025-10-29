@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Final
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from agent_framework import ChatContext, ChatMiddleware, ChatMessage, ChatResponse, Role
 
@@ -15,12 +15,6 @@ if TYPE_CHECKING:
 __all__ = ["DakoraTraceMiddleware"]
 
 logger = logging.getLogger(__name__)
-
-# Map client class names to provider names (from old implementation)
-PROVIDER_ALIASES: Final[dict[str, str]] = {
-    "AzureOpenAIChatClient": "azure",
-    "OpenAIChatClient": "openai",
-}
 
 
 class DakoraTraceMiddleware(ChatMiddleware):
@@ -55,6 +49,7 @@ class DakoraTraceMiddleware(ChatMiddleware):
         self.budget_check_cache_ttl = budget_check_cache_ttl
         self._budget_cache: dict[str, Any] | None = None
         self._budget_cache_time: datetime | None = None
+        self._instruction_templates: dict[str, dict[str, Any]] = {}  # agent_id -> template_context
 
     async def _check_budget_with_cache(self, project_id: str) -> dict[str, Any]:
         """
@@ -129,48 +124,31 @@ class DakoraTraceMiddleware(ChatMiddleware):
             ]
         )
 
-    def _enrich_span_with_dakora_context(self, context: ChatContext) -> None:
+    def register_instruction_template(self, agent_id: str, render_result: Any) -> None:
         """
-        Extract template linkage and model info from context and store in OTEL span.
+        Register an instruction template for an agent.
 
-        This extracts:
-        - Model from chat client (MAF doesn't propagate gen_ai.response.model to agent span)
-        - Template linkage from messages with _dakora_context
+        This allows tracking of agent instructions (system prompts) as template usages.
+
+        Args:
+            agent_id: The agent ID (must match the ID used in create_agent())
+            render_result: The RenderResult from dakora.prompts.render()
+
+        Example:
+            >>> instructions = await dakora.prompts.render("my_instructions", {})
+            >>> agent = client.create_agent(id="my-bot", instructions=instructions.text)
+            >>> middleware.register_instruction_template("my-bot", instructions)
         """
-        try:
-            from opentelemetry import trace
-        except ImportError:
-            logger.debug("OpenTelemetry not available, skipping span enrichment")
-            return
-
-        # Get current span
-        span = trace.get_current_span()
-        if not span or not span.is_recording():
-            logger.debug("No active recording span, skipping enrichment")
-            return
-
-        # Extract model from chat client (MAF doesn't set response.model on agent span)
-        client = getattr(context, "chat_client", None)
-        if client:
-            model = getattr(client, "model_id", None) or getattr(client, "model", None)
-            if model:
-                span.set_attribute("dakora.model", model)
-                logger.debug(f"Set dakora.model={model} from client")
-
-        # Extract template linkage from messages
-        messages = getattr(context, "messages", [])
-        template_contexts = []
-
-        for msg in messages:
-            dakora_ctx = getattr(msg, "_dakora_context", None)
-            if dakora_ctx and isinstance(dakora_ctx, dict):
-                template_contexts.append(dakora_ctx)
-                logger.debug(f"Found _dakora_context on message: {dakora_ctx}")
-
-        # Set template contexts as OTEL span attribute (exporter will read this)
-        if template_contexts:
-            span.set_attribute("dakora.template_contexts", json.dumps(template_contexts))
-            logger.debug(f"Set dakora.template_contexts with {len(template_contexts)} template(s)")
+        template_ctx = {
+            "prompt_id": render_result.prompt_id,
+            "version": render_result.version,
+            "inputs": dict(render_result.inputs or {}),
+            "metadata": dict(render_result.metadata or {}),
+            "role": "system",
+            "source": "instruction",
+        }
+        self._instruction_templates[agent_id] = template_ctx
+        logger.debug(f"Registered instruction template for agent '{agent_id}': {render_result.prompt_id}")
 
     async def process(
         self,
@@ -226,24 +204,24 @@ class DakoraTraceMiddleware(ChatMiddleware):
                     f"${budget_status.get('budget_usd', 0):.2f})"
                 )
 
-        # SOLUTION: Wrap agent execution in a parent span and set dakora.* attributes on it
-        # The agent span ends inside next(), so we can't set attributes on it afterwards
-        # Instead, we set them on this parent span, and the exporter will look at parent spans
+        # Set dakora.* attributes on the current span (invoke_agent span)
+        # This is simpler than creating a wrapper span and searching for it later
         try:
             from opentelemetry import trace
 
-            tracer = trace.get_tracer(__name__)
+            # Get the current span (should be invoke_agent span created by MAF)
+            current_span = trace.get_current_span()
 
-            # Start a wrapping span
-            with tracer.start_as_current_span("dakora.enrichment") as wrapper_span:
-                # Extract context before execution
+            if current_span and current_span.is_recording():
+                # Extract model from chat client
                 client = getattr(context, "chat_client", None)
                 if client:
                     model = getattr(client, "model_id", None) or getattr(client, "model", None)
                     if model:
-                        wrapper_span.set_attribute("dakora.model", model)
-                        logger.debug(f"Set dakora.model={model} on wrapper span")
+                        current_span.set_attribute("dakora.model", model)
+                        logger.debug(f"Set dakora.model={model} on current span")
 
+                # Extract template contexts from messages
                 messages = getattr(context, "messages", [])
                 template_contexts = []
                 for msg in messages:
@@ -252,17 +230,28 @@ class DakoraTraceMiddleware(ChatMiddleware):
                         template_contexts.append(dakora_ctx)
                         logger.debug(f"Found _dakora_context on message: {dakora_ctx}")
 
-                if template_contexts:
-                    wrapper_span.set_attribute("dakora.template_contexts", json.dumps(template_contexts))
-                    logger.debug(f"Set dakora.template_contexts with {len(template_contexts)} template(s) on wrapper span")
+                # Check for registered instruction templates
+                # MAF sets agent_id as a span attribute (gen_ai.agent.id), so read it from there
+                agent_id = current_span.attributes.get("gen_ai.agent.id") if current_span.attributes else None
 
-                # Execute agent (creates agent span as child of wrapper span)
-                await next(context)
+                logger.debug(f"Extracted agent_id: {agent_id}, registered templates: {list(self._instruction_templates.keys())}")
+
+                if agent_id and agent_id in self._instruction_templates:
+                    instruction_ctx = self._instruction_templates[agent_id]
+                    # Prepend instruction template (it's the system prompt, so comes first)
+                    template_contexts.insert(0, instruction_ctx)
+                    logger.debug(f"Added instruction template for agent '{agent_id}': {instruction_ctx['prompt_id']}")
+
+                if template_contexts:
+                    current_span.set_attribute("dakora.template_contexts", json.dumps(template_contexts))
+                    logger.debug(f"Set dakora.template_contexts with {len(template_contexts)} template(s) on current span")
 
         except ImportError:
             # OTEL not available
             logger.debug("OpenTelemetry not available")
-            await next(context)
+
+        # Execute agent
+        await next(context)
 
         # OTEL automatically:
         # - Captures tokens (gen_ai.usage.input_tokens, output_tokens)

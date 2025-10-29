@@ -267,7 +267,7 @@ class DakoraSpanExporter(SpanExporter):
             conversation_history = []
 
         try:
-            template_usages = self._extract_template_usages(span)
+            template_usages = self._extract_template_usages(span, span_map)
         except Exception as e:
             logger.debug(f"Failed to extract template usages: {e}")
             template_usages = None
@@ -428,16 +428,20 @@ class DakoraSpanExporter(SpanExporter):
         # Fallback
         return str(msg.get("text", ""))
 
-    def _extract_template_usages(self, span: ReadableSpan) -> list[dict[str, Any]] | None:
+    def _extract_template_usages(
+        self, span: ReadableSpan, span_map: dict[str, ReadableSpan]
+    ) -> list[dict[str, Any]] | None:
         """
         Extract template linkage from span attributes or conversation history.
 
         Templates are identified by:
         1. dakora.template_contexts attribute (set by middleware) - PREFERRED
-        2. _dakora_context attribute on messages in conversation history - FALLBACK
+        2. Child spans with dakora.template_contexts (wrapper spans)
+        3. _dakora_context attribute on messages in conversation history - FALLBACK
 
         Args:
             span: OTEL span with template contexts
+            span_map: Map of span_id -> span for finding child spans
 
         Returns:
             List of template usages or None
@@ -447,6 +451,37 @@ class DakoraSpanExporter(SpanExporter):
 
         # PREFERRED: Extract from dakora.template_contexts (set by middleware)
         template_contexts_json = attrs.get("dakora.template_contexts")
+
+        # If not found on root span, search child spans (e.g., wrapper spans)
+        if not template_contexts_json:
+            current_span_id = self._format_span_id(span.context.span_id)
+            logger.debug(f"dakora.template_contexts not found on root span, searching child spans...")
+
+            # Find child spans by looking for spans whose parent is the current span
+            for span_id, child_span in span_map.items():
+                if child_span.parent and self._format_span_id(child_span.parent.span_id) == current_span_id:
+                    child_attrs = child_span.attributes or {}
+                    template_contexts_json = child_attrs.get("dakora.template_contexts")
+                    if template_contexts_json:
+                        logger.debug(f"Found dakora.template_contexts in child span: {child_span.name}")
+                        break
+
+            # If still not found, check grandchild spans (e.g., wrapper inside chat span)
+            if not template_contexts_json:
+                for span_id, child_span in span_map.items():
+                    if child_span.parent:
+                        parent_span_id = self._format_span_id(child_span.parent.span_id)
+                        # Check if this is a grandchild (parent is a child of current span)
+                        parent_span = span_map.get(parent_span_id)
+                        if parent_span and parent_span.parent:
+                            grandparent_id = self._format_span_id(parent_span.parent.span_id)
+                            if grandparent_id == current_span_id:
+                                child_attrs = child_span.attributes or {}
+                                template_contexts_json = child_attrs.get("dakora.template_contexts")
+                                if template_contexts_json:
+                                    logger.debug(f"Found dakora.template_contexts in grandchild span: {child_span.name}")
+                                    break
+
         if template_contexts_json:
             try:
                 template_contexts = json.loads(template_contexts_json)
