@@ -113,11 +113,8 @@ class DakoraSpanExporter(SpanExporter):
                 logger.debug("Skipping span export: no project_id available")
                 return False
 
-            # Build payload (pass span_map for parent correlation)
+            # Build payload (pass span_map for child span search)
             payload = self._build_payload(span, span_map)
-
-            # DEBUG: Log the full payload to verify template linkage
-            logger.debug(f"Full payload being sent to Dakora:\n{json.dumps(payload, indent=2)}")
 
             # Make synchronous HTTP POST
             url = f"/api/projects/{self._project_id}/executions"
@@ -210,10 +207,6 @@ class DakoraSpanExporter(SpanExporter):
 
         # Debug: Log ALL attributes to understand what MAF provides
         logger.debug(f"All span attributes: {dict(attrs)}")
-
-        # NOTE: We no longer need parent span correlation!
-        # The middleware now sets dakora.* attributes AFTER next(), so they're
-        # directly on the agent invocation span that we export here.
 
         # Extract OTEL standard attributes (defensive - use .get() with defaults)
         agent_id = attrs.get("gen_ai.agent.id")
@@ -436,11 +429,11 @@ class DakoraSpanExporter(SpanExporter):
 
         Templates are identified by:
         1. dakora.template_contexts attribute (set by middleware) - PREFERRED
-        2. Child spans with dakora.template_contexts (wrapper spans)
+        2. Child/grandchild spans with dakora.template_contexts (middleware sets on chat span)
         3. _dakora_context attribute on messages in conversation history - FALLBACK
 
         Args:
-            span: OTEL span with template contexts
+            span: OTEL span with template contexts (agent invocation span)
             span_map: Map of span_id -> span for finding child spans
 
         Returns:
@@ -452,7 +445,7 @@ class DakoraSpanExporter(SpanExporter):
         # PREFERRED: Extract from dakora.template_contexts (set by middleware)
         template_contexts_json = attrs.get("dakora.template_contexts")
 
-        # If not found on root span, search child spans (e.g., wrapper spans)
+        # If not found on root span, search child spans (middleware sets it on chat span)
         if not template_contexts_json:
             current_span_id = self._format_span_id(span.context.span_id)
             logger.debug(f"dakora.template_contexts not found on root span, searching child spans...")
@@ -466,7 +459,7 @@ class DakoraSpanExporter(SpanExporter):
                         logger.debug(f"Found dakora.template_contexts in child span: {child_span.name}")
                         break
 
-            # If still not found, check grandchild spans (e.g., wrapper inside chat span)
+            # If still not found, check grandchild spans
             if not template_contexts_json:
                 for span_id, child_span in span_map.items():
                     if child_span.parent:

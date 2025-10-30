@@ -49,7 +49,6 @@ class DakoraTraceMiddleware(ChatMiddleware):
         self.budget_check_cache_ttl = budget_check_cache_ttl
         self._budget_cache: dict[str, Any] | None = None
         self._budget_cache_time: datetime | None = None
-        self._instruction_templates: dict[str, dict[str, Any]] = {}  # agent_id -> template_context
 
     async def _check_budget_with_cache(self, project_id: str) -> dict[str, Any]:
         """
@@ -123,32 +122,6 @@ class DakoraTraceMiddleware(ChatMiddleware):
                 )
             ]
         )
-
-    def register_instruction_template(self, agent_id: str, render_result: Any) -> None:
-        """
-        Register an instruction template for an agent.
-
-        This allows tracking of agent instructions (system prompts) as template usages.
-
-        Args:
-            agent_id: The agent ID (must match the ID used in create_agent())
-            render_result: The RenderResult from dakora.prompts.render()
-
-        Example:
-            >>> instructions = await dakora.prompts.render("my_instructions", {})
-            >>> agent = client.create_agent(id="my-bot", instructions=instructions.text)
-            >>> middleware.register_instruction_template("my-bot", instructions)
-        """
-        template_ctx = {
-            "prompt_id": render_result.prompt_id,
-            "version": render_result.version,
-            "inputs": dict(render_result.inputs or {}),
-            "metadata": dict(render_result.metadata or {}),
-            "role": "system",
-            "source": "instruction",
-        }
-        self._instruction_templates[agent_id] = template_ctx
-        logger.debug(f"Registered instruction template for agent '{agent_id}': {render_result.prompt_id}")
 
     async def process(
         self,
@@ -228,19 +201,6 @@ class DakoraTraceMiddleware(ChatMiddleware):
                     dakora_ctx = getattr(msg, "_dakora_context", None)
                     if dakora_ctx and isinstance(dakora_ctx, dict):
                         template_contexts.append(dakora_ctx)
-                        logger.debug(f"Found _dakora_context on message: {dakora_ctx}")
-
-                # Check for registered instruction templates
-                # MAF sets agent_id as a span attribute (gen_ai.agent.id), so read it from there
-                agent_id = current_span.attributes.get("gen_ai.agent.id") if current_span.attributes else None
-
-                logger.debug(f"Extracted agent_id: {agent_id}, registered templates: {list(self._instruction_templates.keys())}")
-
-                if agent_id and agent_id in self._instruction_templates:
-                    instruction_ctx = self._instruction_templates[agent_id]
-                    # Prepend instruction template (it's the system prompt, so comes first)
-                    template_contexts.insert(0, instruction_ctx)
-                    logger.debug(f"Added instruction template for agent '{agent_id}': {instruction_ctx['prompt_id']}")
 
                 if template_contexts:
                     current_span.set_attribute("dakora.template_contexts", json.dumps(template_contexts))

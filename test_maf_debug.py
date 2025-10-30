@@ -45,9 +45,6 @@ async def main():
         name="HaikuBot",
         instructions=instructions_result.text,  # Use .text property
     )
-
-    # Register the instruction template so it appears in traces
-    middleware.register_instruction_template("haiku-bot-v1", instructions_result)
     print("\n" + "="*50)
     print("Testing Microsoft Agent Framework (Chat API)")
     print("="*50 + "\n")
