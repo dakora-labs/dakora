@@ -310,7 +310,7 @@ class DakoraSpanExporter(SpanExporter):
         attrs = span.attributes or {}
         operation = attrs.get("gen_ai.operation.name")
         # Support current and potential future MAF operation names
-        return operation in ("invoke_agent", "agent.invoke", "chat.invoke", "agent_invoke")
+        return operation in ("invoke_agent", "agent.invoke", "chat.invoke", "agent_invoke", "chat")
 
     def _extract_conversation_history(self, span: ReadableSpan) -> list[dict[str, Any]]:
         """
