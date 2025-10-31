@@ -16,7 +16,7 @@ async def main():
     load_dotenv()
 
     # Initialize Dakora client
-    dakora = Dakora(base_url="https://dakora-api.onrender.com")
+    dakora = Dakora(base_url="http://localhost:8000")
 
     # Setup OTEL integration (one line!)
     middleware = DakoraIntegration.setup(dakora)

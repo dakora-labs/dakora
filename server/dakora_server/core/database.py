@@ -268,6 +268,35 @@ optimization_runs_table = Table(
     Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False, index=True),
 )
 
+# OpenTelemetry spans table - raw OTLP storage
+# Stores complete OTLP spans for debugging and trace visualization
+otel_spans_table = Table(
+    "otel_spans",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    # OTLP identifiers
+    Column("trace_id", String(32), nullable=False, index=True),
+    Column("span_id", String(16), nullable=False, unique=True, index=True),
+    Column("parent_span_id", String(16), nullable=True, index=True),
+    # Project context
+    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True),
+    # Span metadata
+    Column("span_name", String(255), nullable=False),
+    Column("span_kind", String(50), nullable=True),
+    # OTLP data (raw storage)
+    Column("attributes", JSONB, nullable=True),
+    Column("events", JSONB, nullable=True),
+    # Timing
+    Column("start_time_ns", Integer, nullable=False),
+    Column("end_time_ns", Integer, nullable=False),
+    Column("duration_ns", Integer, nullable=False),
+    # Status
+    Column("status_code", String(20), nullable=True),
+    Column("status_message", String(255), nullable=True),
+    # Timestamps
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+)
+
 
 def get_database_url() -> str:
     """Get database URL from environment or use default for local dev"""
