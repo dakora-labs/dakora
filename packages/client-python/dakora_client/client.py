@@ -91,10 +91,10 @@ class Dakora:
 
         # Import here to avoid circular dependency
         from .prompts import PromptsAPI
-        from .traces import TracesAPI
+        from .executions import ExecutionsAPI
 
         self.prompts = PromptsAPI(self)
-        self.traces = TracesAPI(self)
+        self.executions = ExecutionsAPI(self)
         logger.info(f"Dakora client initialized for {self.base_url}")
 
     def _fetch_project_id_sync(self) -> str:

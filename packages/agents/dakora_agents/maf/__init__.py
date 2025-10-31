@@ -17,11 +17,12 @@ Quick Start:
     >>>
     >>> azure_client = AzureOpenAIChatClient(..., middleware=[middleware])
     >>> agent = azure_client.create_agent(id="chat-v1", ...)
-    >>> response = await agent.run("Hello!")
+    >>>
+    >>> # Use rendered prompts with automatic tracking
+    >>> prompt = await dakora.prompts.render("greeting", {"name": "Alice"})
+    >>> response = await agent.run(prompt.to_message())  # to_message() is in dakora_client
 """
 
-from .exporter import DakoraSpanExporter
-from .helpers import to_instruction_template, to_message
 from .integration import DakoraIntegration
 from .middleware import DakoraTraceMiddleware
 
@@ -30,8 +31,4 @@ __all__ = [
     "DakoraIntegration",
     # Components (for advanced usage)
     "DakoraTraceMiddleware",
-    "DakoraSpanExporter",
-    # Helpers
-    "to_message",
-    "to_instruction_template",
 ]

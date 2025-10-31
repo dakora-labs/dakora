@@ -4,7 +4,7 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 
@@ -47,12 +47,16 @@ class OTLPTraceResponse(BaseModel):
 
 @router.post("/api/v1/traces")
 async def ingest_otlp_traces(
-    request: OTLPTraceRequest,
+    request: Request,
     auth_ctx: AuthContext = Depends(get_auth_context),
     engine: Engine = Depends(get_engine),
 ) -> OTLPTraceResponse:
     """
     Ingest OTLP traces from OpenTelemetry exporters.
+
+    This endpoint accepts both:
+    - Standard OTLP protobuf format (Content-Type: application/x-protobuf)
+    - Custom JSON format (Content-Type: application/json)
 
     This endpoint:
     1. Stores raw OTLP spans in otel_spans table
@@ -62,8 +66,48 @@ async def ingest_otlp_traces(
 
     Authentication: Requires X-API-Key header with valid project API key.
     """
-    if not request.spans:
+    # Parse request based on Content-Type
+    content_type = request.headers.get("content-type", "").lower()
+
+    try:
+        if "application/x-protobuf" in content_type or "application/protobuf" in content_type:
+            # Parse OTLP protobuf format
+            from dakora_server.core.otlp_parser import parse_otlp_protobuf
+
+            body = await request.body()
+            spans = parse_otlp_protobuf(body)
+            logger.debug(f"Parsed {len(spans)} span(s) from protobuf")
+
+        elif "application/json" in content_type:
+            # Parse custom JSON format
+            body_json = await request.json()
+            trace_request = OTLPTraceRequest.model_validate(body_json)
+            spans = trace_request.spans
+            logger.debug(f"Parsed {len(spans)} span(s) from JSON")
+
+        else:
+            raise HTTPException(
+                status_code=415,
+                detail=f"Unsupported Content-Type: {content_type}. "
+                       f"Expected application/x-protobuf or application/json"
+            )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse request: {e}")
+
+    if not spans:
         raise HTTPException(status_code=400, detail="No spans provided")
+
+    # Validate spans have expected OTLP attributes (warning only, don't block)
+    for span in spans:
+        attrs = span.attributes or {}
+        operation = attrs.get("gen_ai.operation.name")
+
+        # Warn if critical attributes are missing
+        if not operation:
+            logger.warning(
+                f"Span {span.span_id} missing 'gen_ai.operation.name' attribute. "
+                f"This may indicate incompatible OTEL exporter or MAF version."
+            )
 
     # API key authentication must provide project_id
     if not auth_ctx.project_id:
@@ -73,7 +117,7 @@ async def ingest_otlp_traces(
         )
 
     project_id = UUID(auth_ctx.project_id)
-    logger.info(f"Ingesting {len(request.spans)} span(s) for project {project_id}")
+    logger.info(f"Ingesting {len(spans)} span(s) for project {project_id}")
 
     try:
         # Import here to avoid circular dependency
@@ -82,7 +126,7 @@ async def ingest_otlp_traces(
         with get_connection(engine) as conn:
             # Process the trace batch with smart extraction strategy
             stats = process_trace_batch(
-                spans=request.spans,
+                spans=spans,
                 project_id=project_id,
                 conn=conn,
             )

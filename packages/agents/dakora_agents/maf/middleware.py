@@ -29,12 +29,13 @@ class DakoraTraceMiddleware(ChatMiddleware):
     - Token tracking (gen_ai.usage.input_tokens/output_tokens)
     - Message capture (gen_ai.input.messages/output.messages)
     - Latency tracking (span duration)
-    - Export to Dakora API via DakoraSpanExporter
+    - Export to Dakora API via standard OTLP exporter
     """
 
     def __init__(
         self,
         dakora_client: Dakora,
+        enable_budget_check: bool = False,
         budget_check_cache_ttl: int = 30,
     ) -> None:
         """
@@ -42,10 +43,14 @@ class DakoraTraceMiddleware(ChatMiddleware):
 
         Args:
             dakora_client: Dakora client instance with API key configured.
+            enable_budget_check: Enable pre-execution budget checks (default: False).
+                                When enabled, blocks execution if budget exceeded in strict mode.
+                                Warning: Adds latency to every agent call.
             budget_check_cache_ttl: Cache TTL for budget checks in seconds (default: 30).
-                                   Prevents excessive API calls for high-frequency agents.
+                                   Only used when enable_budget_check=True.
         """
         self.dakora = dakora_client
+        self.enable_budget_check = enable_budget_check
         self.budget_check_cache_ttl = budget_check_cache_ttl
         self._budget_cache: dict[str, Any] | None = None
         self._budget_cache_time: datetime | None = None
@@ -138,44 +143,44 @@ class DakoraTraceMiddleware(ChatMiddleware):
         """
         logger.debug("DakoraTraceMiddleware.process() called")
 
-        # Get project_id from Dakora client (already fetched during initialization)
-        project_id = self.dakora.project_id
+        # Check budget BEFORE execution (optional feature)
+        if self.enable_budget_check:
+            project_id = self.dakora.project_id
 
-        # Check budget BEFORE execution
-        if project_id:
-            budget_status = await self._check_budget_with_cache(project_id)
+            if project_id:
+                budget_status = await self._check_budget_with_cache(project_id)
 
-            if budget_status.get("exceeded", False):
-                enforcement_mode = budget_status.get("enforcement_mode", "strict")
+                if budget_status.get("exceeded", False):
+                    enforcement_mode = budget_status.get("enforcement_mode", "strict")
 
-                if enforcement_mode == "strict":
-                    # STRICT MODE: Block execution
-                    context.terminate = True
-                    context.result = self._format_budget_error(budget_status)
-                    logger.warning(
-                        f"Execution BLOCKED: Budget exceeded for project {project_id} "
+                    if enforcement_mode == "strict":
+                        # STRICT MODE: Block execution
+                        context.terminate = True
+                        context.result = self._format_budget_error(budget_status)
+                        logger.warning(
+                            f"Execution BLOCKED: Budget exceeded for project {project_id} "
+                            f"(${budget_status.get('current_spend_usd', 0):.2f} / "
+                            f"${budget_status.get('budget_usd', 0):.2f})"
+                        )
+                        return  # Exit early - no LLM call
+
+                    elif enforcement_mode == "alert":
+                        # ALERT MODE: Log warning but allow execution
+                        logger.warning(
+                            f"Budget EXCEEDED but allowing execution (alert mode): "
+                            f"Project {project_id} "
+                            f"(${budget_status.get('current_spend_usd', 0):.2f} / "
+                            f"${budget_status.get('budget_usd', 0):.2f})"
+                        )
+
+                elif budget_status.get("status") == "warning":
+                    # At warning threshold
+                    logger.info(
+                        f"Budget WARNING: Project {project_id} at "
+                        f"{budget_status.get('percentage_used', 0):.1f}% "
                         f"(${budget_status.get('current_spend_usd', 0):.2f} / "
                         f"${budget_status.get('budget_usd', 0):.2f})"
                     )
-                    return  # Exit early - no LLM call
-
-                elif enforcement_mode == "alert":
-                    # ALERT MODE: Log warning but allow execution
-                    logger.warning(
-                        f"Budget EXCEEDED but allowing execution (alert mode): "
-                        f"Project {project_id} "
-                        f"(${budget_status.get('current_spend_usd', 0):.2f} / "
-                        f"${budget_status.get('budget_usd', 0):.2f})"
-                    )
-
-            elif budget_status.get("status") == "warning":
-                # At warning threshold
-                logger.info(
-                    f"Budget WARNING: Project {project_id} at "
-                    f"{budget_status.get('percentage_used', 0):.1f}% "
-                    f"(${budget_status.get('current_spend_usd', 0):.2f} / "
-                    f"${budget_status.get('budget_usd', 0):.2f})"
-                )
 
         # Set dakora.* attributes on the current span (invoke_agent span)
         # This is simpler than creating a wrapper span and searching for it later
@@ -218,4 +223,4 @@ class DakoraTraceMiddleware(ChatMiddleware):
         # - Captures messages (gen_ai.input.messages, output.messages)
         # - Captures agent_id (gen_ai.agent.id)
         # - Calculates latency (span duration)
-        # - Exports to DakoraSpanExporter
+        # - Exports to Dakora API via standard OTLP exporter

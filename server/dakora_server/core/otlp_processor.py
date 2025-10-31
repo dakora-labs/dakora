@@ -18,7 +18,8 @@ import logging
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
 
 from dakora_server.core.database import (
     otel_spans_table,
@@ -26,6 +27,7 @@ from dakora_server.core.database import (
     traces_table,
 )
 from dakora_server.core.otlp_extractor import (
+    build_span_hierarchy,
     extract_execution_trace,
     extract_template_usages,
     is_root_execution_span,
@@ -101,26 +103,33 @@ def process_trace_batch(
 
 
 def _store_span(span: OTLPSpan, project_id: UUID, conn: Connection) -> None:
-    """Store a single OTLP span in the database."""
+    """
+    Store a single OTLP span in the database.
+
+    Uses ON CONFLICT DO NOTHING for idempotency - if exporter retries,
+    we don't duplicate spans.
+    """
     duration_ns = span.end_time_ns - span.start_time_ns
 
-    conn.execute(
-        insert(otel_spans_table).values(
-            trace_id=span.trace_id,
-            span_id=span.span_id,
-            parent_span_id=span.parent_span_id,
-            project_id=project_id,
-            span_name=span.span_name,
-            span_kind=span.span_kind,
-            attributes=span.attributes,
-            events=span.events,
-            start_time_ns=span.start_time_ns,
-            end_time_ns=span.end_time_ns,
-            duration_ns=duration_ns,
-            status_code=span.status_code,
-            status_message=span.status_message,
-        )
+    stmt = insert(otel_spans_table).values(
+        trace_id=span.trace_id,
+        span_id=span.span_id,
+        parent_span_id=span.parent_span_id,
+        project_id=project_id,
+        span_name=span.span_name,
+        span_kind=span.span_kind,
+        attributes=span.attributes,
+        events=span.events,
+        start_time_ns=span.start_time_ns,
+        end_time_ns=span.end_time_ns,
+        duration_ns=duration_ns,
+        status_code=span.status_code,
+        status_message=span.status_message,
+    ).on_conflict_do_nothing(
+        index_elements=['span_id']
     )
+
+    conn.execute(stmt)
 
 
 def _get_unique_trace_ids(spans: list[OTLPSpan]) -> list[str]:
@@ -152,6 +161,8 @@ def _extract_executions_from_batch(
     """
     Extract execution traces from current batch (fast path).
 
+    Builds span hierarchy once for O(1) child lookups.
+
     Args:
         spans: Spans for a single trace_id
         project_id: Project UUID
@@ -162,6 +173,9 @@ def _extract_executions_from_batch(
     """
     executions_created = 0
 
+    # Build span hierarchy once (O(n)) for efficient child lookups (O(1) per lookup)
+    span_hierarchy = build_span_hierarchy(spans)
+
     # Find root execution spans
     for span in spans:
         if not is_root_execution_span(span):
@@ -170,15 +184,19 @@ def _extract_executions_from_batch(
         # Extract execution trace
         trace_data = extract_execution_trace(
             root_span=span,
-            all_spans=spans,
+            span_hierarchy=span_hierarchy,
             project_id=project_id,
         )
 
-        # Insert execution trace
-        conn.execute(insert(traces_table).values(**trace_data))
+        # Upsert execution trace (handles race conditions on recompute)
+        stmt = insert(traces_table).values(**trace_data).on_conflict_do_update(
+            index_elements=['trace_id'],
+            set_=trace_data
+        )
+        conn.execute(stmt)
 
         # Insert template linkages
-        template_usages = extract_template_usages(span, spans)
+        template_usages = extract_template_usages(span, span_hierarchy)
         if template_usages:
             for usage in template_usages:
                 conn.execute(
@@ -223,10 +241,10 @@ def _recompute_trace(trace_id: str, project_id: UUID, conn: Connection) -> None:
 
     logger.info(f"Recomputing trace {trace_id} with {len(all_spans)} total spans")
 
-    # Delete existing execution traces and template linkages
-    _delete_executions_for_trace(trace_id, conn)
+    # Delete template linkages (execution trace uses UPSERT now)
+    _delete_template_linkages(trace_id, conn)
 
-    # Re-extract with full context
+    # Re-extract with full context (will UPSERT execution trace)
     _extract_executions_from_batch(all_spans, project_id, conn)
 
 
@@ -263,16 +281,12 @@ def _load_all_spans_for_trace(trace_id: str, conn: Connection) -> list[OTLPSpan]
     return spans
 
 
-def _delete_executions_for_trace(trace_id: str, conn: Connection) -> None:
+def _delete_template_linkages(trace_id: str, conn: Connection) -> None:
     """
-    Delete existing execution traces and template linkages for a trace.
+    Delete existing template linkages for a trace.
 
-    Used before recomputing to ensure clean state.
+    Used before recomputing to clear old template linkages.
+    Execution trace itself uses UPSERT so no need to delete.
     """
-    # Delete template linkages first (foreign key constraint)
     conn.execute(delete(template_traces_table).where(template_traces_table.c.trace_id == trace_id))
-
-    # Delete execution traces
-    conn.execute(delete(traces_table).where(traces_table.c.trace_id == trace_id))
-
-    logger.debug(f"Deleted existing executions for trace {trace_id}")
+    logger.debug(f"Deleted template linkages for trace {trace_id}")

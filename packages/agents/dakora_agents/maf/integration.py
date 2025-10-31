@@ -65,7 +65,7 @@ class DakoraIntegration:
         Setup OTEL with Dakora integration in one line.
 
         This method:
-        1. Creates DakoraSpanExporter to send spans to Dakora API
+        1. Creates standard OTLP exporter pointing to Dakora API
         2. Configures MAF's OTEL infrastructure via setup_observability()
         3. Returns DakoraTraceMiddleware for budget enforcement
 
@@ -97,18 +97,31 @@ class DakoraIntegration:
         """
         try:
             from agent_framework.observability import setup_observability
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+                OTLPSpanExporter,
+            )
 
-            from .exporter import DakoraSpanExporter
             from .middleware import DakoraTraceMiddleware
 
         except ImportError as e:
             raise ImportError(
-                f"Failed to import agent_framework: {e}\n"
-                "Install with: pip install agent-framework"
+                f"Failed to import dependencies: {e}\n"
+                "Install with: pip install agent-framework opentelemetry-exporter-otlp-proto-http"
             ) from e
 
-        # Create Dakora exporter
-        dakora_exporter = DakoraSpanExporter(dakora_client)
+        # Create standard OTLP exporter pointing to Dakora API
+        # Use the standard OTLP HTTP exporter for maximum compatibility
+        headers = {}
+        if hasattr(dakora_client, "_Dakora__api_key"):
+            api_key = getattr(dakora_client, "_Dakora__api_key")
+            if api_key:
+                headers["X-API-Key"] = api_key
+
+        dakora_exporter = OTLPSpanExporter(
+            endpoint=f"{dakora_client.base_url}/api/v1/traces",
+            headers=headers,
+            timeout=30,
+        )
 
         # Combine with any additional exporters
         exporters: list[Any] = [dakora_exporter]
@@ -126,7 +139,7 @@ class DakoraIntegration:
         # Setup OTEL with all exporters
         logger.info(
             f"Setting up OTEL with {len(exporters)} exporter(s): "
-            f"DakoraSpanExporter + {len(additional_exporters or [])} additional"
+            f"Dakora OTLP exporter + {len(additional_exporters or [])} additional"
         )
 
         setup_observability(

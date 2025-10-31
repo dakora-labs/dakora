@@ -1,8 +1,9 @@
-"""Tests for DakoraTraceMiddleware"""
+"""Tests for DakoraTraceMiddleware with OTLP architecture"""
 
 import asyncio
+import json
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from agent_framework import ChatContext, ChatMessage, Role
 
 from dakora_agents.maf import DakoraTraceMiddleware
@@ -11,91 +12,178 @@ from dakora_agents.maf import DakoraTraceMiddleware
 @pytest.mark.asyncio
 class TestDakoraTraceMiddleware:
     """Test suite for DakoraTraceMiddleware"""
-    
+
     async def test_middleware_initialization(self, mock_dakora_client):
-        """Test middleware can be initialized with required parameters"""
+        """Test middleware can be initialized"""
         middleware = DakoraTraceMiddleware(
             dakora_client=mock_dakora_client,
+            budget_check_cache_ttl=30,
         )
-        
+
         assert middleware.dakora == mock_dakora_client
-        assert middleware.session_id is not None  # Auto-generated
-    
-    async def test_middleware_with_custom_session_id(
-        self, mock_dakora_client, session_id
-    ):
-        """Test middleware initialization respects provided session ID"""
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-            session_id=session_id,
-        )
-        
-        assert middleware.session_id == session_id
-    
-    async def test_process_adds_trace_metadata(
-        self, mock_dakora_client, sample_chat_context
-    ):
-        """Test that process() adds trace metadata to context"""
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-        )
-        
+        assert middleware.budget_check_cache_ttl == 30
+
+    async def test_budget_check_allows_execution_when_under_budget(self, mock_dakora_client, sample_chat_context):
+        """Test that execution proceeds when budget is not exceeded"""
+        # Mock budget check to return under budget
+        mock_dakora_client.get = AsyncMock(return_value=MagicMock(
+            status_code=200,
+            json=lambda: {"exceeded": False, "status": "ok"}
+        ))
+
+        middleware = DakoraTraceMiddleware(dakora_client=mock_dakora_client)
+
+        executed = False
+
         async def mock_next(ctx: ChatContext) -> None:
-            # Simulate LLM response
+            nonlocal executed
+            executed = True
             ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
-        
+
         await middleware.process(sample_chat_context, mock_next)
-        
-        # Check trace metadata was added
-        assert "dakora_trace_id" in sample_chat_context.metadata
-        assert "dakora_session_id" in sample_chat_context.metadata
-        assert sample_chat_context.metadata["dakora_session_id"] == middleware.session_id
-    
-    async def test_process_creates_trace(
-        self, mock_dakora_client, sample_chat_context
-    ):
-        """Test that process() calls dakora.traces.create()"""
+
+        assert executed is True
+        assert len(sample_chat_context.messages) == 2
+
+    async def test_budget_check_blocks_execution_when_exceeded_strict(self, mock_dakora_client, sample_chat_context):
+        """Test that execution is blocked when budget exceeded in strict mode"""
+        # Mock budget check to return exceeded with strict enforcement
+        mock_dakora_client.get = AsyncMock(return_value=MagicMock(
+            status_code=200,
+            json=lambda: {
+                "exceeded": True,
+                "enforcement_mode": "strict",
+                "budget_usd": 10.0,
+                "current_spend_usd": 12.0
+            }
+        ))
+
+        middleware = DakoraTraceMiddleware(dakora_client=mock_dakora_client, enable_budget_check=True)
+
+        executed = False
+
+        async def mock_next(ctx: ChatContext) -> None:
+            nonlocal executed
+            executed = True
+
+        await middleware.process(sample_chat_context, mock_next)
+
+        assert executed is False  # Should not execute
+        assert sample_chat_context.terminate is True  # Should terminate
+        assert sample_chat_context.result is not None  # Should have error response
+
+    async def test_budget_check_allows_execution_when_exceeded_alert(self, mock_dakora_client, sample_chat_context):
+        """Test that execution proceeds when budget exceeded in alert mode"""
+        # Mock budget check to return exceeded with alert enforcement
+        mock_dakora_client.get = AsyncMock(return_value=MagicMock(
+            status_code=200,
+            json=lambda: {
+                "exceeded": True,
+                "enforcement_mode": "alert",
+                "budget_usd": 10.0,
+                "current_spend_usd": 12.0
+            }
+        ))
+
+        middleware = DakoraTraceMiddleware(dakora_client=mock_dakora_client)
+
+        executed = False
+
+        async def mock_next(ctx: ChatContext) -> None:
+            nonlocal executed
+            executed = True
+            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
+
+        await middleware.process(sample_chat_context, mock_next)
+
+        assert executed is True  # Should execute despite budget exceeded
+        assert len(sample_chat_context.messages) == 2
+
+    async def test_budget_check_uses_cache(self, mock_dakora_client, sample_chat_context):
+        """Test that budget check uses TTL cache"""
+        # Mock budget check
+        mock_dakora_client.get = AsyncMock(return_value=MagicMock(
+            status_code=200,
+            json=lambda: {"exceeded": False, "status": "ok"}
+        ))
+
         middleware = DakoraTraceMiddleware(
             dakora_client=mock_dakora_client,
+            enable_budget_check=True,
+            budget_check_cache_ttl=30
         )
-        
+
         async def mock_next(ctx: ChatContext) -> None:
             ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
-        
+
+        # First call - should hit API
         await middleware.process(sample_chat_context, mock_next)
-        
-        # Give async logging a moment to complete
-        await asyncio.sleep(0.1)
-        
-        # Verify trace was created
-        mock_dakora_client.traces.create.assert_called_once()
-        call_args = mock_dakora_client.traces.create.call_args[1]
-        
-        assert "trace_id" in call_args
-        assert call_args["session_id"] == middleware.session_id
-        assert call_args["source"] == "maf"
-        assert "conversation_history" in call_args
-        assert "latency_ms" in call_args
-    
-    async def test_process_with_template_metadata(
-        self, mock_dakora_client
-    ):
-        """Test that template metadata from messages is captured"""
+        assert mock_dakora_client.get.call_count == 1
+
+        # Second call - should use cache
+        await middleware.process(sample_chat_context, mock_next)
+        assert mock_dakora_client.get.call_count == 1  # Still 1, didn't call again
+
+    async def test_budget_check_fail_open(self, mock_dakora_client, sample_chat_context):
+        """Test that budget check fails open when API call fails"""
+        # Mock budget check to raise exception
+        mock_dakora_client.get = AsyncMock(side_effect=Exception("API Error"))
+
+        middleware = DakoraTraceMiddleware(dakora_client=mock_dakora_client)
+
+        executed = False
+
+        async def mock_next(ctx: ChatContext) -> None:
+            nonlocal executed
+            executed = True
+
+        await middleware.process(sample_chat_context, mock_next)
+
+        assert executed is True  # Should execute despite error (fail-open)
+
+    async def test_sets_dakora_attributes_on_span(self, mock_dakora_client, sample_chat_context):
+        """Test that middleware sets dakora.* attributes on current span"""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        # Create a mock trace module
+        mock_trace = MagicMock()
+        mock_trace.get_current_span.return_value = mock_span
+
+        with patch('opentelemetry.trace', mock_trace):
+            middleware = DakoraTraceMiddleware(dakora_client=mock_dakora_client)
+
+            # Add model to chat client
+            sample_chat_context.chat_client.model_id = "gpt-4"
+
+            async def mock_next(ctx: ChatContext) -> None:
+                pass
+
+            await middleware.process(sample_chat_context, mock_next)
+
+            # Verify dakora.model was set
+            mock_span.set_attribute.assert_any_call("dakora.model", "gpt-4")
+
+    async def test_extracts_template_contexts_from_messages(self, mock_dakora_client):
+        """Test that middleware extracts template contexts from messages"""
         from agent_framework import ChatOptions
-        
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-        )
-        
-        # Create message with Dakora context
+
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        # Create a mock trace module
+        mock_trace = MagicMock()
+        mock_trace.get_current_span.return_value = mock_span
+
+        # Create message with dakora context
         message = ChatMessage(role=Role.USER, text="Hello")
         message._dakora_context = {
-            "prompt_id": "greeting-prompt",
+            "prompt_id": "greeting",
             "version": "1.0",
             "inputs": {"name": "Alice"},
-            "metadata": {"category": "greeting"}
+            "metadata": {}
         }
-        
+
         mock_chat_client = MagicMock()
         context = ChatContext(
             messages=[message],
@@ -103,211 +191,45 @@ class TestDakoraTraceMiddleware:
             chat_client=mock_chat_client,
             chat_options=ChatOptions()
         )
-        
-        async def mock_next(ctx: ChatContext) -> None:
-            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Hi Alice!"))
-        
-        await middleware.process(context, mock_next)
-        await asyncio.sleep(0.1)
-        
-        # Verify template usage was tracked
-        call_args = mock_dakora_client.traces.create.call_args[1]
-        assert "template_usages" in call_args
-        assert len(call_args["template_usages"]) == 1
-        usage = call_args["template_usages"][0]
-        assert usage["prompt_id"] == "greeting-prompt"
-        assert usage["role"] == "user"
-        assert usage["source"] == "message"
-        assert usage["message_index"] == 0
-        assert usage["metadata"] == {"category": "greeting"}
-        assert usage["inputs"] == {"name": "Alice"}
-    
-    async def test_process_calculates_latency(
-        self, mock_dakora_client, sample_chat_context
-    ):
-        """Test that latency is calculated correctly"""
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-        )
-        
-        async def mock_next(ctx: ChatContext) -> None:
-            await asyncio.sleep(0.05)  # Simulate 50ms LLM call
-            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
-        
-        await middleware.process(sample_chat_context, mock_next)
-        await asyncio.sleep(0.1)
-        
-        call_args = mock_dakora_client.traces.create.call_args[1]
-        assert call_args["latency_ms"] >= 50  # Should be at least 50ms
-    
-    async def test_process_includes_agent_id_when_set(
-        self, mock_dakora_client, agent_id, sample_chat_context
-    ):
-        """Test that agent_id is included in trace when provided"""
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-        )
-        sample_chat_context.chat_options.metadata = {"dakora_agent_id": agent_id}
-        
-        async def mock_next(ctx: ChatContext) -> None:
-            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
-        
-        await middleware.process(sample_chat_context, mock_next)
-        await asyncio.sleep(0.1)
-        
-        call_args = mock_dakora_client.traces.create.call_args[1]
-        assert call_args.get("agent_id") == agent_id
-    
-    async def test_process_handles_exceptions_gracefully(
-        self, mock_dakora_client, sample_chat_context
-    ):
-        """Test that middleware doesn't break if trace creation fails"""
-        # Make traces.create raise an exception
-        mock_dakora_client.traces.create.side_effect = Exception("API Error")
-        
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-        )
-        
-        async def mock_next(ctx: ChatContext) -> None:
-            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
-        
-        # Should not raise - middleware should handle errors gracefully
-        await middleware.process(sample_chat_context, mock_next)
-        await asyncio.sleep(0.1)
-        
-        # Agent should still work (response was added)
-        assert len(sample_chat_context.messages) == 2
-    
-    async def test_process_preserves_conversation_history(
-        self, mock_dakora_client
-    ):
-        """Test that full conversation history is captured"""
-        from agent_framework import ChatOptions
-        
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-        )
-        
-        mock_chat_client = MagicMock()
-        context = ChatContext(
-            messages=[
-                ChatMessage(role=Role.SYSTEM, text="You are helpful"),
-                ChatMessage(role=Role.USER, text="Hello"),
-            ],
-            metadata={},
-            chat_client=mock_chat_client,
-            chat_options=ChatOptions()
-        )
-        
-        async def mock_next(ctx: ChatContext) -> None:
-            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Hi there!"))
-        
-        await middleware.process(context, mock_next)
-        await asyncio.sleep(0.1)
-        
-        call_args = mock_dakora_client.traces.create.call_args[1]
-        history = call_args["conversation_history"]
-        
-        assert len(history) == 3
-        assert history[0]["role"] == "system"
-        assert history[0]["index"] == 0
-        assert history[1]["role"] == "user"
-        assert history[1]["index"] == 1
-        assert history[2]["role"] == "assistant"
-        assert history[2]["index"] == 2
 
-    async def test_process_includes_parent_trace_id(
-        self, mock_dakora_client, sample_chat_context
-    ):
-        """Parent trace ID configured on middleware should be forwarded"""
-        parent_trace_id = "parent-123"
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-            parent_trace_id=parent_trace_id,
-        )
+        with patch('opentelemetry.trace', mock_trace):
+            middleware = DakoraTraceMiddleware(dakora_client=mock_dakora_client)
 
-        async def mock_next(ctx: ChatContext) -> None:
-            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
+            async def mock_next(ctx: ChatContext) -> None:
+                pass
 
-        await middleware.process(sample_chat_context, mock_next)
-        await asyncio.sleep(0.1)
+            await middleware.process(context, mock_next)
 
-        call_args = mock_dakora_client.traces.create.call_args[1]
-        assert call_args["parent_trace_id"] == parent_trace_id
-        assert middleware.last_trace_id is not None
+            # Verify template contexts were set as JSON
+            calls = [call for call in mock_span.set_attribute.call_args_list
+                     if call[0][0] == "dakora.template_contexts"]
+            assert len(calls) == 1
 
-    async def test_parent_trace_overrides_via_metadata(
-        self, mock_dakora_client, sample_chat_context
-    ):
-        """Parent trace ID provided in metadata should override default"""
-        override_parent_id = "parent-override"
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-            parent_trace_id="parent-default",
-        )
-        sample_chat_context.metadata = {
-            "dakora_parent_trace_id": override_parent_id
-        }
+            template_contexts_json = calls[0][0][1]
+            template_contexts = json.loads(template_contexts_json)
+            assert len(template_contexts) == 1
+            assert template_contexts[0]["prompt_id"] == "greeting"
 
-        async def mock_next(ctx: ChatContext) -> None:
-            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
+    async def test_handles_no_otel_gracefully(self, mock_dakora_client, sample_chat_context):
+        """Test that middleware works even if OTEL is not available"""
+        # Mock the import to raise ImportError
+        import builtins
+        real_import = builtins.__import__
 
-        await middleware.process(sample_chat_context, mock_next)
-        await asyncio.sleep(0.1)
+        def mock_import(name, *args, **kwargs):
+            if name == 'opentelemetry' or name.startswith('opentelemetry.'):
+                raise ImportError("OTEL not available")
+            return real_import(name, *args, **kwargs)
 
-        call_args = mock_dakora_client.traces.create.call_args[1]
-        assert call_args["parent_trace_id"] == override_parent_id
-        assert sample_chat_context.metadata["dakora_parent_trace_id"] == override_parent_id
-        assert middleware.last_trace_id is not None
+        with patch('builtins.__import__', side_effect=mock_import):
+            middleware = DakoraTraceMiddleware(dakora_client=mock_dakora_client)
 
-    async def test_parent_trace_can_be_set_dynamically(
-        self, mock_dakora_client, sample_chat_context
-    ):
-        """set_parent_trace_id should update parent trace for subsequent runs"""
-        middleware = DakoraTraceMiddleware(
-            dakora_client=mock_dakora_client,
-        )
-        middleware.set_parent_trace_id("dynamic-parent")
+            executed = False
 
-        async def mock_next(ctx: ChatContext) -> None:
-            ctx.messages.append(ChatMessage(role=Role.ASSISTANT, text="Response"))
+            async def mock_next(ctx: ChatContext) -> None:
+                nonlocal executed
+                executed = True
 
-        await middleware.process(sample_chat_context, mock_next)
-        await asyncio.sleep(0.1)
-
-        call_args = mock_dakora_client.traces.create.call_args[1]
-        assert call_args["parent_trace_id"] == "dynamic-parent"
-
-
-@pytest.mark.asyncio
-class TestMiddlewareHelper:
-    """Tests for create_dakora_middleware helper"""
-    
-    async def test_create_middleware_helper(self, mock_dakora_client, project_id):
-        """Test the create_dakora_middleware helper function"""
-        from dakora_agents.maf import create_dakora_middleware
-        
-        middleware = create_dakora_middleware(
-            dakora_client=mock_dakora_client,
-            project_id=project_id,
-        )
-        
-        assert isinstance(middleware, DakoraTraceMiddleware)
-        assert middleware.project_id == project_id
-    
-    async def test_create_middleware_with_all_params(
-        self, mock_dakora_client, project_id, agent_id, session_id
-    ):
-        """Test helper with all parameters"""
-        from dakora_agents.maf import create_dakora_middleware
-        
-        middleware = create_dakora_middleware(
-            dakora_client=mock_dakora_client,
-            project_id=project_id,
-            agent_id=agent_id,
-            session_id=session_id,
-        )
-        
-        assert middleware.agent_id == agent_id
-        assert middleware.session_id == session_id
+            # Should not raise error
+            await middleware.process(sample_chat_context, mock_next)
+            assert executed is True

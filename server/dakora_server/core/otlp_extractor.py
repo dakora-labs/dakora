@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections import defaultdict
 from typing import Any, TYPE_CHECKING
 from uuid import UUID
 
@@ -12,6 +13,26 @@ if TYPE_CHECKING:
     from dakora_server.api.otlp_traces import OTLPSpan
 
 logger = logging.getLogger(__name__)
+
+
+def build_span_hierarchy(spans: list[OTLPSpan]) -> dict[str, list[OTLPSpan]]:
+    """
+    Build a lookup dict for efficient child span queries.
+
+    Returns dict mapping parent_span_id -> list of child spans.
+    This avoids O(n²) lookups when processing multiple spans.
+
+    Args:
+        spans: All spans in the batch
+
+    Returns:
+        Dict mapping parent span_id to list of child spans
+    """
+    children_by_parent: dict[str, list[OTLPSpan]] = defaultdict(list)
+    for span in spans:
+        if span.parent_span_id:
+            children_by_parent[span.parent_span_id].append(span)
+    return dict(children_by_parent)
 
 
 def is_root_execution_span(span: OTLPSpan) -> bool:
@@ -123,7 +144,10 @@ def extract_conversation_history(span: OTLPSpan) -> list[dict[str, Any]]:
     return history
 
 
-def extract_template_usages(root_span: OTLPSpan, all_spans: list[OTLPSpan]) -> list[dict[str, Any]] | None:
+def extract_template_usages(
+    root_span: OTLPSpan,
+    span_hierarchy: dict[str, list[OTLPSpan]]
+) -> list[dict[str, Any]] | None:
     """
     Extract template linkage from OTLP span.
 
@@ -131,13 +155,13 @@ def extract_template_usages(root_span: OTLPSpan, all_spans: list[OTLPSpan]) -> l
 
     Args:
         root_span: Root span to extract from
-        all_spans: All spans in batch (to find children)
+        span_hierarchy: Dict mapping parent_span_id -> children (from build_span_hierarchy)
 
     Returns:
         List of template usages or None
     """
-    # Find child spans
-    child_spans = [s for s in all_spans if s.parent_span_id == root_span.span_id]
+    # Get child spans from hierarchy (O(1) lookup)
+    child_spans = span_hierarchy.get(root_span.span_id, [])
 
     # Try root first, then children
     for span in [root_span] + child_spans:
@@ -175,7 +199,7 @@ def extract_template_usages(root_span: OTLPSpan, all_spans: list[OTLPSpan]) -> l
 
 def extract_execution_trace(
     root_span: OTLPSpan,
-    all_spans: list[OTLPSpan],
+    span_hierarchy: dict[str, list[OTLPSpan]],
     project_id: UUID,
 ) -> dict[str, Any]:
     """
@@ -187,7 +211,7 @@ def extract_execution_trace(
 
     Args:
         root_span: The root execution span
-        all_spans: All spans in this batch (for finding children)
+        span_hierarchy: Dict mapping parent_span_id -> children (from build_span_hierarchy)
         project_id: Project UUID
 
     Returns:
@@ -201,8 +225,8 @@ def extract_execution_trace(
     agent_id = attrs.get("gen_ai.agent.id")
     source = attrs.get("dakora.source", "maf")
 
-    # Find child spans (e.g., chat span under invoke_agent)
-    child_spans = [s for s in all_spans if s.parent_span_id == root_span.span_id]
+    # Get child spans from hierarchy (O(1) lookup)
+    child_spans = span_hierarchy.get(root_span.span_id, [])
 
     # Aggregate model and provider (prefer child span, fallback to root)
     model = None

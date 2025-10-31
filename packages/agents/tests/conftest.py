@@ -8,9 +8,14 @@ from unittest.mock import AsyncMock, MagicMock
 def mock_dakora_client():
     """Mock Dakora client for testing"""
     client = MagicMock()
+    client.base_url = "http://localhost:8000"
     client.project_id = "test-project-123"
-    client.traces = MagicMock()
-    client.traces.create = AsyncMock(return_value={"id": "test-trace-123"})
+    client._Dakora__api_key = "test-api-key"  # Private attribute
+    client.get = AsyncMock(return_value=MagicMock(
+        status_code=200,
+        json=lambda: {"exceeded": False, "status": "ok"},
+        raise_for_status=lambda: None
+    ))
     client.prompts = MagicMock()
     client.prompts.render = AsyncMock(return_value=MagicMock(
         text="Test prompt text",

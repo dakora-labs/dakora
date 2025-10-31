@@ -39,7 +39,7 @@ from dakora_agents.maf import DakoraIntegration
 from agent_framework.azure import AzureOpenAIChatClient
 
 # 1. Initialize Dakora
-dakora = Dakora(api_key="dk_proj_...")
+dakora = Dakora(api_key="dkr_...")
 
 # 2. One-line OTEL setup
 middleware = DakoraIntegration.setup(dakora)
