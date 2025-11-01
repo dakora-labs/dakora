@@ -56,7 +56,7 @@ def is_root_execution_span(span: OTLPSpan) -> bool:
     # Must be an agent operation
     attrs = span.attributes or {}
     operation = attrs.get("gen_ai.operation.name")
-    return operation in ("invoke_agent", "chat", "agent.invoke", "chat.invoke", "agent_invoke")
+    return operation in ("invoke_agent", "chat", "execute_tool", "create_agent")
 
 
 def normalize_provider(raw_provider: str | None) -> str | None:
@@ -223,15 +223,16 @@ def extract_execution_trace(
     trace_id = root_span.trace_id
     session_id = attrs.get("dakora.session_id") or trace_id
     agent_id = attrs.get("gen_ai.agent.id")
+    agent_name = attrs.get("gen_ai.agent.name")
     source = attrs.get("dakora.source", "maf")
 
     # Get child spans from hierarchy (O(1) lookup)
     child_spans = span_hierarchy.get(root_span.span_id, [])
 
-    # Aggregate model and provider (prefer child span, fallback to root)
+    # Aggregate model and provider (prefer child span - has actual LLM data, fallback to root)
     model = None
     provider = None
-    for span in [root_span] + child_spans:
+    for span in child_spans + [root_span]:
         span_attrs = span.attributes or {}
 
         # Try to get model
@@ -241,12 +242,18 @@ def extract_execution_trace(
                 or span_attrs.get("gen_ai.response.model")
                 or span_attrs.get("gen_ai.request.model")
             )
-            model = normalize_model(raw_model)
+            if raw_model:
+                model = normalize_model(raw_model)
 
         # Try to get provider
         if not provider:
             raw_provider = span_attrs.get("gen_ai.provider.name")
-            provider = normalize_provider(raw_provider)
+            if raw_provider:
+                provider = normalize_provider(raw_provider)
+        
+        # Exit early if both found
+        if model and provider:
+            break
 
     # Aggregate metrics (prefer child span for accuracy, fallback to root)
     tokens_in = None
@@ -263,8 +270,22 @@ def extract_execution_trace(
     # Calculate latency (nanoseconds → milliseconds)
     latency_ms = int((root_span.end_time_ns - root_span.start_time_ns) / 1_000_000)
 
-    # Cost calculation (simplified - will be None if model not found)
-    cost_usd = None  # TODO: calculate from pricing table
+    # Cost calculation via centralized pricing service
+    cost_usd = None
+    try:
+        # Lazy import to avoid cycles and keep module load light
+        from dakora_server.core.token_pricing import get_pricing_service
+
+        if provider and model and (tokens_in is not None or tokens_out is not None):
+            pricing_service = get_pricing_service()
+            cost_usd = pricing_service.calculate_cost(
+                provider=provider,
+                model=model,
+                tokens_in=tokens_in or 0,
+                tokens_out=tokens_out or 0,
+            )
+    except Exception as e:
+        logger.debug(f"Cost calculation failed: {e}")
 
     # Extract conversation history (try child spans first, then root)
     conversation_history = []
@@ -287,7 +308,7 @@ def extract_execution_trace(
         "trace_id": trace_id,
         "session_id": session_id,
         "parent_trace_id": root_span.parent_span_id,
-        "agent_id": agent_id,
+        "agent_id": agent_id or agent_name,  # Fallback to agent_name if agent_id is empty
         "source": source,
         "conversation_history": conversation_history,
         "metadata": metadata if metadata else None,
