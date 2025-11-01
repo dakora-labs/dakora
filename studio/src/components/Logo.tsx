@@ -13,6 +13,7 @@ export function DakoraMark({ className }: LogoProps) {
     <img
       src={logoMark}
       alt="Dakora mark"
+      role="img"
       className={cn("h-8 w-8", className)}
     />
   );
