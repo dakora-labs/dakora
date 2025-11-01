@@ -15,6 +15,7 @@ from .api import (
     project_executions,
     execution_traces,
     project_optimizations,
+    otlp_traces,
 )
 
 
@@ -45,6 +46,8 @@ def create_app() -> FastAPI:
     app.include_router(execution_traces.router)
     app.include_router(project_optimizations.router)
 
+    # OTLP ingestion
+    app.include_router(otlp_traces.router)
 
     # System routes
     app.include_router(health.router)

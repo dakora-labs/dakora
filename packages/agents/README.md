@@ -1,205 +1,163 @@
 # Dakora Agents
 
-Observability integrations for agent frameworks with Dakora.
+OpenTelemetry observability for Microsoft Agent Framework with Dakora integration.
 
 ## Overview
 
-Provides automatic telemetry and observability for popular agent frameworks:
+Dakora Agents provides seamless observability for Microsoft Agent Framework via OpenTelemetry:
 
-- **Microsoft Agent Framework (MAF)** - ✅ Available now
-- **LangChain** - 🔜 Coming soon
-- **CrewAI** - 🔜 Coming soon
+- **Budget Enforcement** - Automatic budget checking with caching
+- **Template Linkage** - Track which Dakora prompts were used in executions
+- **OTEL Native** - Leverages MAF's built-in OpenTelemetry support
+- **Multi-Export** - Send traces to Dakora + Jaeger/Grafana/Azure Monitor
+- **Zero Boilerplate** - One-line setup, automatic tracking
 
-Track execution metrics across all your agents:
-
-- **Tokens**: Input and output token counts from LLM calls
-- **Cost**: Execution cost in USD (calculated from token usage)
-- **Latency**: Response time in milliseconds
-- **Session Tracking**: Multi-agent workflows with session IDs
-- **Full Context**: Input prompts and LLM responses
+Automatically tracks:
+- ✅ **Agent ID** - Which agent executed
+- ✅ **Tokens** - Input and output token counts
+- ✅ **Cost** - Calculated from token usage
+- ✅ **Latency** - Response time in milliseconds
+- ✅ **Conversation History** - Full input/output context
+- ✅ **Template Linkage** - Which Dakora prompts were used
 
 ## Installation
 
 ```bash
-# Install with MAF support
-pip install dakora-agents[maf]
-
-# Or install base package
 pip install dakora-agents
 ```
 
-## Quick Start (MAF)
+Requires:
+- `agent-framework` - Microsoft Agent Framework
+- `dakora-client` - Dakora Python SDK
+- `opentelemetry-api` and `opentelemetry-sdk` - OTEL core
+
+## Quick Start
 
 ```python
-import asyncio
-from agent_framework import ChatAgent
-from agent_framework.openai import OpenAIChatClient
 from dakora_client import Dakora
+from dakora_agents.maf import DakoraIntegration
+from agent_framework.azure import AzureOpenAIChatClient
+
+# 1. Initialize Dakora
+dakora = Dakora(api_key="dkr_...")
+
+# 2. One-line OTEL setup
+middleware = DakoraIntegration.setup(dakora)
+
+# 3. Use with any MAF client
+azure_client = AzureOpenAIChatClient(
+    endpoint=...,
+    deployment_name=...,
+    api_key=...,
+    middleware=[middleware],
+)
+
+# 4. Run agents - everything auto-tracked!
+agent = azure_client.create_agent(
+    id="chat-v1",
+    name="ChatBot",
+    instructions="You are helpful.",
+)
+
+response = await agent.run("Hello!")
+```
+
+**That's it!** Dakora automatically tracks:
+- Budget (checked before execution)
+- Agent ID
+- Tokens (input + output)
+- Latency
+- Conversation history
+
+## Template Linkage
+
+Link executions to Dakora templates:
+
+```python
+# Render template from Dakora
+greeting = await dakora.prompts.render("greeting", {"name": "Alice"})
+
+# Create agent with template
+agent = azure_client.create_agent(
+    id="chat-v1",
+    instructions=greeting.text,  # Use rendered text
+)
+
+# Run with template-linked message
+response = await agent.run(greeting.to_message())
+```
+
+The execution will be linked to the `greeting` template in Dakora Studio!
+
+## Multi-Export
+
+Send traces to multiple backends:
+
+```python
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+middleware = DakoraIntegration.setup(
+    dakora,
+    additional_exporters=[
+        OTLPSpanExporter(endpoint="http://localhost:4317")  # Jaeger
+    ]
+)
+
+# Now traces go to BOTH Dakora and Jaeger!
+```
+
+Or use convenience methods:
+
+```python
+# Dakora + Jaeger
+middleware = DakoraIntegration.setup_with_jaeger(dakora)
+
+# Dakora + Azure Monitor
+middleware = DakoraIntegration.setup_with_azure_monitor(
+    dakora,
+    connection_string="..."
+)
+```
+
+## Examples
+
+See `examples/quickstart.py` for complete examples:
+- Basic usage
+- Template linkage
+- Multi-agent pipelines
+- Jaeger integration
+
+##Migration Guide (from v1.x)
+
+### Before (old API)
+
+```python
 from dakora_agents.maf import create_dakora_middleware
 
-async def main():
-    # Initialize Dakora client (local dev server runs on :54321 by default)
-    dakora = Dakora(base_url="http://localhost:54321", api_key="dk_your_api_key")
-
-    # Render a prompt template from Dakora (returns a RenderResult)
-    instructions_result = await dakora.prompts.render("weather_agent_v1", {})
-
-    # Create middleware (pass the RenderResult as the instruction)
-    middleware = create_dakora_middleware(
-        dakora_client=dakora,
-        instruction=instructions_result,
-    )
-
-    # Create agent with middleware. Use the rendered text for agent.instructions
-    agent = ChatAgent(
-        name="WeatherAgent",
-        chat_client=OpenAIChatClient(),
-        instructions=instructions_result.text,
-        tools=[get_weather],
-        middleware=[middleware],
-    )
-
-    # Run agent - metrics automatically logged to Dakora
-    result = await agent.run("What's the weather in Seattle?")
-    print(result)
-
-asyncio.run(main())
-```
-
-## Multi-Agent Session Tracking
-
-Track multiple agents working together:
-
-```python
-import uuid
-
-# Generate session ID for this workflow
-session_id = str(uuid.uuid4())
-
-researcher_instructions = await dakora.prompts.render("research_prompt", {})
-writer_instructions = await dakora.prompts.render("writer_prompt", {})
-
-researcher = ChatAgent(
-    name="Researcher",
-    chat_client=OpenAIChatClient(),
-    instructions=researcher_instructions.text,
-    middleware=[
-        create_dakora_middleware(
-            dakora_client=dakora,
-            instruction=researcher_instructions,
-            session_id=session_id  # Same session ID
-        )
-    ]
-)
-
-writer = ChatAgent(
-    name="Writer",
-    chat_client=OpenAIChatClient(),
-    instructions=writer_instructions.text,
-    middleware=[
-        create_dakora_middleware(
-            dakora_client=dakora,
-            instruction=writer_instructions,
-            session_id=session_id  # Same session ID
-        )
-    ]
-)
-# Run workflow - all activities tracked under same session
-research = await researcher.run("Research quantum computing")
-article = await writer.run(f"Write article: {research}")
-
-# View in Dakora Studio: All prompts and metrics for this session
-```
-
-## Features
-
-### Automatic Metrics Capture
-
-- **Token Counting**: Extracts from `ChatResponse.usage_details`
-- **Cost Calculation**: Uses provider-specific pricing tables
-- **Latency Tracking**: Measures execution time
-- **Provider Detection**: Identifies OpenAI, Azure, Anthropic, etc.
-
-### Rich Context Logging
-
-- **Input Prompt**: Full prompt sent to LLM
-- **LLM Response**: Complete response received
-- **Conversation ID**: Thread/conversation tracking
-- **Agent ID**: Identify which agent executed
-
-### Non-Blocking
-
-Logging is asynchronous and won't slow down your agents. Failed logs won't crash your application.
-
-## API Reference
-
-### `create_dakora_middleware`
-
-```python
-def create_dakora_middleware(
-    dakora_client: Dakora,
-    *,
-    project_id: str | None = None,
-    agent_id: str | None = None,
-    session_id: str | None = None,
-    instruction_template: dict[str, Any] | RenderResult | None = None,
-    instruction: RenderResult | None = None,
-    parent_trace_id: str | None = None,
-) -> ChatMiddleware:
-    """
-    Create Dakora tracking middleware for MAF agents.
-    
-    Args:
-        dakora_client: Initialized Dakora client
-        project_id: Override Dakora project (defaults to client setting)
-        agent_id: Default agent identifier for traces
-        session_id: Optional session identifier for multi-agent tracking
-        instruction_template: Legacy dictionary or RenderResult for instruction linkage
-        instruction: Preferred RenderResult returned by `dakora.prompts.render()`
-        parent_trace_id: Optional parent trace for nested workflows
-        
-    Returns:
-        ChatMiddleware instance ready to use with agents
-    """
-```
-
-### `DakoraTraceMiddleware`
-
-Class-based middleware for advanced use cases:
-
-```python
-from dakora_agents.maf import DakoraTraceMiddleware
-
-middleware = DakoraTraceMiddleware(
+middleware = create_dakora_middleware(
     dakora_client=dakora,
-    project_id="my-project",
-    agent_id="my-agent-v1",
-    session_id=session_id,
-)
-
-agent = ChatAgent(
-    chat_client=client,
-    middleware=[middleware]
+    session_id="session-123",
+    instruction_template=...,
 )
 ```
 
-## Viewing Metrics in Dakora
+### After (new API)
 
-After running your agents, view metrics in Dakora Studio:
+```python
+from dakora_agents.maf import DakoraIntegration
 
-1. Navigate to your prompt template
-2. Click "Activity" tab
-3. See all executions with:
-   - Token usage and costs
-   - Latency metrics
-   - Success/failure rates
-   - Full prompt and response logs
+middleware = DakoraIntegration.setup(dakora)
 
-For multi-agent sessions:
+# Templates now use to_message()
+template = await dakora.prompts.render("greeting", {...})
+agent = client.create_agent(instructions=template.text)
+await agent.run(template.to_message())
+```
 
-1. Navigate to "Sessions" view
-2. Find your session ID
-3. See timeline of all agent activities
+**Breaking Changes:**
+- `create_dakora_middleware()` removed (use `DakoraIntegration.setup()`)
+- `session_id` parameter removed (now optional via span attributes)
+- `instruction_template` parameter removed (use `to_message()`)
 
 ## Development
 

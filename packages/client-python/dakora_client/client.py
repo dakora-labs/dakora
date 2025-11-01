@@ -80,16 +80,44 @@ class Dakora:
             timeout=30.0,
         )
 
-        # Lazy-loaded project context (or explicitly provided)
-        self._project_id: str | None = project_id
+        # Fetch project_id synchronously during initialization if API key is present
+        if project_id:
+            self._project_id = project_id
+        elif api_key_value:
+            self._project_id = self._fetch_project_id_sync()
+            logger.info(f"Project ID fetched during init: {self._project_id}")
+        else:
+            self._project_id = None
 
         # Import here to avoid circular dependency
         from .prompts import PromptsAPI
-        from .traces import TracesAPI
+        from .executions import ExecutionsAPI
 
         self.prompts = PromptsAPI(self)
-        self.traces = TracesAPI(self)
+        self.executions = ExecutionsAPI(self)
         logger.info(f"Dakora client initialized for {self.base_url}")
+
+    def _fetch_project_id_sync(self) -> str:
+        """
+        Synchronously fetch project_id from /api/me/context.
+
+        Called during __init__ to eagerly load project_id.
+        Uses synchronous httpx.Client for compatibility with sync contexts (e.g., OTEL exporters).
+        """
+        logger.debug("Fetching project_id from /api/me/context (sync)")
+        try:
+            with httpx.Client(base_url=self.base_url, timeout=5.0) as client:
+                response = client.get(
+                    "/api/me/context",
+                    headers={"X-API-Key": self.__api_key} if self.__api_key else {},
+                )
+                response.raise_for_status()
+                project_id = response.json()["project_id"]
+                logger.debug(f"Project ID fetched: {project_id}")
+                return project_id
+        except Exception as e:
+            logger.error(f"Failed to fetch project_id during initialization: {e}")
+            raise
 
     async def _get_project_id(self) -> str:
         """Get project ID from user context (cached after first call)"""
@@ -100,7 +128,7 @@ class Dakora:
             data = response.json()
             self._project_id = data["project_id"]
             logger.info(f"Project context loaded: project_id={self._project_id}")
-        
+
         # At this point, _project_id is guaranteed to be a string (not None)
         assert self._project_id is not None
 
@@ -157,10 +185,10 @@ class Dakora:
     @property
     def project_id(self) -> str | None:
         """
-        Get the project ID if it was explicitly set during initialization.
-        
-        Note: This returns the project_id only if it was provided to __init__.
-        To fetch the project_id from the API (if not set), use await _get_project_id().
+        Get the project ID.
+
+        Automatically fetched from /api/me/context during initialization if API key is present.
+        Returns None only if no API key was provided.
         """
         return self._project_id
 
