@@ -268,6 +268,21 @@ optimization_runs_table = Table(
     Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False, index=True),
 )
 
+# User feedback table definition (SQLAlchemy Core)
+user_feedback_table = Table(
+    "user_feedback",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True),
+    Column("workspace_id", UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=True, index=True),
+    Column("rating", Integer, nullable=False),
+    Column("feedback", Text, nullable=True),
+    Column("user_email", String(255), nullable=True),
+    Column("user_name", String(255), nullable=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False, index=True),
+)
+
 
 def get_database_url() -> str:
     """Get database URL from environment or use default for local dev"""

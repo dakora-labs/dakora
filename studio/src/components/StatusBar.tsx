@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, Database, Folder, Cloud } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, Database, Folder, Cloud, MessageSquare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { HealthResponse } from '../types';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { useFeedbackContext } from '@/contexts/FeedbackContext';
 
 export function StatusBar() {
   const { api, projectId } = useAuthenticatedApi();
+  const { openFeedbackDialog } = useFeedbackContext();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [promptCount, setPromptCount] = useState<number>(0);
   const [connected, setConnected] = useState(false);
@@ -141,6 +145,26 @@ export function StatusBar() {
               </Badge>
             </div>
           )}
+
+          {/* Feedback Button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={openFeedbackDialog}
+                >
+                  <MessageSquare className="w-3 h-3 mr-1" />
+                  <span className="hidden sm:inline">Feedback</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Give feedback about Dakora</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {/* Version */}
           <span className="text-muted-foreground/70">Dakora</span>

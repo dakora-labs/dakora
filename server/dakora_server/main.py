@@ -15,6 +15,7 @@ from .api import (
     project_executions,
     execution_traces,
     project_optimizations,
+    feedback,
 )
 
 
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
     # System routes
     app.include_router(health.router)
     app.include_router(webhooks.router)
+    app.include_router(feedback.router)
 
     studio_dir = Path(__file__).parent.parent.parent / "studio" / "dist"
 
