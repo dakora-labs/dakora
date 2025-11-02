@@ -351,6 +351,11 @@ def setup_test_data(db_engine):
     with get_connection(db_engine) as conn:
         project_id, workspace_id, user_id = create_test_project(conn, suffix="quota")
 
+        # Delete any existing quota for this workspace (cleanup from previous failed runs)
+        conn.execute(delete(workspace_quotas_table).where(
+            workspace_quotas_table.c.workspace_id == workspace_id
+        ))
+
         # Create quota
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         conn.execute(

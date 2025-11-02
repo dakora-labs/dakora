@@ -132,6 +132,7 @@ export interface ExecutionRequest {
   inputs: Record<string, unknown>;
   model?: string;
   provider?: string;
+  version?: number;
 }
 
 export interface ExecutionResponse {
