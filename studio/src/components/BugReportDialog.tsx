@@ -103,45 +103,39 @@ export function BugReportDialog({ open, onOpenChange, userEmail }: BugReportDial
 
     setIsSubmitting(true);
     try {
-      const scope = Sentry.getCurrentScope();
-
+      // Set user context if available
       if (userEmail) {
-        scope.setUser({
+        Sentry.setUser({
           email: userEmail,
           username: userEmail.split('@')[0],
         });
       }
 
+      // Convert screenshots to attachments format
+      const attachments: { filename: string; data: Uint8Array; contentType: string }[] = [];
       for (let i = 0; i < screenshots.length; i++) {
         const file = screenshots[i];
         const arrayBuffer = await file.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
-
-        scope.addAttachment({
+        attachments.push({
           filename: `screenshot-${i + 1}-${file.name}`,
           data: uint8Array,
           contentType: file.type,
         });
       }
 
-      Sentry.captureMessage(`Bug Report: ${title}`, {
-        level: 'info',
-        tags: {
-          type: 'user_report',
-          screenshots_count: screenshots.length.toString(),
+      // Submit feedback using Sentry's User Feedback API with attachments
+      Sentry.captureFeedback(
+        {
+          name: userEmail ? userEmail.split('@')[0] : 'Anonymous',
+          email: userEmail || '',
+          message: `${title}\n\n${description}`,
         },
-        contexts: {
-          bug_report: {
-            title,
-            description,
-            email: userEmail || undefined,
-            user_agent: navigator.userAgent,
-            url: window.location.href,
-            timestamp: new Date().toISOString(),
-            screenshot_count: screenshots.length,
-          },
-        },
-      });
+        {
+          includeReplay: true, // Include session replay if available
+          attachments: attachments,
+        }
+      );
 
       toast({
         title: 'Bug report submitted',

@@ -22,9 +22,19 @@ if (AUTH_REQUIRED) {
           maskAllText: false,
           blockAllMedia: false,
         }),
+        Sentry.feedbackIntegration({
+          colorScheme: "system",
+          // Don't auto-inject - we'll use our custom Report Bug button
+          autoInject: false,
+        }),
       ],
       // Performance Monitoring
       tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
+      // Distributed Tracing - connects frontend traces to backend API traces (cloud only)
+      tracePropagationTargets: [
+        /^https:\/\/[^/]*\.dakora\.ai\//,
+        /^https:\/\/api\.dakora\.ai\//,
+      ],
       // Session Replay
       replaysSessionSampleRate: 0.1, // 10% of sessions
       replaysOnErrorSampleRate: 1.0, // 100% of sessions with errors
