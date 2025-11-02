@@ -2,12 +2,12 @@
   "name": "Dakora",
   "favicon": "/favicon.svg",
   "colors": {
-    "primary": "#667eea",
-    "light": "#a5b4fc",
-    "dark": "#4c51bf",
+    "primary": "#F03000",
+    "light": "#FF6A3D",
+    "dark": "#FF3300",
     "anchors": {
-      "from": "#667eea",
-      "to": "#4c51bf"
+      "from": "#F03000",
+      "to": "#FF3300"
     }
   },
   "topbarLinks": [
