@@ -45,6 +45,16 @@ You are an expert UI/UX designer and React/TypeScript developer specializing in 
 - Handle loading states gracefully
 - Provide clear error messages
 
+**Monitoring & Error Tracking:**
+- IMPORTANT: Read `.claude/rules.md` for comprehensive Sentry monitoring guidelines
+- Use `Sentry.captureException(error)` in try-catch blocks to capture exceptions
+- Add custom spans using `Sentry.startSpan()` for meaningful actions:
+  - Button clicks: `{ op: "ui.click", name: "Button Name" }`
+  - API calls: `{ op: "http.client", name: "GET /api/endpoint" }`
+- Add relevant attributes to spans for context: `span.setAttribute("key", value)`
+- Use structured logging with `Sentry.logger` for important events
+- Follow all patterns and examples from `.claude/rules.md`
+
 **Approach:**
 - For complex problems, take time to think through the best approach
 - Ask follow-up questions when requirements are unclear
