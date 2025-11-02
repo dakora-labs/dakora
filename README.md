@@ -1,7 +1,7 @@
 # Dakora
 
 <p align="center">
-  <img src="assets/logo.svg" alt="Dakora Logo" width="200">
+  <img src="assets/logo.svg" alt="Dakora Logo" width="400">
 </p>
 
 [![CI](https://github.com/dakora-labs/dakora/workflows/CI/badge.svg)](https://github.com/dakora-labs/dakora/actions)
