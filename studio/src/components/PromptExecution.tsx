@@ -19,9 +19,10 @@ interface PromptExecutionProps {
   promptId: string;
   inputs: Record<string, InputSpec>;
   projectSlug?: string | null;
+  versionNumber?: number | null;
 }
 
-export function PromptExecution({ projectId, promptId, inputs, projectSlug }: PromptExecutionProps) {
+export function PromptExecution({ projectId, promptId, inputs, projectSlug, versionNumber }: PromptExecutionProps) {
   const navigate = useNavigate();
   const resolvedProjectSlug = projectSlug ?? 'default';
   const { trackExecutionCompleted } = useFeedbackContext();
@@ -212,6 +213,7 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug }: Pr
         inputs: transformedInputs,
         model: selectedModel,
         provider: selectedModelInfo.provider,
+        ...(versionNumber !== null && versionNumber !== undefined ? { version: versionNumber } : {}),
       });
       setLastExecution(result);
       trackExecutionCompleted();

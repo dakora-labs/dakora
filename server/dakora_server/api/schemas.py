@@ -105,6 +105,7 @@ class ExecuteRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
     model: Optional[str] = Field(default=None, description="Model to use (defaults to workspace default)")
     provider: Optional[str] = Field(default=None, description="Provider to use (defaults to workspace provider)")
+    version: Optional[int] = Field(default=None, description="Version number to execute (defaults to latest version)")
 
 
 class ExecutionMetrics(BaseModel):

@@ -244,6 +244,182 @@ async def test_get_execution_history(test_client, test_engine, setup_test_data, 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+async def test_execute_specific_version(
+    test_client, test_engine, setup_test_data, mock_provider, auth_override
+):
+    """Test executing a specific version of a prompt"""
+    from dakora_server.main import app
+
+    user_id, workspace_id, project_id = setup_test_data
+
+    # Create a test prompt with versioning
+    from dakora_server.core.database import (
+        prompts_table,
+        prompt_versions_table,
+        get_connection,
+    )
+    from sqlalchemy import insert
+    from uuid import UUID
+
+    prompt_id = "test-versioned"
+
+    with get_connection(test_engine) as conn:
+        # Insert prompt with current version 2
+        result = conn.execute(
+            insert(prompts_table)
+            .values(
+                project_id=UUID(project_id),
+                prompt_id=prompt_id,
+                version_number=2,
+                content_hash="hash_v2",
+                version="2.0.0",
+                description="Test prompt v2",
+                storage_path=f"projects/{project_id}/{prompt_id}_v2.yaml",
+            )
+            .returning(prompts_table.c.id)
+        )
+        db_id = result.fetchone()[0]
+
+        # Insert version history for v1 and v2
+        conn.execute(
+            insert(prompt_versions_table).values(
+                prompt_id=db_id,
+                version_number=1,
+                content_hash="hash_v1",
+                storage_path=f"projects/{project_id}/{prompt_id}_v1.yaml",
+            )
+        )
+        conn.execute(
+            insert(prompt_versions_table).values(
+                prompt_id=db_id,
+                version_number=2,
+                content_hash="hash_v2",
+                storage_path=f"projects/{project_id}/{prompt_id}_v2.yaml",
+            )
+        )
+
+    # Mock prompt manager to return different templates for different versions
+    from dakora_server.core.model import TemplateSpec
+
+    mock_prompt_manager = MagicMock()
+
+    # Version 1 template
+    v1_template = TemplateSpec(
+        id=prompt_id,
+        version="1.0.0",
+        template="Hello {{ name }}! (v1)",
+        inputs={},
+    )
+    # Version 2 template
+    v2_template = TemplateSpec(
+        id=prompt_id,
+        version="2.0.0",
+        template="Hello {{ name }}! (v2)",
+        inputs={},
+    )
+
+    # Configure mock to return appropriate version
+    def get_version_content_side_effect(pid, version):
+        if version == 1:
+            return v1_template
+        elif version == 2:
+            return v2_template
+        raise Exception(f"Version {version} not found")
+
+    mock_prompt_manager.get_version_content = MagicMock(
+        side_effect=get_version_content_side_effect
+    )
+    mock_prompt_manager.load.return_value = v2_template  # Latest version
+
+    # Mock renderer
+    mock_renderer = MagicMock()
+    mock_renderer.render.side_effect = lambda template, inputs: template.replace(
+        "{{ name }}", inputs.get("name", "")
+    )
+
+    # Mock provider execution
+    mock_result = ExecutionResult(
+        content="Response from LLM",
+        tokens_input=10,
+        tokens_output=20,
+        tokens_total=30,
+        cost_usd=0.0015,
+        latency_ms=500,
+        model="gpt-4o",
+        provider="azure_openai",
+    )
+    mock_provider.execute = AsyncMock(return_value=mock_result)
+
+    # Setup mocks
+    mock_vault = MagicMock()
+    mock_vault.registry = MagicMock()
+
+    mock_registry = MagicMock()
+    mock_registry.get_provider_by_name.return_value = mock_provider
+
+    from dakora_server.auth import get_project_vault
+
+    app.dependency_overrides[get_project_vault] = lambda: mock_vault
+
+    try:
+        with patch(
+            "dakora_server.core.prompt_manager.PromptManager",
+            return_value=mock_prompt_manager,
+        ):
+            with patch(
+                "dakora_server.api.project_executions.Renderer",
+                return_value=mock_renderer,
+            ):
+                with patch(
+                    "dakora_server.api.project_executions.ProviderRegistry",
+                    return_value=mock_registry,
+                ):
+                    # Test executing version 1
+                    response_v1 = test_client.post(
+                        f"/api/projects/{project_id}/prompts/{prompt_id}/execute",
+                        json={
+                            "inputs": {"name": "Alice"},
+                            "provider": "azure_openai",
+                            "model": "gpt-4o",
+                            "version": 1,
+                        },
+                    )
+
+                    assert response_v1.status_code == 200
+                    data_v1 = response_v1.json()
+                    assert "execution_id" in data_v1
+                    # Verify that version 1 was called
+                    mock_prompt_manager.get_version_content.assert_called_with(
+                        prompt_id, 1
+                    )
+
+                    # Reset mock
+                    mock_prompt_manager.get_version_content.reset_mock()
+                    mock_prompt_manager.load.reset_mock()
+
+                    # Test executing latest version (no version specified)
+                    response_latest = test_client.post(
+                        f"/api/projects/{project_id}/prompts/{prompt_id}/execute",
+                        json={
+                            "inputs": {"name": "Bob"},
+                            "provider": "azure_openai",
+                            "model": "gpt-4o",
+                        },
+                    )
+
+                    assert response_latest.status_code == 200
+                    data_latest = response_latest.json()
+                    assert "execution_id" in data_latest
+                    # Verify that load was called (for latest version)
+                    mock_prompt_manager.load.assert_called_with(prompt_id)
+                    mock_prompt_manager.get_version_content.assert_not_called()
+
+    finally:
+        app.dependency_overrides.pop(get_project_vault, None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
 async def test_execution_cleanup_keeps_only_20(
     test_client, test_engine, setup_test_data, mock_provider, auth_override
 ):

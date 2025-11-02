@@ -68,9 +68,16 @@ async def execute_prompt(
     if not await quota_service.check_quota(workspace_id):
         raise HTTPException(status_code=429, detail="Quota exceeded for this month")
 
-    # Load template from vault
+    # Load template using PromptManager for version support
+    from dakora_server.core.prompt_manager import PromptManager
     try:
-        template_spec = vault.get(prompt_id)
+        prompt_manager = PromptManager(vault.registry, engine, project_id)
+
+        # Load specific version if provided, otherwise load latest
+        if request.version is not None:
+            template_spec = prompt_manager.get_version_content(prompt_id, request.version)
+        else:
+            template_spec = prompt_manager.load(prompt_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Prompt not found: {str(e)}")
 
