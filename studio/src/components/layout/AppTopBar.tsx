@@ -1,5 +1,3 @@
-import { Settings } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { UserButton } from '@clerk/clerk-react';
 
 const AUTH_REQUIRED = import.meta.env.VITE_AUTH_REQUIRED !== 'false';
@@ -17,9 +15,6 @@ export function AppTopBar() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" className="h-8 px-2">
-          <Settings className="w-4 h-4" />
-        </Button>
         {AUTH_REQUIRED && (
           <UserButton
             appearance={{

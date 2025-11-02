@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, Folder, MessageSquare, Bug } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, MessageSquare, Bug } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -113,17 +113,6 @@ export function StatusBar() {
         </div>
 
         <div className="flex items-center flex-wrap gap-3 text-xs">
-          {/* Prompt Directory (Local Mode Only) */}
-          {health?.vault_config && health.vault_config.registry_type === 'local' && (
-            <div className="flex items-center gap-1">
-              <Folder className="w-3 h-3" />
-              <span className="hidden sm:inline">Dir:</span>
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                {health.vault_config.prompt_dir}
-              </code>
-            </div>
-          )}
-
           {/* Bug Report Button */}
           <TooltipProvider>
             <Tooltip>
