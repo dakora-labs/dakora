@@ -39,25 +39,43 @@ class PromptsAPI:
         logger.info(f"Listed {len(templates)} prompts")
         return templates
 
-    async def render(self, template_id: str, inputs: dict[str, Any], version: str | None = None) -> RenderResult:
+    async def render(
+        self,
+        template_id: str,
+        inputs: dict[str, Any],
+        version: str | None = None,
+        embed_metadata: bool = True
+    ) -> RenderResult:
         """Render a prompt template with inputs and return execution context.
+
+        Template tracking is enabled by default via embedded metadata markers.
+        This allows linking executions to templates across any agent framework.
 
         Args:
             template_id: ID of the template to render
             inputs: Variables to substitute in the template
             version: Specific version to render (optional, defaults to latest)
+            embed_metadata: Embed tracking metadata in rendered text (default: True).
+                Set to False to disable tracking and reduce token overhead.
 
         Returns:
             RenderResult with rendered text and metadata for template tracking
 
         Example:
+            # Default: tracking enabled
             result = await client.prompts.render(
                 "greeting",
                 {"name": "Alice", "role": "Developer"}
             )
-            print(result.text)  # Rendered prompt
-            print(result.prompt_id)  # "greeting"
-            print(result.version)  # "1.0.0"
+            # Text includes: <!--dakora:prompt_id=greeting,version=1.0.0-->
+
+            # Opt-out of tracking
+            result = await client.prompts.render(
+                "greeting",
+                {"name": "Alice"},
+                embed_metadata=False
+            )
+            # Text has no tracking metadata
         """
         project_id = await self._client._get_project_id() # type: ignore
         url = f"/api/projects/{project_id}/prompts/{template_id}/render"
@@ -72,15 +90,24 @@ class PromptsAPI:
 
         response.raise_for_status()
         data = response.json()
-        
+
+        rendered_text = data["rendered"]
+        template_version = data.get("version", version or "latest")
+
+        # Optionally embed metadata in text for tracking
+        if embed_metadata:
+            metadata_marker = f"<!--dakora:prompt_id={template_id},version={template_version}-->\n"
+            rendered_text = metadata_marker + rendered_text
+            logger.debug(f"Embedded tracking metadata for '{template_id}' v{template_version}")
+
         result = RenderResult(
-            text=data["rendered"],
+            text=rendered_text,
             prompt_id=template_id,
-            version=data.get("version", version or "latest"),
+            version=template_version,
             inputs=inputs,
             metadata={},
         )
-        
+
         logger.info(f"Rendered prompt '{template_id}' v{result.version} ({len(result.text)} chars)")
         return result
 

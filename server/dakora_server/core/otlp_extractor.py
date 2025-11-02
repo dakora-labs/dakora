@@ -144,14 +144,106 @@ def extract_conversation_history(span: OTLPSpan) -> list[dict[str, Any]]:
     return history
 
 
+def extract_embedded_metadata_from_text(text: str) -> dict[str, str] | None:
+    """
+    Extract embedded Dakora metadata from text.
+
+    Looks for markers like: <!--dakora:prompt_id=X,version=Y-->
+
+    Args:
+        text: Text to search for metadata
+
+    Returns:
+        Dict with prompt_id and version, or None if not found
+    """
+    pattern = r'<!--dakora:prompt_id=([^,]+),version=([^-]+)-->'
+    match = re.search(pattern, text)
+    if match:
+        return {
+            "prompt_id": match.group(1),
+            "version": match.group(2)
+        }
+    return None
+
+
+def extract_template_usages_from_messages(
+    root_span: OTLPSpan,
+) -> list[dict[str, Any]] | None:
+    """
+    Extract template usages from embedded metadata in message content.
+
+    Parses <!--dakora:...-->markers from:
+    - gen_ai.input.messages (conversation)
+    - gen_ai.system_instructions (agent instructions)
+
+    Args:
+        root_span: Root span to extract from
+
+    Returns:
+        List of template usages or None
+    """
+    usages = []
+    attrs = root_span.attributes or {}
+
+    # Check system instructions first (agent configuration)
+    system_instructions_json = attrs.get("gen_ai.system_instructions")
+    if system_instructions_json:
+        try:
+            instructions = json.loads(system_instructions_json)
+            # Format: [{"type": "text", "content": "..."}]
+            for item in instructions:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    content = item.get("content", "")
+                    metadata = extract_embedded_metadata_from_text(content)
+                    if metadata:
+                        usages.append({
+                            "prompt_id": metadata["prompt_id"],
+                            "version": metadata["version"],
+                            "inputs_json": {},
+                            "position": 0,  # Instructions are always first
+                            "role": "system",
+                            "source": "embedded_instructions",
+                            "message_index": 0,
+                            "metadata_json": {},
+                        })
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.debug(f"Failed to parse system instructions: {e}")
+
+    # Check conversation messages
+    conversation = extract_conversation_history(root_span)
+    if conversation:
+        for idx, msg in enumerate(conversation):
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            if not content:
+                continue
+
+            metadata = extract_embedded_metadata_from_text(content)
+            if metadata:
+                usages.append({
+                    "prompt_id": metadata["prompt_id"],
+                    "version": metadata["version"],
+                    "inputs_json": {},  # Inputs not embedded in spike
+                    "position": len(usages),  # Relative to all templates
+                    "role": role,
+                    "source": "embedded_message",
+                    "message_index": idx,
+                    "metadata_json": {},
+                })
+
+    return usages if usages else None
+
+
 def extract_template_usages(
     root_span: OTLPSpan,
     span_hierarchy: dict[str, list[OTLPSpan]]
 ) -> list[dict[str, Any]] | None:
     """
-    Extract template linkage from OTLP span.
+    Extract template linkage from OTLP span OR embedded metadata.
 
-    Checks root span and child spans for template contexts.
+    Checks root span and child spans for template contexts in OTEL attributes,
+    then falls back to parsing embedded metadata from message content.
 
     Args:
         root_span: Root span to extract from
@@ -163,7 +255,7 @@ def extract_template_usages(
     # Get child spans from hierarchy (O(1) lookup)
     child_spans = span_hierarchy.get(root_span.span_id, [])
 
-    # Try root first, then children
+    # Try OTEL span attributes first (root + children)
     for span in [root_span] + child_spans:
         attrs = span.attributes or {}
         template_contexts_json = attrs.get("dakora.template_contexts")
@@ -194,7 +286,11 @@ def extract_template_usages(
             logger.debug(f"Failed to parse template contexts: {e}")
             continue
 
-    return None
+    # Fallback: Try embedded metadata in messages (root span only)
+    logger.debug("No OTEL template_contexts found, checking embedded metadata")
+
+    # Root span should have all messages
+    return extract_template_usages_from_messages(root_span)
 
 
 def extract_execution_trace(
