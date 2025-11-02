@@ -24,6 +24,8 @@ import type {
   OptimizationRunsResponse,
   QuotaInfo, VersionHistoryResponse, RollbackRequest,
   RelatedTracesResponse,
+  FeedbackRequest,
+  FeedbackResponse,
 } from '../types';
 
 interface UserContext {
@@ -709,6 +711,19 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         body: JSON.stringify(request),
       });
       return handleResponse(response);
+    },
+
+    async submitFeedback(request: FeedbackRequest): Promise<FeedbackResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(request),
+      });
+      return handleResponse<FeedbackResponse>(response);
     },
   };
 }

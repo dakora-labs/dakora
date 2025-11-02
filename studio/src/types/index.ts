@@ -366,3 +366,13 @@ export interface VersionHistoryResponse {
 export interface RollbackRequest {
   version: number;
 }
+
+export interface FeedbackRequest {
+  rating: number;
+  feedback?: string;
+}
+
+export interface FeedbackResponse {
+  id: string;
+  created_at: string;
+}

@@ -240,3 +240,17 @@ class VersionHistoryResponse(BaseModel):
 class RollbackRequest(BaseModel):
     """Request to rollback prompt to a specific version."""
     version: int = Field(description="Version number to rollback to", gt=0)
+
+
+# Feedback schemas
+
+class FeedbackRequest(BaseModel):
+    """User feedback submission."""
+    rating: int = Field(description="User rating from 1-5", ge=1, le=5)
+    feedback: Optional[str] = Field(default=None, description="Optional text feedback from user")
+
+
+class FeedbackResponse(BaseModel):
+    """Response after feedback submission."""
+    id: str = Field(description="Unique feedback ID")
+    created_at: str = Field(description="ISO timestamp of feedback creation")

@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useModels, useExecutePrompt, useExecutionHistory } from '@/hooks/useApi';
+import { useFeedbackContext } from '@/contexts/FeedbackContext';
 import type { ExecutionResponse, ExecutionHistoryItem, InputSpec } from '@/types';
 import { ProviderBadge } from './ProviderBadge';
 import { parseApiDate } from '@/utils/format';
@@ -23,6 +24,7 @@ interface PromptExecutionProps {
 export function PromptExecution({ projectId, promptId, inputs, projectSlug }: PromptExecutionProps) {
   const navigate = useNavigate();
   const resolvedProjectSlug = projectSlug ?? 'default';
+  const { trackExecutionCompleted } = useFeedbackContext();
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -212,6 +214,7 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug }: Pr
         provider: selectedModelInfo.provider,
       });
       setLastExecution(result);
+      trackExecutionCompleted();
       setShowResults(true);
       setIsExpanded(false);
       refetchHistory?.();
