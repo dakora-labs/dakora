@@ -21,7 +21,11 @@ async def main():
     # Setup OTEL integration (one line!)
     middleware = DakoraIntegration.setup(dakora)
 
-    # Render a prompt template from Dakora (returns a RenderResult)
+    # Render prompt templates from Dakora
+    # Template tracking is enabled by default via embedded HTML comment metadata
+    # NOTE: Only templates used in messages (agent.run) are tracked in OTLP.
+    # Templates used for agent configuration (create_agent instructions) are
+    # not included in MAF's OTLP spans, so they won't be tracked currently.
     instructions_result = await dakora.prompts.render("haiku_agent", {})
     question_prompt = await dakora.prompts.render("simple_question", {})
 
@@ -51,7 +55,7 @@ async def main():
 
     try:
         # Run a test prompt
-        response = await agent.run(question_prompt.to_message())
+        response = await agent.run(question_prompt.text)
         print(response)
         print("\n" + "="*50 + "\n")
     finally:
