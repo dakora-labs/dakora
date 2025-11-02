@@ -102,6 +102,40 @@ uv run python -m pytest server/tests/test_file.py -v
    - Request review from maintainers
    - All CI checks must pass
 
+## Commit Message Format
+
+We use [Conventional Commits](https://www.conventionalcommits.org/) to keep our git history clean and enable automated changelog generation.
+
+**Format:**
+```
+<type>(<scope>): <description>
+```
+
+**Examples:**
+```bash
+feat(agents): add LangChain support
+fix(client): handle connection timeout errors
+docs: update MAF integration guide
+chore: bump dependencies to latest versions
+```
+
+**Types:**
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `test:` - Adding or updating tests
+- `refactor:` - Code refactoring
+- `chore:` - Maintenance tasks
+
+**Scope** (optional): `agents`, `client`, `server`, `cli`, `studio`
+
+**Breaking changes:**
+```bash
+feat(client)!: remove deprecated render() method
+
+BREAKING CHANGE: render() is now execute()
+```
+
 ## What We're Looking For
 
 - Bug fixes and improvements

@@ -1,3 +1,14 @@
+<!--
+🎯 PR TITLE FORMAT: type(scope): description
+
+Examples:
+  ✅ feat(agents): add LangChain support
+  ✅ fix(client): handle timeout errors
+  ✅ docs: update MAF integration guide
+
+See CONTRIBUTING.md for details.
+-->
+
 ### Motivation and Context
 
 <!-- Thank you for your contribution to the Dakora repo!
@@ -20,4 +31,5 @@ Please help reviewers and future users, providing the following information:
 - [ ] The code builds clean without any errors or warnings
 - [ ] The PR follows the ([Contribution Guidelines](../CONTRIBUTING.md))
 - [ ] All unit tests pass, and I have added new tests where possible
-- [ ] **Is this a breaking change?** If yes, add "[BREAKING]" prefix to the title of the PR.
+- [ ] Updated relevant READMEs (if user-facing changes)
+- [ ] **Is this a breaking change?** If yes, add `!` after type (e.g., `feat(client)!: breaking change`)
