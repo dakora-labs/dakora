@@ -36,12 +36,21 @@ async def test_execute_prompt_success(
             )
         )
 
-    # Mock vault to return template
+    # Mock vault
     mock_vault = MagicMock()
-    mock_template = MagicMock()
-    mock_template.version = "1.0.0"
-    mock_template.template = "Hello {{ name }}!"
-    mock_vault.get.return_value = mock_template
+
+    # Mock PromptManager to return template
+    from dakora_server.core.model import TemplateSpec
+
+    mock_template = TemplateSpec(
+        id=prompt_id,
+        version="1.0.0",
+        template="Hello {{ name }}!",
+        inputs={},
+    )
+
+    mock_prompt_manager = MagicMock()
+    mock_prompt_manager.load.return_value = mock_template
 
     # Mock renderer
     mock_renderer = MagicMock()
@@ -70,13 +79,14 @@ async def test_execute_prompt_success(
     app.dependency_overrides[get_project_vault] = lambda: mock_vault
 
     try:
-        # Patch Renderer and ProviderRegistry (direct instantiations, not dependencies)
-        with patch("dakora_server.api.project_executions.Renderer", return_value=mock_renderer):
-            with patch("dakora_server.api.project_executions.ProviderRegistry", return_value=mock_registry):
-                response = test_client.post(
-                    f"/api/projects/{project_id}/prompts/{prompt_id}/execute",
-                    json={"inputs": {"name": "Alice"}, "provider": "azure_openai", "model": "gpt-4o"},
-                )
+        # Patch PromptManager, Renderer, and ProviderRegistry (direct instantiations, not dependencies)
+        with patch("dakora_server.core.prompt_manager.PromptManager", return_value=mock_prompt_manager):
+            with patch("dakora_server.api.project_executions.Renderer", return_value=mock_renderer):
+                with patch("dakora_server.api.project_executions.ProviderRegistry", return_value=mock_registry):
+                    response = test_client.post(
+                        f"/api/projects/{project_id}/prompts/{prompt_id}/execute",
+                        json={"inputs": {"name": "Alice"}, "provider": "azure_openai", "model": "gpt-4o"},
+                    )
 
                 assert response.status_code == 200
                 data = response.json()
@@ -466,12 +476,19 @@ async def test_execution_cleanup_keeps_only_20(
                 )
             )
 
-    # Mock vault and renderer
+    # Mock vault and PromptManager
     mock_vault = MagicMock()
-    mock_template = MagicMock()
-    mock_template.version = "1.0.0"
-    mock_template.template = "Test template"
-    mock_vault.get.return_value = mock_template
+
+    from dakora_server.core.model import TemplateSpec
+    mock_template = TemplateSpec(
+        id=prompt_id,
+        version="1.0.0",
+        template="Test template",
+        inputs={},
+    )
+
+    mock_prompt_manager = MagicMock()
+    mock_prompt_manager.load.return_value = mock_template
 
     mock_renderer = MagicMock()
     mock_renderer.render.return_value = "Test"
@@ -500,16 +517,17 @@ async def test_execution_cleanup_keeps_only_20(
     app.dependency_overrides[get_project_vault] = lambda: mock_vault
 
     try:
-        # Patch Renderer and ProviderRegistry (direct instantiations, not dependencies)
-        with patch("dakora_server.api.project_executions.Renderer", return_value=mock_renderer):
-            with patch("dakora_server.api.project_executions.ProviderRegistry", return_value=mock_registry):
-                # Execute 2 more times (should trigger cleanup)
-                for i in range(2):
-                    response = test_client.post(
-                        f"/api/projects/{project_id}/prompts/{prompt_id}/execute",
-                        json={"inputs": {"test": i + 19}, "provider": "azure_openai", "model": "gpt-4o"},
-                    )
-                    assert response.status_code == 200
+        # Patch PromptManager, Renderer, and ProviderRegistry (direct instantiations, not dependencies)
+        with patch("dakora_server.core.prompt_manager.PromptManager", return_value=mock_prompt_manager):
+            with patch("dakora_server.api.project_executions.Renderer", return_value=mock_renderer):
+                with patch("dakora_server.api.project_executions.ProviderRegistry", return_value=mock_registry):
+                    # Execute 2 more times (should trigger cleanup)
+                    for i in range(2):
+                        response = test_client.post(
+                            f"/api/projects/{project_id}/prompts/{prompt_id}/execute",
+                            json={"inputs": {"test": i + 19}, "provider": "azure_openai", "model": "gpt-4o"},
+                        )
+                        assert response.status_code == 200
     finally:
         # Clear overrides
         app.dependency_overrides.pop(get_project_vault, None)
