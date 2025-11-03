@@ -21,10 +21,7 @@ export function DashboardPage() {
 
     const loadPrompts = async () => {
       try {
-        const promptIds = await api.getPrompts(projectId);
-        const promptData = await Promise.all(
-          promptIds.map(id => api.getPrompt(projectId, id))
-        );
+        const promptData = await api.getPrompts(projectId);
         setPrompts(promptData);
       } catch (error) {
         console.error('Failed to load prompts:', error);

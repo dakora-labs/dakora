@@ -136,7 +136,8 @@ def test_delete_template_endpoint_success(
         # Verify template is not in list
         response = client.get(f"/api/projects/{test_project_id}/prompts")
         assert response.status_code == 200
-        template_ids = response.json()
+        templates = response.json()
+        template_ids = [t['id'] for t in templates]
         assert "test-template" not in template_ids
 
         # Verify file is deleted
@@ -204,7 +205,8 @@ def test_delete_template_endpoint_other_templates_unaffected(
         # Verify both templates exist
         response = client.get(f"/api/projects/{test_project_id}/prompts")
         assert response.status_code == 200
-        template_ids = response.json()
+        templates = response.json()
+        template_ids = [t['id'] for t in templates]
         assert "test-template" in template_ids
         assert "another-template" in template_ids
 
