@@ -309,9 +309,9 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug, vers
 
             <CollapsibleTrigger asChild>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-7 gap-1.5 text-xs"
+                className="h-7 gap-1.5 text-xs hover:bg-muted"
                 disabled={Object.keys(inputs).length === 0}
               >
                 {Object.keys(inputs).length === 0 ? 'No inputs' : 'Configure inputs'}
