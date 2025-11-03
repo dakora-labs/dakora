@@ -141,12 +141,12 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       }>(response);
     },
 
-    async getPrompts(projectId: string): Promise<string[]> {
+    async getPrompts(projectId: string): Promise<Template[]> {
       const authHeaders = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts`, {
         headers: authHeaders,
       });
-      return handleResponse<string[]>(response);
+      return handleResponse<Template[]>(response);
     },
 
     async getPrompt(projectId: string, id: string): Promise<Template> {
