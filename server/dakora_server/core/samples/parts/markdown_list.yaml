@@ -1,0 +1,6 @@
+part_id: markdown_list
+category: formatting
+name: Markdown List
+description: Requests a list formatted in markdown.
+content: |
+  Format your response as a markdown list.

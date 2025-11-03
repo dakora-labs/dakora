@@ -1,0 +1,6 @@
+part_id: json_output
+category: formatting
+name: JSON Output
+description: Instructs the model to format the output as JSON.
+content: |
+  Format your response as valid JSON.

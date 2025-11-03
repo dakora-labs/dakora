@@ -1,0 +1,12 @@
+part_id: code_formatting
+category: formatting
+name: Code Formatting
+description: Guidelines for formatting code examples and technical content.
+content: |
+  Code Formatting Guidelines:
+  - Use markdown code blocks with language identifiers (```python, ```javascript, etc.)
+  - Include inline code with backticks for short snippets
+  - Add comments to explain complex logic
+  - Follow language-specific conventions (PEP 8 for Python, etc.)
+  - Include example usage when demonstrating APIs or functions
+  - Keep examples concise but complete enough to run

@@ -1,0 +1,64 @@
+id: social_media_campaign
+version: 1.0.0
+description: Generate multi-platform social media posts from a campaign brief
+template: |
+  {% include "system_roles/system_role" %}
+
+  Task: Create social media posts for multiple platforms based on the campaign brief below.
+
+  Campaign Brief:
+  {{ campaign_brief }}
+
+  Target Platforms: {{ platforms | join(", ") }}
+
+  {% if hashtags | length > 0 %}
+  Suggested Hashtags: {{ hashtags | join(", ") }}
+  {% endif %}
+
+  {% include "guidelines/platform_constraints" %}
+
+  {% if include_image_prompts %}
+  For each post, also suggest an image or visual concept that would accompany the content.
+  {% endif %}
+
+  {% include "formatting/json_output" %}
+
+  Return a JSON object with the following structure:
+  {
+    "posts": [
+      {
+        "platform": "platform_name",
+        "content": "post text",
+        "hashtags": ["tag1", "tag2"],
+        "image_prompt": "description of visual" (if requested),
+        "character_count": number
+      }
+    ]
+  }
+
+inputs:
+  campaign_brief:
+    type: string
+    required: true
+    default: "Launching our new AI-powered analytics dashboard that helps teams make data-driven decisions faster. Key features: real-time insights, customizable reports, and predictive analytics. Target audience: product managers and data analysts."
+    description: The campaign brief or key message to communicate
+  platforms:
+    type: array<string>
+    required: true
+    default: ["Twitter", "LinkedIn", "Instagram"]
+    description: List of social media platforms (e.g., ["Twitter", "LinkedIn", "Instagram"])
+  hashtags:
+    type: array<string>
+    required: false
+    default: []
+    description: Suggested hashtags to incorporate
+  include_image_prompts:
+    type: boolean
+    required: false
+    default: false
+    description: Whether to include image/visual suggestions for each post
+
+metadata:
+  tags: ["social-media", "marketing", "content-creation"]
+  complexity: intermediate
+  use_cases: ["marketing campaigns", "social media management", "content strategy"]

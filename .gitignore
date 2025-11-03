@@ -138,6 +138,10 @@ prompts/
 # Keep example prompts in repo
 !prompts/.gitkeep
 
+# Keep sample data for new user onboarding
+!server/dakora_server/core/samples/
+!server/dakora_server/core/samples/**
+
 # Coverage reports
 coverage/
 *.lcov

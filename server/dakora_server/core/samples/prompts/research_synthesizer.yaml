@@ -1,0 +1,62 @@
+id: research_synthesizer
+version: 1.0.0
+description: Synthesize multiple sources into a cohesive summary with citations
+template: |
+  {% include "system_roles/system_role" %}
+
+  Task: Synthesize the following sources to answer the research question.
+
+  Research Question: {{ research_question }}
+
+  Sources:
+  {% for source in sources %}
+  Source {{ loop.index }}:
+  {{ source }}
+
+  {% endfor %}
+
+  {% include "reasoning/chain_of_thought" %}
+
+  Requirements:
+  - Synthesize information from all sources
+  - Identify key themes and findings
+  - Note any conflicting information
+  - Limit to the top {{ max_sources }} most relevant sources
+  - Format output as {{ output_format }}
+
+  {% include "guidelines/citation_format" %}
+  Use {{ citation_style }} style for all citations.
+
+  {% include "formatting/markdown_list" %}
+
+inputs:
+  research_question:
+    type: string
+    required: true
+    default: What are the main benefits and challenges of remote work for software development teams?
+    description: The research question to answer
+  sources:
+    type: array<string>
+    required: true
+    default: ["Study by Stanford (2023): Remote workers showed 13% increase in productivity, attributed to fewer breaks and sick days. However, 25% reported feeling isolated.", "Tech Industry Report: Companies with remote-first policies saw 22% reduction in overhead costs but struggled with maintaining team cohesion and spontaneous collaboration.", "Developer Survey: 78% of developers prefer hybrid work, citing flexibility as key benefit. Main challenges include communication delays and difficulty separating work-life boundaries."]
+    description: List of source texts or excerpts to synthesize
+  citation_style:
+    type: string
+    required: false
+    default: APA
+    description: Citation style to use (APA, MLA, Chicago)
+  max_sources:
+    type: number
+    required: false
+    default: 5
+    description: Maximum number of sources to include in synthesis
+  output_format:
+    type: string
+    required: false
+    default: markdown
+    description: Output format (markdown, plain text, etc.)
+
+metadata:
+  tags: ["research", "synthesis", "academic", "citations"]
+  complexity: intermediate
+  use_cases: ["literature review", "research papers", "evidence synthesis"]
