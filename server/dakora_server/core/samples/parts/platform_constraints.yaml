@@ -1,0 +1,12 @@
+part_id: platform_constraints
+category: guidelines
+name: Platform Constraints
+description: Guidelines for different social media platforms and their constraints.
+content: |
+  Platform-specific constraints:
+  - Twitter/X: 280 characters max
+  - LinkedIn: Professional tone, 1300 characters ideal for posts
+  - Instagram: Visual focus, 2200 characters max, emoji-friendly
+  - Facebook: Casual tone, 63,206 characters max
+
+  Include relevant hashtags and adapt tone to match each platform's audience.

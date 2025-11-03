@@ -1,0 +1,53 @@
+id: faq_responder
+version: 1.0.0
+description: Generate helpful FAQ responses with source attribution
+template: |
+  {% include "system_roles/system_role" %}
+
+  Task: Answer the following FAQ question using the provided knowledge base.
+
+  Question: {{ question }}
+
+  Knowledge Base:
+  {{ knowledge_base }}
+
+  {% if include_sources %}
+  Requirements:
+  - Provide a clear, helpful answer
+  - Cite specific information from the knowledge base
+  - Include source references where applicable
+  {% else %}
+  Requirements:
+  - Provide a clear, helpful answer based on the knowledge base
+  {% endif %}
+
+  Tone: {{ tone }}
+
+  {% include "formatting/markdown_list" %}
+
+inputs:
+  question:
+    type: string
+    required: true
+    default: How do I reset my password?
+    description: The FAQ question to answer
+  knowledge_base:
+    type: string
+    required: true
+    default: "Users can reset their password by clicking 'Forgot Password' on the login page. An email will be sent with a reset link valid for 24 hours. For security reasons, passwords must be at least 8 characters and include numbers and symbols."
+    description: The knowledge base or context to answer from
+  tone:
+    type: string
+    required: false
+    default: helpful
+    description: The tone of the response (e.g., helpful, professional, friendly)
+  include_sources:
+    type: boolean
+    required: false
+    default: true
+    description: Whether to include source citations in the response
+
+metadata:
+  tags: ["faq", "customer-support", "knowledge-base"]
+  complexity: starter
+  use_cases: ["customer support", "documentation", "help desk"]

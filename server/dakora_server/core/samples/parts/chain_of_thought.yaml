@@ -1,0 +1,10 @@
+part_id: chain_of_thought
+category: reasoning
+name: Chain of Thought
+description: Enables step-by-step reasoning.
+content: |
+  Think through this step by step:
+  1. Analyze the problem
+  2. Break it into smaller parts
+  3. Solve each part
+  4. Combine the solutions

@@ -6,9 +6,9 @@ from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 from svix.webhooks import Webhook, WebhookVerificationError
 
-from ..config import settings
+from ..config import settings, get_vault
 from ..core.database import get_engine, get_connection, users_table
-from ..core.provisioning import provision_workspace_and_project
+from ..core.provisioning import provision_workspace_and_project, provision_sample_data
 from .me import invalidate_user_context_cache
 
 
@@ -141,8 +141,24 @@ async def clerk_webhook(
                         conn, user_id, full_name, primary_email
                     )
 
+                    # Commit critical user data first
+                    # This ensures user creation succeeds even if sample provisioning fails
                     conn.commit()
-                    
+
+                    # Provision sample prompts and parts AFTER commit (non-blocking)
+                    # This happens outside the main transaction so it won't rollback user creation
+                    try:
+                        base_vault = get_vault()
+                        provision_sample_data(
+                            conn, engine, project_id, base_vault.registry
+                        )
+                    except Exception as e:
+                        # Log error but don't fail the webhook
+                        import logging
+                        logging.getLogger(__name__).error(
+                            f"Failed to provision sample data: {e}"
+                        )
+
                     # Invalidate cache for new user (though unlikely to exist)
                     invalidate_user_context_cache(clerk_user_id)
 

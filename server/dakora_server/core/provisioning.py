@@ -1,12 +1,21 @@
 """Auto-provisioning logic for workspaces and projects."""
 
-from typing import Optional
+from typing import Optional, cast
 from uuid import UUID
 import re
+import yaml
+import logging
+from pathlib import Path
 from sqlalchemy.engine import Engine, Connection
 from sqlalchemy import select, insert
 
 from .database import get_connection
+from .registry import Registry
+from .part_manager import PartManager
+from .prompt_manager import PromptManager
+from .model import TemplateSpec
+
+logger = logging.getLogger(__name__)
 
 
 def generate_slug(name: str) -> str:
@@ -200,3 +209,92 @@ def get_or_create_workspace(
         conn.commit()
 
         return workspace_id, project_id
+
+
+def provision_sample_data(
+    conn: Connection,
+    engine: Engine,
+    project_id: UUID,
+    base_registry: Registry,
+) -> None:
+    """Provision sample prompts and parts for a new project.
+
+    Loads sample YAML files from the samples directory and creates:
+    - 7 prompt parts (inserted into database)
+    - 4 sample prompts (saved to blob storage + database with versioning)
+
+    This function is designed to never fail - any errors are logged but don't
+    block the provisioning flow.
+
+    Args:
+        conn: Database connection
+        engine: Database engine
+        project_id: Project UUID to provision samples for
+        base_registry: Base registry instance to create project-scoped registry
+    """
+    try:
+        # Get samples directory
+        samples_dir = Path(__file__).parent / "samples"
+        parts_dir = samples_dir / "parts"
+        prompts_dir = samples_dir / "prompts"
+
+        if not samples_dir.exists():
+            logger.warning(f"Samples directory not found: {samples_dir}")
+            return
+
+        # 1. Provision prompt parts (DB only)
+        part_manager = PartManager(engine, project_id)
+
+        if parts_dir.exists():
+            for part_file in parts_dir.glob("*.yaml"):
+                try:
+                    with open(part_file, 'r', encoding='utf-8') as f:
+                        part_data = yaml.safe_load(f)
+
+                    # Insert part into database
+                    part_manager.create(
+                        part_id=part_data['part_id'],
+                        category=part_data['category'],
+                        name=part_data['name'],
+                        content=part_data['content'],
+                        description=part_data.get('description'),
+                    )
+                    logger.info(f"Provisioned sample part: {part_data['part_id']}")
+
+                except Exception as e:
+                    logger.error(f"Failed to provision part {part_file.name}: {e}")
+                    continue
+
+        # 2. Provision prompts (blob storage + DB + versioning)
+        # Create project-scoped registry
+        project_prefix = f"projects/{project_id}"
+        scoped_registry = cast(
+            Registry,
+            base_registry.with_prefix(project_prefix)  # type: ignore[attr-defined]
+        )
+
+        prompt_manager = PromptManager(scoped_registry, engine, project_id)
+
+        if prompts_dir.exists():
+            for prompt_file in prompts_dir.glob("*.yaml"):
+                try:
+                    with open(prompt_file, 'r', encoding='utf-8') as f:
+                        yaml_content = f.read()
+                        prompt_data = yaml.safe_load(yaml_content)
+
+                    # Parse into TemplateSpec
+                    spec = TemplateSpec.model_validate(prompt_data)
+
+                    # Save using PromptManager (handles blob + DB + versioning)
+                    prompt_manager.save(spec, user_id=None)
+                    logger.info(f"Provisioned sample prompt: {spec.id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to provision prompt {prompt_file.name}: {e}")
+                    continue
+
+        logger.info(f"Sample data provisioning completed for project {project_id}")
+
+    except Exception as e:
+        # Log error but don't raise - we don't want to block user signup
+        logger.error(f"Failed to provision sample data for project {project_id}: {e}")

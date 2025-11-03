@@ -1,0 +1,87 @@
+id: technical_documentation
+version: 1.0.0
+description: Generate comprehensive technical documentation with code examples
+template: |
+  {% include "system_roles/system_role" %}
+
+  Task: Create comprehensive technical documentation for the provided code.
+
+  Code to Document:
+  ```
+  {{ code_snippet }}
+  ```
+
+  Documentation Sections to Include: {{ doc_sections | join(", ") }}
+
+  {% if api_references | length > 0 %}
+  Related API References:
+  {% for api_ref in api_references %}
+  - {{ api_ref }}
+  {% endfor %}
+  {% endif %}
+
+  {% include "reasoning/chain_of_thought" %}
+
+  {% include "formatting/code_formatting" %}
+
+  Documentation Requirements:
+  - Start with a clear overview and purpose
+  - Explain parameters, return values, and exceptions
+  - Include usage examples with {{ examples_config.example_count | default(2) }} code samples
+  - Document edge cases and error handling
+  {% if include_troubleshooting %}
+  - Add a troubleshooting section with common issues
+  {% endif %}
+
+  {% include "formatting/markdown_list" %}
+
+  Format the output as markdown with:
+  - Clear headings for each section
+  - Code blocks with proper syntax highlighting
+  - Tables for parameters where appropriate
+  - Links to related documentation
+
+inputs:
+  code_snippet:
+    type: string
+    required: true
+    default: |
+      def calculate_moving_average(data: list[float], window_size: int = 3) -> list[float]:
+          """Calculate simple moving average of a time series."""
+          if window_size <= 0:
+              raise ValueError("Window size must be positive")
+          if window_size > len(data):
+              raise ValueError("Window size cannot exceed data length")
+
+          result = []
+          for i in range(len(data) - window_size + 1):
+              window = data[i:i + window_size]
+              avg = sum(window) / window_size
+              result.append(avg)
+          return result
+    description: The code to document (function, class, module, etc.)
+  doc_sections:
+    type: array<string>
+    required: false
+    default: ["Overview", "Parameters", "Returns", "Examples", "Notes"]
+    description: Sections to include in documentation
+  examples_config:
+    type: object
+    required: false
+    default: {"example_count": 2, "complexity": "beginner"}
+    description: Configuration for example code (example_count, complexity level)
+  api_references:
+    type: array<string>
+    required: false
+    default: []
+    description: Related API endpoints or documentation to reference
+  include_troubleshooting:
+    type: boolean
+    required: false
+    default: false
+    description: Whether to include a troubleshooting section
+
+metadata:
+  tags: ["documentation", "technical-writing", "api-docs", "code"]
+  complexity: advanced
+  use_cases: ["API documentation", "code documentation", "developer guides", "SDK docs"]

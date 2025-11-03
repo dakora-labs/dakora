@@ -1,0 +1,18 @@
+part_id: citation_format
+category: guidelines
+name: Citation Format
+description: Guidelines for properly formatting citations in different academic styles.
+content: |
+  Citation Guidelines:
+
+  APA Style:
+  - Author, A. A. (Year). Title of work. Publisher.
+  - For articles: Author, A. A. (Year). Title of article. Journal Name, volume(issue), pages.
+
+  MLA Style:
+  - Author Last Name, First Name. "Title of Source." Title of Container, Other contributors, Version, Number, Publisher, Publication Date, Location.
+
+  Chicago Style:
+  - Author Last Name, First Name. Title of Book. Place of Publication: Publisher, Year.
+
+  Always include page numbers when citing specific passages.
