@@ -309,9 +309,9 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug, vers
 
             <CollapsibleTrigger asChild>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-7 gap-1.5 text-xs"
+                className="h-7 gap-1.5 text-xs hover:bg-muted"
                 disabled={Object.keys(inputs).length === 0}
               >
                 {Object.keys(inputs).length === 0 ? 'No inputs' : 'Configure inputs'}
@@ -336,42 +336,82 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug, vers
         </div>
 
         <CollapsibleContent>
-          <div className="border-b border-border bg-muted/10 px-4 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
+          <div className="border-b border-border bg-muted/10 px-4 py-3 space-y-4 animate-in slide-in-from-top-2 duration-200">
             {Object.entries(inputs).map(([key, spec]) => {
               const isInvalid = invalidInputs.has(key);
               const rawValue = inputValues[key];
               const displayValue =
                 rawValue === undefined || rawValue === null ? '' : rawValue;
 
+              const useTextarea = spec.type === 'object' || spec.type === 'array<string>' || spec.type === 'string';
+
+              const calculateRows = (value: string) => {
+                if (!value) return 1;
+                const lineCount = value.split('\n').length;
+                const wrappedLines = Math.ceil(value.length / 100);
+                return Math.min(Math.max(lineCount, wrappedLines), 5);
+              };
+
+              const rows = useTextarea ? calculateRows(displayValue) : 1;
+
               return (
-                <div key={key} className="flex items-center gap-3">
-                  <label className={`text-xs font-medium w-24 shrink-0 ${isInvalid ? 'text-destructive' : ''}`}>
-                    {key}
-                  </label>
-                  <input
-                    type={spec.type === 'number' ? 'number' : 'text'}
-                    value={displayValue}
-                    onChange={(e) => {
-                      setInputValues({
-                        ...inputValues,
-                        [key]: e.target.value,
-                      });
-                      if (invalidInputs.has(key)) {
-                        const newInvalid = new Set(invalidInputs);
-                        newInvalid.delete(key);
-                        setInvalidInputs(newInvalid);
-                      }
-                    }}
-                    placeholder={spec.required ? 'Required' : 'Optional'}
-                    className={`flex-1 h-7 px-2 text-xs border rounded bg-background transition-all ${
-                      isInvalid
-                        ? 'border-destructive focus:ring-destructive focus:ring-2 animate-shake'
-                        : 'border-border'
-                    }`}
-                  />
-                  <Badge variant="outline" className="text-xs">
-                    {spec.type}
-                  </Badge>
+                <div key={key} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className={`text-xs font-medium break-all ${isInvalid ? 'text-destructive' : ''}`}>
+                      {key}
+                      {spec.required && <span className="text-destructive ml-1">*</span>}
+                    </label>
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">
+                      {spec.type}
+                    </Badge>
+                  </div>
+                  {useTextarea ? (
+                    <textarea
+                      value={displayValue}
+                      onChange={(e) => {
+                        setInputValues({
+                          ...inputValues,
+                          [key]: e.target.value,
+                        });
+                        if (invalidInputs.has(key)) {
+                          const newInvalid = new Set(invalidInputs);
+                          newInvalid.delete(key);
+                          setInvalidInputs(newInvalid);
+                        }
+                      }}
+                      placeholder={spec.required ? 'Required' : 'Optional'}
+                      rows={rows}
+                      className={`w-full px-2.5 py-2 text-xs border rounded bg-background transition-all resize-y ${
+                        spec.type === 'object' || spec.type === 'array<string>' ? 'font-mono' : ''
+                      } ${
+                        isInvalid
+                          ? 'border-destructive focus:ring-destructive focus:ring-2 animate-shake'
+                          : 'border-border focus:ring-2 focus:ring-ring'
+                      }`}
+                    />
+                  ) : (
+                    <input
+                      type={spec.type === 'number' ? 'number' : 'text'}
+                      value={displayValue}
+                      onChange={(e) => {
+                        setInputValues({
+                          ...inputValues,
+                          [key]: e.target.value,
+                        });
+                        if (invalidInputs.has(key)) {
+                          const newInvalid = new Set(invalidInputs);
+                          newInvalid.delete(key);
+                          setInvalidInputs(newInvalid);
+                        }
+                      }}
+                      placeholder={spec.required ? 'Required' : 'Optional'}
+                      className={`w-full h-8 px-2.5 text-xs border rounded bg-background transition-all ${
+                        isInvalid
+                          ? 'border-destructive focus:ring-destructive focus:ring-2 animate-shake'
+                          : 'border-border focus:ring-2 focus:ring-ring'
+                      }`}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -447,11 +487,11 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug, vers
                   </div>
                   <div className="p-3 bg-muted/30 rounded border border-border">
                     {showRaw || !hasMarkdown ? (
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+                      <pre className="text-[10px] font-mono whitespace-pre-wrap break-words leading-relaxed">
                         {lastExecution.content}
                       </pre>
                     ) : (
-                      <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none">
+                      <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none text-[12px]">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {lastExecution.content}
                         </ReactMarkdown>
