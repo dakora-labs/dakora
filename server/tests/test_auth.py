@@ -190,7 +190,8 @@ class TestProtectedEndpointsWithAPIKey:
             )
             assert response.status_code == 200
             templates = response.json()
-            assert "test-template" in templates
+            template_ids = [t['id'] for t in templates]
+            assert "test-template" in template_ids
         finally:
             app.dependency_overrides.clear()
 
@@ -320,7 +321,8 @@ class TestProtectedEndpointsWithJWT:
             )
             assert response.status_code == 200
             templates = response.json()
-            assert "test-template" in templates
+            template_ids = [t['id'] for t in templates]
+            assert "test-template" in template_ids
         finally:
             app.dependency_overrides.clear()
 
@@ -444,7 +446,8 @@ class TestProtectedEndpointsNoAuth:
             response = client.get(f"/api/projects/{test_project_id}/prompts")
             assert response.status_code == 200
             templates = response.json()
-            assert "test-template" in templates
+            template_ids = [t['id'] for t in templates]
+            assert "test-template" in template_ids
         finally:
             app.dependency_overrides.clear()
 
@@ -624,7 +627,8 @@ class TestAuthMethodPriority:
             )
             assert response.status_code == 200
             templates = response.json()
-            assert "test-template" in templates
+            template_ids = [t['id'] for t in templates]
+            assert "test-template" in template_ids
         finally:
             app.dependency_overrides.clear()
 
