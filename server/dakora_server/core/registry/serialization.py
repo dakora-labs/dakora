@@ -103,7 +103,17 @@ def render_yaml(spec: TemplateSpec, original_text: Optional[str]) -> str:
             lines.append(f"    required: {'true' if inp.required else 'false'}")
             if inp.default is not None:
                 if isinstance(inp.default, str):
-                    lines.append(f"    default: {_q(inp.default)}")
+                    default_str = inp.default
+                    if "\n" in default_str:
+                        # Multi-line string: use block scalar format
+                        if not default_str.endswith("\n"):
+                            default_str += "\n"
+                        lines.append("    default: |")
+                        for line in default_str.split("\n")[:-1]:
+                            lines.append(f"      {line}" if line else "      ")
+                    else:
+                        # Single-line string: use quoted format
+                        lines.append(f"    default: {_q(default_str)}")
                 else:
                     lines.append(f"    default: {inp.default}")
             if name in orig_inputs:

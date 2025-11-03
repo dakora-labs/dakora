@@ -237,7 +237,7 @@ export function ExecutionDetailPage() {
               {/* Main Content Grid */}
               <div className="grid gap-5 lg:grid-cols-[1fr,400px]">
                 {/* Left Column - Templates & Conversation */}
-                <div className="space-y-5">
+                <div className="space-y-5 min-w-0">
                   {/* Templates First - Most Important */}
                   {templateUsages.length > 0 && (
                     <TemplateUsageList templateUsages={templateUsages} />
