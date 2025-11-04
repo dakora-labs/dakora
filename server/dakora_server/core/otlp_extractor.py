@@ -66,7 +66,7 @@ def normalize_provider(raw_provider: str | None) -> str | None:
 
     raw_lower = raw_provider.lower()
 
-    if "azure" in raw_lower or "microsoft" in raw_lower:
+    if "azure" in raw_lower:
         return "azure_openai"
     elif "openai" in raw_lower:
         return "openai"
@@ -235,64 +235,6 @@ def extract_template_usages_from_messages(
     return usages if usages else None
 
 
-def extract_template_usages(
-    root_span: OTLPSpan,
-    span_hierarchy: dict[str, list[OTLPSpan]]
-) -> list[dict[str, Any]] | None:
-    """
-    Extract template linkage from OTLP span OR embedded metadata.
-
-    Checks root span and child spans for template contexts in OTEL attributes,
-    then falls back to parsing embedded metadata from message content.
-
-    Args:
-        root_span: Root span to extract from
-        span_hierarchy: Dict mapping parent_span_id -> children (from build_span_hierarchy)
-
-    Returns:
-        List of template usages or None
-    """
-    # Get child spans from hierarchy (O(1) lookup)
-    child_spans = span_hierarchy.get(root_span.span_id, [])
-
-    # Try OTEL span attributes first (root + children)
-    for span in [root_span] + child_spans:
-        attrs = span.attributes or {}
-        template_contexts_json = attrs.get("dakora.template_contexts")
-
-        if not template_contexts_json:
-            continue
-
-        try:
-            template_contexts = json.loads(template_contexts_json)
-            usages = []
-
-            for idx, ctx in enumerate(template_contexts):
-                if isinstance(ctx, dict):
-                    usages.append({
-                        "prompt_id": ctx.get("prompt_id"),
-                        "version": ctx.get("version"),
-                        "inputs_json": ctx.get("inputs", {}),
-                        "position": idx,
-                        "role": ctx.get("role", "user"),
-                        "source": "message",
-                        "message_index": idx,
-                        "metadata_json": ctx.get("metadata", {}),
-                    })
-
-            if usages:
-                return usages
-        except (json.JSONDecodeError, TypeError) as e:
-            logger.debug(f"Failed to parse template contexts: {e}")
-            continue
-
-    # Fallback: Try embedded metadata in messages (root span only)
-    logger.debug("No OTEL template_contexts found, checking embedded metadata")
-
-    # Root span should have all messages
-    return extract_template_usages_from_messages(root_span)
-
-
 def extract_execution_trace(
     root_span: OTLPSpan,
     span_hierarchy: dict[str, list[OTLPSpan]],
@@ -334,8 +276,7 @@ def extract_execution_trace(
         # Try to get model
         if not model:
             raw_model = (
-                span_attrs.get("dakora.model")
-                or span_attrs.get("gen_ai.response.model")
+                span_attrs.get("gen_ai.response.model")
                 or span_attrs.get("gen_ai.request.model")
             )
             if raw_model:
@@ -392,12 +333,6 @@ def extract_execution_trace(
 
     # Metadata - collect all dakora.* attributes (except reserved ones)
     metadata = {}
-    reserved_keys = {
-        "dakora.model", "dakora.template_contexts", "dakora.session_id", "dakora.source"
-    }
-    for key, value in attrs.items():
-        if key.startswith("dakora.") and key not in reserved_keys:
-            metadata[key[7:]] = value  # Strip "dakora." prefix
 
     return {
         "project_id": project_id,

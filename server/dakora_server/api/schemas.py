@@ -86,11 +86,21 @@ class ExecutionListItem(BaseModel):
     model: Optional[str] = None
     tokens_in: Optional[int] = None
     tokens_out: Optional[int] = None
+    total_tokens_in: Optional[int] = None  # Aggregated across all spans in trace
+    total_tokens_out: Optional[int] = None  # Aggregated across all spans in trace
     cost_usd: Optional[float] = None
     latency_ms: Optional[int] = None
     created_at: Optional[str] = None
     template_count: int = 0
     metadata: Optional[Dict[str, Any]] = None
+    # New fields for Priority 1 UI improvements
+    span_count: int = 0
+    span_type_breakdown: Optional[Dict[str, int]] = None  # e.g., {"agent": 1, "chat": 2, "tool": 1}
+    has_errors: bool = False
+    error_message: Optional[str] = None
+    # Multi-agent/model detection
+    unique_agents: Optional[List[str]] = None  # List of unique agent names in this execution
+    unique_models: Optional[List[str]] = None  # List of unique models used in this execution
 
 
 class ExecutionListResponse(BaseModel):
@@ -240,3 +250,87 @@ class VersionHistoryResponse(BaseModel):
 class RollbackRequest(BaseModel):
     """Request to rollback prompt to a specific version."""
     version: int = Field(description="Version number to rollback to", gt=0)
+
+
+# New execution schemas for OTLP-native observability
+
+class MessagePart(BaseModel):
+    """A part of a message (text, image, etc.)"""
+    type: str = Field(description="Part type (text, image_url, etc.)")
+    content: str = Field(description="Content of the part")
+
+
+class Message(BaseModel):
+    """A single message in a conversation"""
+    role: str = Field(description="Message role (system, user, assistant, tool)")
+    parts: List[MessagePart] = Field(description="Message parts/content")
+    msg_index: int = Field(description="Message index within direction")
+    finish_reason: Optional[str] = Field(default=None, description="Finish reason (for output messages)")
+
+
+class ChildSpan(BaseModel):
+    """Summary of a child execution span"""
+    span_id: str
+    type: str
+    agent_name: Optional[str] = None
+    latency_ms: Optional[int] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    status: Optional[str] = None
+
+
+class TemplateInfo(BaseModel):
+    """Template linkage information"""
+    prompt_id: str
+    version: str
+    inputs: Dict[str, Any]
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class ExecutionDetailResponse(BaseModel):
+    """Detailed execution with messages and hierarchy"""
+    trace_id: str
+    span_id: str
+    type: str
+    agent_name: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    start_time: str
+    latency_ms: Optional[int] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    total_cost_usd: Optional[float] = None
+    status: Optional[str] = None
+    status_message: Optional[str] = None
+    
+    # Messages
+    input_messages: List[Message] = Field(default_factory=list)
+    output_messages: List[Message] = Field(default_factory=list)
+    
+    # Hierarchy
+    child_spans: List[ChildSpan] = Field(default_factory=list)
+    
+    # Template linkage
+    template_info: Optional[TemplateInfo] = None
+    
+    # Raw attributes
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SpanTreeNode(BaseModel):
+    """A node in the span hierarchy tree"""
+    span_id: str
+    parent_span_id: Optional[str] = None
+    type: str
+    agent_name: Optional[str] = None
+    latency_ms: Optional[int] = None
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    depth: int
+    start_time: str
+
+
+class HierarchyResponse(BaseModel):
+    """Full span hierarchy for a trace"""
+    trace_id: str
+    spans: List[SpanTreeNode]

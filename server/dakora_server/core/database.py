@@ -10,15 +10,19 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     Column,
+    Computed,
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     MetaData,
     Numeric,
+    PrimaryKeyConstraint,
     String,
     Table,
     Text,
+    UniqueConstraint,
     create_engine,
     text,
 )
@@ -297,6 +301,124 @@ otel_spans_table = Table(
     Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
 )
 
+# New normalized schema tables - migrated from otel_spans
+# These tables provide a cleaner, more queryable structure for trace data
+
+# Traces table - trace-level metadata grouping multiple spans
+traces_new_table = Table(
+    "traces",
+    metadata,
+    Column("trace_id", Text, primary_key=True),
+    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("provider", Text, nullable=True),
+    Column("start_time", DateTime(timezone=True), nullable=False, index=True),
+    Column("end_time", DateTime(timezone=True), nullable=False),
+    Column("duration_ms", Integer, Computed("(EXTRACT(EPOCH FROM (end_time - start_time))*1000)::INT")),
+    Column("attributes", JSONB, nullable=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    comment="Trace-level metadata grouping multiple spans",
+)
+
+# Executions table - individual spans representing executions in a trace
+executions_new_table = Table(
+    "executions",
+    metadata,
+    Column("trace_id", Text, nullable=False),
+    Column("span_id", Text, nullable=False),
+    Column("parent_span_id", Text, nullable=True),
+    Column("project_id", UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("type", Text, nullable=False, index=True),
+    Column("span_kind", Text, nullable=False),
+    Column("agent_id", Text, nullable=True),
+    Column("agent_name", Text, nullable=True),
+    Column("provider", Text, nullable=True),
+    Column("model", Text, nullable=True),
+    Column("start_time", DateTime(timezone=True), nullable=False, index=True),
+    Column("end_time", DateTime(timezone=True), nullable=False),
+    Column("latency_ms", Integer, Computed("(EXTRACT(EPOCH FROM (end_time - start_time))*1000)::INT")),
+    Column("tokens_in", Integer, nullable=True),
+    Column("tokens_out", Integer, nullable=True),
+    Column("input_cost_usd", Numeric(20, 8), nullable=True),
+    Column("output_cost_usd", Numeric(20, 8), nullable=True),
+    Column("total_cost_usd", Numeric(20, 8), nullable=True),
+    Column("status", Text, nullable=True),
+    Column("status_message", Text, nullable=True),
+    Column("attributes", JSONB, nullable=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    # Constraints
+    PrimaryKeyConstraint("trace_id", "span_id", name="executions_pkey"),
+    ForeignKeyConstraint(["trace_id"], ["traces.trace_id"], ondelete="CASCADE", name="executions_trace_id_fkey"),
+    ForeignKeyConstraint(
+        ["trace_id", "parent_span_id"], 
+        ["executions.trace_id", "executions.span_id"],
+        ondelete="CASCADE",
+        deferrable=True,
+        initially="DEFERRED",
+        name="executions_parent_span_fkey"
+    ),
+    comment="Individual spans representing executions in a trace",
+)
+
+# Execution messages table - normalized conversation messages for executions
+execution_messages_new_table = Table(
+    "execution_messages",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("trace_id", Text, nullable=False),
+    Column("span_id", Text, nullable=False),
+    Column("direction", Text, nullable=False),
+    Column("msg_index", Integer, nullable=False),
+    Column("role", Text, nullable=False),
+    Column("parts", JSONB, nullable=False),
+    Column("finish_reason", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    # Constraints
+    ForeignKeyConstraint(
+        ["trace_id", "span_id"],
+        ["executions.trace_id", "executions.span_id"],
+        ondelete="CASCADE",
+        name="execution_messages_execution_fkey"
+    ),
+    UniqueConstraint("trace_id", "span_id", "direction", "msg_index", name="execution_messages_unique_idx"),
+    comment="Normalized conversation messages for executions",
+)
+
+# NOTE: Indexes for the executions table are managed via Alembic migrations:
+# - Migration 8beb08b837ba: idx_executions_project_type_time, idx_executions_trace_parent_type, idx_executions_agent_name
+# - Migration cc4d572fe94a: idx_executions_provider_lower, idx_executions_model_trgm
+
+# Tool invocations table - tool/function calls made during execution
+tool_invocations_new_table = Table(
+    "tool_invocations",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("trace_id", Text, nullable=False),
+    Column("span_id", Text, nullable=False),
+    Column("tool_call_id", Text, nullable=False),
+    Column("tool_name", Text, nullable=False, index=True),
+    Column("tool_input", JSONB, nullable=True),
+    Column("tool_output", JSONB, nullable=True),
+    Column("start_time", DateTime(timezone=True), nullable=True),
+    Column("end_time", DateTime(timezone=True), nullable=True),
+    Column("latency_ms", Integer, Computed(
+        "CASE WHEN start_time IS NOT NULL AND end_time IS NOT NULL "
+        "THEN (EXTRACT(EPOCH FROM (end_time - start_time))*1000)::INT "
+        "ELSE NULL END"
+    )),
+    Column("status", Text, nullable=True),
+    Column("error_message", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
+    # Constraints
+    ForeignKeyConstraint(
+        ["trace_id", "span_id"],
+        ["executions.trace_id", "executions.span_id"],
+        ondelete="CASCADE",
+        name="tool_invocations_execution_fkey"
+    ),
+    UniqueConstraint("trace_id", "tool_call_id", name="tool_invocations_unique_idx"),
+    comment="Tool/function calls made during execution",
+)
+
 
 def get_database_url() -> str:
     """Get database URL from environment or use default for local dev"""
@@ -328,7 +450,7 @@ def create_db_engine(database_url: Optional[str] = None, **kwargs: Any) -> Engin
         "pool_recycle": 3600,  # Recycle connections after 1 hour
         "pool_size": 5,  # Connection pool size
         "max_overflow": 10,  # Max overflow connections
-        "echo": False,  # Set to True for SQL debugging
+        "echo": True,  # Set to True for SQL debugging
     }
 
     # Allow override of defaults

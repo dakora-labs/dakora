@@ -18,12 +18,14 @@ import type {
   ExecutionListResponse,
   ExecutionListFilters,
   ExecutionDetail,
+  ExecutionDetailNew,
   ExecutionListItem,
   OptimizePromptRequest,
   OptimizePromptResponse,
   OptimizationRunsResponse,
   QuotaInfo, VersionHistoryResponse, RollbackRequest,
   RelatedTracesResponse,
+  TraceHierarchy,
 } from '../types';
 
 interface UserContext {
@@ -360,6 +362,8 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
 
         const tokensIn = entry?.tokens_in ?? entry?.tokensIn ?? null;
         const tokensOut = entry?.tokens_out ?? entry?.tokensOut ?? null;
+        const totalTokensIn = entry?.total_tokens_in ?? entry?.totalTokensIn ?? null;
+        const totalTokensOut = entry?.total_tokens_out ?? entry?.totalTokensOut ?? null;
         const latencyMs = entry?.latency_ms ?? entry?.latencyMs ?? null;
         const costUsd = entry?.cost_usd ?? entry?.costUsd ?? null;
         const templateCountSource =
@@ -383,12 +387,22 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
           model: entry?.model ?? null,
           tokensIn,
           tokensOut,
+          totalTokensIn,
+          totalTokensOut,
           latencyMs,
           costUsd,
           sessionId: entry?.session_id ?? entry?.sessionId ?? undefined,
           agentId: entry?.agent_id ?? entry?.agentId ?? undefined,
           parentTraceId: entry?.parent_trace_id ?? entry?.parentTraceId ?? undefined,
           templateCount,
+          // Priority 1 UI improvements
+          spanCount: entry?.span_count ?? entry?.spanCount ?? 0,
+          spanTypeBreakdown: entry?.span_type_breakdown ?? entry?.spanTypeBreakdown ?? undefined,
+          hasErrors: entry?.has_errors ?? entry?.hasErrors ?? false,
+          errorMessage: entry?.error_message ?? entry?.errorMessage ?? null,
+          // Multi-agent/model detection
+          uniqueAgents: entry?.unique_agents ?? entry?.uniqueAgents ?? undefined,
+          uniqueModels: entry?.unique_models ?? entry?.uniqueModels ?? undefined,
         };
       };
 
@@ -427,14 +441,47 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       };
     },
 
-    async getExecution(projectId: string, traceId: string): Promise<ExecutionDetail> {
+    async getExecution(projectId: string, traceId: string, spanId?: string): Promise<ExecutionDetail | ExecutionDetailNew> {
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}`, {
+      const url = spanId 
+        ? `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}?span_id=${encodeURIComponent(spanId)}`
+        : `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}`;
+      
+      const response = await fetch(url, {
         headers: authHeaders,
       });
 
       const data = await handleResponse<any>(response);
 
+      // Check if this is the new schema response (has input_messages/output_messages)
+      if (data?.input_messages || data?.output_messages) {
+        // NEW SCHEMA - Return ExecutionDetailNew
+        return {
+          trace_id: data.trace_id ?? traceId,
+          span_id: data.span_id ?? '',
+          type: data.type ?? 'unknown',
+          agent_name: data.agent_name ?? null,
+          provider: data.provider ?? null,
+          model: data.model ?? null,
+          start_time: data.start_time ?? data.created_at ?? new Date().toISOString(),
+          end_time: data.end_time ?? new Date().toISOString(),
+          latency_ms: data.latency_ms ?? null,
+          tokens_in: data.tokens_in ?? null,
+          tokens_out: data.tokens_out ?? null,
+          total_cost_usd: data.total_cost_usd ?? null,
+          status: data.status ?? null,
+          status_message: data.status_message ?? null,
+          attributes: data.attributes ?? null,
+          input_messages: Array.isArray(data.input_messages) ? data.input_messages : [],
+          output_messages: Array.isArray(data.output_messages) ? data.output_messages : [],
+          child_spans: Array.isArray(data.child_spans) ? data.child_spans : [],
+          template_usages: Array.isArray(data.template_usages) ? data.template_usages : [],
+          template_info: data.template_info ?? null,
+          created_at: data.created_at ?? data.start_time ?? new Date().toISOString(),
+        } as ExecutionDetailNew;
+      }
+
+      // OLD SCHEMA - Return ExecutionDetail (existing logic)
       const normalizeNumber = (value: unknown): number | null => {
         if (typeof value === 'number' && Number.isFinite(value)) {
           return value;
@@ -524,8 +571,7 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         ? templateUsagesRaw
             .filter((item) => item && typeof item === 'object')
             .map((item, index) => ({
-              traceId: resolvedTraceId,
-              promptId: item.prompt_id ?? item.promptId ?? '',
+              prompt_id: item.prompt_id ?? item.promptId ?? '',
               version: item.version ?? item.template_version ?? '',
               inputs: (() => {
                 const raw = item.inputs ?? item.inputs_json ?? null;
@@ -550,7 +596,7 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
                   : Number.isFinite(Number(item.position))
                     ? Number(item.position)
                     : index,
-              renderedPrompt: item.rendered_prompt ?? item.renderedPrompt ?? undefined,
+              rendered_prompt: item.rendered_prompt ?? item.renderedPrompt ?? undefined,
             }))
         : [];
 
@@ -586,6 +632,14 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         headers: authHeaders,
       });
       return handleResponse<RelatedTracesResponse>(response);
+    },
+
+    async getExecutionHierarchy(projectId: string, traceId: string): Promise<TraceHierarchy> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}/hierarchy`, {
+        headers: authHeaders,
+      });
+      return handleResponse<TraceHierarchy>(response);
     },
 
     async executePrompt(projectId: string, promptId: string, request: ExecutionRequest): Promise<ExecutionResponse> {

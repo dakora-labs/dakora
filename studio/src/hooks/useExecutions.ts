@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import type {
   ExecutionDetail,
+  ExecutionDetailNew,
   ExecutionListFilters,
   ExecutionListItem,
   RelatedTracesResponse,
+  TraceHierarchy,
 } from '@/types';
 
 interface UseExecutionsResult {
@@ -110,7 +112,7 @@ export function useExecutions(filters: ExecutionListFilters = {}): UseExecutions
 }
 
 interface UseExecutionDetailResult {
-  execution: ExecutionDetail | null;
+  execution: ExecutionDetail | ExecutionDetailNew | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -118,7 +120,7 @@ interface UseExecutionDetailResult {
 
 export function useExecutionDetail(traceId: string | undefined): UseExecutionDetailResult {
   const { api, projectId, contextLoading } = useAuthenticatedApi();
-  const [execution, setExecution] = useState<ExecutionDetail | null>(null);
+  const [execution, setExecution] = useState<ExecutionDetail | ExecutionDetailNew | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,6 +152,50 @@ export function useExecutionDetail(traceId: string | undefined): UseExecutionDet
     loading,
     error,
     refresh: fetchExecution,
+  };
+}
+
+interface UseExecutionHierarchyResult {
+  hierarchy: TraceHierarchy | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+}
+
+export function useExecutionHierarchy(traceId: string | undefined): UseExecutionHierarchyResult {
+  const { api, projectId, contextLoading } = useAuthenticatedApi();
+  const [hierarchy, setHierarchy] = useState<TraceHierarchy | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchHierarchy = useCallback(async () => {
+    if (!traceId || !projectId || contextLoading) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.getExecutionHierarchy(projectId, traceId);
+      setHierarchy(response);
+    } catch (err) {
+      console.error('Failed to load execution hierarchy', err);
+      setError(err instanceof Error ? err.message : 'Failed to load execution hierarchy');
+    } finally {
+      setLoading(false);
+    }
+  }, [api, contextLoading, projectId, traceId]);
+
+  useEffect(() => {
+    fetchHierarchy();
+  }, [fetchHierarchy]);
+
+  return {
+    hierarchy,
+    loading,
+    error,
+    refresh: fetchHierarchy,
   };
 }
 

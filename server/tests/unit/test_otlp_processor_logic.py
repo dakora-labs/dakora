@@ -100,29 +100,6 @@ def test_circular_parent_reference():
     assert "span-2" in hierarchy
 
 
-# Test data aggregation priority
-
-
-def test_model_aggregation_priority():
-    """Should prefer dakora.model over gen_ai.* attributes."""
-    from dakora_server.core.otlp_extractor import extract_execution_trace, build_span_hierarchy
-
-    root_attrs = {
-        "gen_ai.request.model": "fallback-model",
-        "dakora.model": "priority-model",
-    }
-    root = create_test_span("trace-1", "root")
-    root.attributes = root_attrs
-    root.parent_span_id = None
-
-    hierarchy = build_span_hierarchy([root])
-    project_id = uuid4()
-
-    trace_data = extract_execution_trace(root, hierarchy, project_id)
-
-    assert trace_data["model"] == "priority-model"
-
-
 def test_tokens_fallback_to_root():
     """Should fallback to root span if child has no tokens."""
     from dakora_server.core.otlp_extractor import extract_execution_trace, build_span_hierarchy
@@ -166,60 +143,6 @@ def test_conversation_empty_when_both_missing():
     trace_data = extract_execution_trace(root, hierarchy, project_id)
 
     assert trace_data["conversation_history"] == []
-
-
-# Test metadata extraction
-
-
-def test_metadata_excludes_reserved_keys():
-    """Should exclude reserved dakora.* keys from metadata."""
-    from dakora_server.core.otlp_extractor import extract_execution_trace, build_span_hierarchy
-
-    attrs = {
-        "dakora.custom_field": "should_be_included",
-        "dakora.model": "should_be_excluded",
-        "dakora.template_contexts": "should_be_excluded",
-        "dakora.session_id": "should_be_excluded",
-        "dakora.source": "should_be_excluded",
-        "dakora.another_custom": "should_be_included",
-    }
-    root = create_test_span("trace-1", "root")
-    root.attributes = attrs
-    root.parent_span_id = None
-
-    hierarchy = build_span_hierarchy([root])
-    project_id = uuid4()
-
-    trace_data = extract_execution_trace(root, hierarchy, project_id)
-
-    metadata = trace_data["metadata"]
-    assert metadata is not None
-    assert "custom_field" in metadata
-    assert "another_custom" in metadata
-    assert "model" not in metadata
-    assert "template_contexts" not in metadata
-    assert "session_id" not in metadata
-    assert "source" not in metadata
-
-
-def test_metadata_none_when_no_custom_fields():
-    """Should set metadata to None when no custom dakora.* fields."""
-    from dakora_server.core.otlp_extractor import extract_execution_trace, build_span_hierarchy
-
-    attrs = {
-        "dakora.model": "test",  # Reserved
-        "gen_ai.operation.name": "chat",  # Not dakora.*
-    }
-    root = create_test_span("trace-1", "root")
-    root.attributes = attrs
-    root.parent_span_id = None
-
-    hierarchy = build_span_hierarchy([root])
-    project_id = uuid4()
-
-    trace_data = extract_execution_trace(root, hierarchy, project_id)
-
-    assert trace_data["metadata"] is None
 
 
 # Test latency calculation

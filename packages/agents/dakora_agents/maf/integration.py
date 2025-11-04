@@ -48,7 +48,6 @@ class DakoraIntegration:
         >>>
         >>> # Everything is automatically tracked:
         >>> # - Budget enforcement (before execution)
-        >>> # - Template linkage (via _dakora_context)
         >>> # - Agent ID, tokens, latency (via OTEL)
         >>> # - Exported to Dakora API
     """

@@ -13,10 +13,10 @@ from dakora_server.core.otlp_extractor import (
     build_span_hierarchy,
     extract_conversation_history,
     extract_execution_trace,
-    extract_template_usages,
     is_root_execution_span,
     normalize_model,
     normalize_provider,
+    extract_template_usages_from_messages
 )
 
 
@@ -266,73 +266,6 @@ def test_extract_conversation_history_empty():
     assert len(history) == 0
 
 
-# Tests for extract_template_usages
-
-
-def test_extract_template_usages_from_root():
-    """Should extract template contexts from root span."""
-    attrs = {
-        "dakora.template_contexts": json.dumps([
-            {
-                "prompt_id": "test-prompt",
-                "version": "v1",
-                "inputs": {"key": "value"},
-                "metadata": {"source": "test"},
-                "role": "user"
-            }
-        ])
-    }
-    root = create_span(span_id="root", attributes=attrs, parent_span_id=None)
-    hierarchy = build_span_hierarchy([root])
-
-    usages = extract_template_usages(root, hierarchy)
-
-    assert len(usages) == 1
-    assert usages[0]["prompt_id"] == "test-prompt"
-    assert usages[0]["version"] == "v1"
-    assert usages[0]["inputs_json"] == {"key": "value"}
-    assert usages[0]["metadata_json"] == {"source": "test"}
-    assert usages[0]["role"] == "user"
-
-
-def test_extract_template_usages_from_child():
-    """Should extract template contexts from child span."""
-    root = create_span(span_id="root", attributes={}, parent_span_id=None)
-    child_attrs = {
-        "dakora.template_contexts": json.dumps([
-            {"prompt_id": "child-prompt", "version": "latest", "inputs": {}}
-        ])
-    }
-    child = create_span(span_id="child", attributes=child_attrs, parent_span_id="root")
-
-    hierarchy = build_span_hierarchy([root, child])
-    usages = extract_template_usages(root, hierarchy)
-
-    assert len(usages) == 1
-    assert usages[0]["prompt_id"] == "child-prompt"
-
-
-def test_extract_template_usages_none():
-    """Should return None when no templates found."""
-    root = create_span(span_id="root", attributes={}, parent_span_id=None)
-    hierarchy = build_span_hierarchy([root])
-
-    usages = extract_template_usages(root, hierarchy)
-
-    assert usages is None
-
-
-def test_extract_template_usages_invalid_json():
-    """Should handle invalid template contexts JSON."""
-    attrs = {"dakora.template_contexts": "invalid"}
-    root = create_span(span_id="root", attributes=attrs, parent_span_id=None)
-    hierarchy = build_span_hierarchy([root])
-
-    usages = extract_template_usages(root, hierarchy)
-
-    assert usages is None
-
-
 # Tests for extract_execution_trace
 
 
@@ -370,7 +303,7 @@ def test_extract_execution_trace_aggregates_from_child():
     root = create_span(span_id="root", attributes=root_attrs, parent_span_id=None)
 
     child_attrs = {
-        "dakora.model": "gpt-4o-mini",
+        "gen_ai.request.model": "gpt-4o-mini",
         "gen_ai.provider.name": "azure.ai.openai",
         "gen_ai.usage.input_tokens": 100,
         "gen_ai.usage.output_tokens": 50,
@@ -423,27 +356,6 @@ def test_extract_execution_trace_conversation_from_child():
     assert trace_data["conversation_history"][0]["content"] == "Hello"
 
 
-def test_extract_execution_trace_metadata():
-    """Should extract dakora.* metadata attributes."""
-    attrs = {
-        "dakora.custom_field": "value1",
-        "dakora.another_field": "value2",
-        "dakora.model": "gpt-4",  # Reserved, should be excluded
-        "gen_ai.operation.name": "invoke_agent",  # Not dakora.*, excluded
-    }
-    root = create_span(span_id="root", attributes=attrs, parent_span_id=None)
-
-    hierarchy = build_span_hierarchy([root])
-    project_id = uuid4()
-
-    trace_data = extract_execution_trace(root, hierarchy, project_id)
-
-    assert trace_data["metadata"] is not None
-    assert trace_data["metadata"]["custom_field"] == "value1"
-    assert trace_data["metadata"]["another_field"] == "value2"
-    assert "model" not in trace_data["metadata"]  # Reserved key
-
-
 def test_extract_execution_trace_session_id_defaults_to_trace_id():
     """Should use trace_id as session_id when not specified."""
     root = create_span(span_id="root", attributes={}, parent_span_id=None)
@@ -480,7 +392,7 @@ def test_full_extraction_flow():
 
     chat_attrs = {
         "gen_ai.operation.name": "chat",
-        "dakora.model": "gpt-4o-mini",
+        "gen_ai.request.model": "gpt-4o-mini",
         "gen_ai.provider.name": "azure.ai.openai",
         "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
         "gen_ai.usage.input_tokens": 42,
@@ -490,9 +402,6 @@ def test_full_extraction_flow():
         ]),
         "gen_ai.output.messages": json.dumps([
             {"role": "assistant", "parts": [{"type": "text", "content": "Code flows like water"}]}
-        ]),
-        "dakora.template_contexts": json.dumps([
-            {"prompt_id": "haiku_prompt", "version": "latest", "inputs": {}}
         ]),
     }
     chat_span = create_span(
@@ -525,6 +434,6 @@ def test_full_extraction_flow():
     assert len(trace_data["conversation_history"]) == 2
 
     # Extract templates
-    usages = extract_template_usages(invoke_span, hierarchy)
+    usages = extract_template_usages_from_messages(invoke_span)
     assert len(usages) == 1
     assert usages[0]["prompt_id"] == "haiku_prompt"

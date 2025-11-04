@@ -21,7 +21,6 @@ export function ExecutionsPage() {
 
   const [provider, setProvider] = useState<string>('all');
   const [model, setModel] = useState<string>('');
-  const [sessionId, setSessionId] = useState<string>('');
   const [agentId, setAgentId] = useState<string>('');
   const [promptId, setPromptId] = useState<string>('');
   const [hasTemplatesOnly, setHasTemplatesOnly] = useState<boolean>(false);
@@ -30,12 +29,11 @@ export function ExecutionsPage() {
   const filters = useMemo(() => ({
     provider: provider === 'all' ? undefined : provider,
     model: model || undefined,
-    session_id: sessionId || undefined,
     agent_id: agentId || undefined,
     prompt_id: promptId || undefined,
     has_templates: hasTemplatesOnly ? true : undefined,
     limit: pageSize,
-  }), [agentId, hasTemplatesOnly, model, pageSize, promptId, provider, sessionId]);
+  }), [agentId, hasTemplatesOnly, model, pageSize, promptId, provider]);
 
   const {
     executions,
@@ -50,7 +48,7 @@ export function ExecutionsPage() {
 
   useEffect(() => {
     setOffset(0);
-  }, [provider, model, sessionId, agentId, promptId, hasTemplatesOnly, pageSize, setOffset]);
+  }, [provider, model, agentId, promptId, hasTemplatesOnly, pageSize, setOffset]);
 
   const handleRowClick = (traceId: string) => {
     navigate(`/project/${resolvedProjectSlug}/executions/${traceId}`);
@@ -59,7 +57,6 @@ export function ExecutionsPage() {
   const handleResetFilters = () => {
     setProvider('all');
     setModel('');
-    setSessionId('');
     setAgentId('');
     setPromptId('');
     setHasTemplatesOnly(false);
@@ -110,17 +107,6 @@ export function ExecutionsPage() {
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
                 placeholder="e.g. gpt-4o"
-                className="h-9"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="session">Session ID</Label>
-              <Input
-                id="session"
-                value={sessionId}
-                onChange={(event) => setSessionId(event.target.value)}
-                placeholder="session identifier"
                 className="h-9"
               />
             </div>

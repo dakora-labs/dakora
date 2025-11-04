@@ -186,30 +186,10 @@ class DakoraTraceMiddleware(ChatMiddleware):
         # This is simpler than creating a wrapper span and searching for it later
         try:
             from opentelemetry import trace
-
-            # Get the current span (should be invoke_agent span created by MAF)
             current_span = trace.get_current_span()
 
             if current_span and current_span.is_recording():
-                # Extract model from chat client
-                client = getattr(context, "chat_client", None)
-                if client:
-                    model = getattr(client, "model_id", None) or getattr(client, "model", None)
-                    if model:
-                        current_span.set_attribute("dakora.model", model)
-                        logger.debug(f"Set dakora.model={model} on current span")
-
-                # Extract template contexts from messages
-                messages = getattr(context, "messages", [])
-                template_contexts = []
-                for msg in messages:
-                    dakora_ctx = getattr(msg, "_dakora_context", None)
-                    if dakora_ctx and isinstance(dakora_ctx, dict):
-                        template_contexts.append(dakora_ctx)
-
-                if template_contexts:
-                    current_span.set_attribute("dakora.template_contexts", json.dumps(template_contexts))
-                    logger.debug(f"Set dakora.template_contexts with {len(template_contexts)} template(s) on current span")
+                current_span.set_attribute("dakora.span_source", "maf")
 
         except ImportError:
             # OTEL not available
