@@ -6,12 +6,31 @@ export default function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    let rafId: number | null = null;
+    let lastScrollY = window.scrollY;
+
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+      if (rafId) return;
+
+      rafId = requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        const shouldBeScrolled = currentScrollY > 50;
+
+        if (shouldBeScrolled !== isScrolled && Math.abs(currentScrollY - lastScrollY) > 5) {
+          setIsScrolled(shouldBeScrolled);
+          lastScrollY = currentScrollY;
+        }
+
+        rafId = null;
+      });
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [isScrolled]);
 
   return (
     <motion.nav

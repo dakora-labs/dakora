@@ -43,70 +43,75 @@ function FeatureCard({ feature, index }: { feature: typeof features[0], index: n
             <p className="text-xs text-gray-500">Inspect agent runs, token usage, and costs</p>
           </div>
 
-          {/* Summary Stats */}
-          <div className="grid grid-cols-5 gap-2 mb-3">
-            <div>
-              <div className="text-xs text-gray-500">Page Cost</div>
-              <div className="text-sm font-bold text-green-600">US$0.0002</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">Total Tokens</div>
-              <div className="text-sm font-bold text-blue-600">1,466</div>
-              <div className="text-xs text-gray-400">↓972 ↑494</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">Avg Latency</div>
-              <div className="text-sm font-bold text-purple-600">1544ms</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">With Templates</div>
-              <div className="text-sm font-bold text-blue-600">24 / 25</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500">Avg Cost/Exec</div>
-              <div className="text-sm font-bold text-orange-600">US$0.0000</div>
-            </div>
-          </div>
-
-          {/* Execution Rows */}
-          <div className="space-y-2">
-            {/* Row 1 */}
-            <div className="bg-white rounded p-2 border border-gray-100">
-              <div className="grid grid-cols-5 gap-2 items-center text-xs">
+          {/* Scrollable Container - only on mobile */}
+          <div className="overflow-x-auto md:overflow-x-visible -mx-4 md:mx-0 px-4 md:px-0">
+            <div className="min-w-[600px] md:min-w-0">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-5 gap-2 mb-3">
                 <div>
-                  <div className="text-gray-500">2d ago</div>
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">azure_openai</span>
-                </div>
-                <div className="text-gray-600">gpt-4o-mini</div>
-                <div>
-                  <span className="text-green-600 font-medium">16 → 23</span>
-                  <div className="text-gray-400">Total: 39</div>
+                  <div className="text-xs text-gray-500">Page Cost</div>
+                  <div className="text-sm font-bold text-green-600">US$0.0002</div>
                 </div>
                 <div>
-                  <div className="text-gray-600">4,640 ms</div>
-                  <span className="px-2 py-0.5 bg-gray-900 text-white rounded text-xs">Normal</span>
+                  <div className="text-xs text-gray-500">Total Tokens</div>
+                  <div className="text-sm font-bold text-blue-600">1,466</div>
+                  <div className="text-xs text-gray-400">↓972 ↑494</div>
                 </div>
-                <div className="text-green-600 font-medium">US$0.0000</div>
+                <div>
+                  <div className="text-xs text-gray-500">Avg Latency</div>
+                  <div className="text-sm font-bold text-purple-600">1544ms</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">With Templates</div>
+                  <div className="text-sm font-bold text-blue-600">24 / 25</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Avg Cost/Exec</div>
+                  <div className="text-sm font-bold text-orange-600">US$0.0000</div>
+                </div>
               </div>
-            </div>
 
-            {/* Row 2 */}
-            <div className="bg-white rounded p-2 border border-gray-100">
-              <div className="grid grid-cols-5 gap-2 items-center text-xs">
-                <div>
-                  <div className="text-gray-500">5d ago</div>
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">azure_openai</span>
+              {/* Execution Rows */}
+              <div className="space-y-2">
+                {/* Row 1 */}
+                <div className="bg-white rounded p-2 border border-gray-100">
+                  <div className="grid grid-cols-5 gap-2 items-center text-xs">
+                    <div>
+                      <div className="text-gray-500">2d ago</div>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">azure_openai</span>
+                    </div>
+                    <div className="text-gray-600">gpt-4o-mini</div>
+                    <div>
+                      <span className="text-green-600 font-medium">16 → 23</span>
+                      <div className="text-gray-400">Total: 39</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">4,640 ms</div>
+                      <span className="px-2 py-0.5 bg-gray-900 text-white rounded text-xs">Normal</span>
+                    </div>
+                    <div className="text-green-600 font-medium">US$0.0000</div>
+                  </div>
                 </div>
-                <div className="text-gray-600">gpt-4o-mini</div>
-                <div>
-                  <span className="text-green-600 font-medium">42 → 25</span>
-                  <div className="text-gray-400">Total: 67</div>
+
+                {/* Row 2 */}
+                <div className="bg-white rounded p-2 border border-gray-100">
+                  <div className="grid grid-cols-5 gap-2 items-center text-xs">
+                    <div>
+                      <div className="text-gray-500">5d ago</div>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">azure_openai</span>
+                    </div>
+                    <div className="text-gray-600">gpt-4o-mini</div>
+                    <div>
+                      <span className="text-green-600 font-medium">42 → 25</span>
+                      <div className="text-gray-400">Total: 67</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">1,428 ms</div>
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">Fast</span>
+                    </div>
+                    <div className="text-green-600 font-medium">US$0.0000</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-gray-600">1,428 ms</div>
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">Fast</span>
-                </div>
-                <div className="text-green-600 font-medium">US$0.0000</div>
               </div>
             </div>
           </div>

@@ -1,0 +1,60 @@
+---
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://dakora.io/#organization",
+      "name": "Dakora",
+      "url": "https://dakora.io",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://dakora.io/logo.svg"
+      },
+      "sameAs": [
+        "https://github.com/dakora-labs/dakora"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://dakora.io/#website",
+      "url": "https://dakora.io",
+      "name": "Dakora",
+      "description": "Track every LLM call. Control costs. Optimize prompts. Open-source prompt management platform with versioning, cost tracking, and AI-powered optimization.",
+      "publisher": {
+        "@id": "https://dakora.io/#organization"
+      },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://docs.dakora.io/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "Dakora",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Linux, macOS, Windows",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "Open-source prompt management platform with versioning, cost tracking, and AI-powered optimization for LLM applications.",
+      "url": "https://dakora.io",
+      "screenshot": "https://dakora.io/playground-interface.png",
+      "softwareVersion": "1.0",
+      "author": {
+        "@id": "https://dakora.io/#organization"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "5.0",
+        "ratingCount": "1"
+      }
+    }
+  ]
+};
+---
+
+<script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
