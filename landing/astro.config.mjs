@@ -10,8 +10,14 @@ export default defineConfig({
   site: 'https://dakora.io',
   base: '/',
   output: 'static',
+  build: {
+    assets: '_astro'
+  },
   vite: {
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()],
+    build: {
+      assetsInlineLimit: 0
+    }
   },
   integrations: [react()]
 });
