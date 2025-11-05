@@ -1,0 +1,34 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Navigation from '../components/Navigation';
+import Hero from '../components/Hero';
+import AnimatedDiagram from '../components/AnimatedDiagram';
+import WhyDakora from '../components/WhyDakora';
+import Features from '../components/Features';
+import Integrations from '../components/Integrations';
+import FAQ from '../components/FAQ';
+import Deployment from '../components/Deployment';
+import OpenSource from '../components/OpenSource';
+import Discord from '../components/Discord';
+import Footer from '../components/Footer';
+---
+
+<Layout title="Dakora – Make every token count">
+  <Navigation client:load />
+  <Hero client:load />
+  <AnimatedDiagram client:load />
+  <WhyDakora client:load />
+  <Features client:load />
+  <Integrations client:load />
+  <Deployment client:load />
+  <OpenSource client:load />
+  <Discord client:load />
+  <FAQ client:load />
+  <Footer />
+</Layout>
+
+<style>
+  html {
+    scroll-behavior: smooth;
+  }
+</style>
