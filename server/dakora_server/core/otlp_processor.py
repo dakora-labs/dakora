@@ -22,18 +22,14 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 
 from dakora_server.core.database import (
-    executions_new_table,
-    execution_messages_new_table,
+    executions_table,
+    execution_messages_table,
     otel_spans_table,
     template_traces_table,
-    tool_invocations_new_table,
-    traces_new_table,
+    tool_invocations_table,
     traces_table,
 )
 from dakora_server.core.otlp_extractor import (
-    build_span_hierarchy,
-    extract_execution_trace,
-    extract_template_usages_from_messages,
     is_root_execution_span,
 )
 
@@ -148,12 +144,12 @@ def _is_new_trace(trace_id: str, conn: Connection) -> bool:
     We consider a trace "new" if there are no traces in the NEW schema for it yet.
     This ensures we use the fast path for first batch and recompute path for late arrivals.
     
-    Note: We check traces_new_table (not traces_table/execution_traces) because
+    Note: We check traces_table (not traces_table/execution_traces) because
     the new schema is the source of truth for span-based executions.
     """
     result = conn.execute(
-        select(traces_new_table.c.trace_id)
-        .where(traces_new_table.c.trace_id == trace_id)
+        select(traces_table.c.trace_id)
+        .where(traces_table.c.trace_id == trace_id)
         .limit(1)
     )
     return result.first() is None
@@ -179,52 +175,12 @@ def _extract_executions_from_batch(
     """
     executions_created = 0
 
-    # Build span hierarchy once (O(n)) for efficient child lookups (O(1) per lookup)
-    span_hierarchy = build_span_hierarchy(spans)
-
-    # DUAL-WRITE: Write to new schema (all spans)
+    # Write to new normalized schema (all spans)
     _write_to_new_schema(spans, project_id, conn)
 
-    # Find root execution spans (for old schema)
-    for span in spans:
-        if not is_root_execution_span(span):
-            continue
-
-        # Extract execution trace
-        trace_data = extract_execution_trace(
-            root_span=span,
-            span_hierarchy=span_hierarchy,
-            project_id=project_id,
-        )
-
-        # DUAL-WRITE: Upsert to OLD execution_traces table (handles race conditions on recompute)
-        stmt = insert(traces_table).values(**trace_data).on_conflict_do_update(
-            index_elements=['trace_id'],
-            set_=trace_data
-        )
-        conn.execute(stmt)
-
-        # Insert template linkages (old schema)
-        template_usages = extract_template_usages_from_messages(span)
-        if template_usages:
-            for usage in template_usages:
-                conn.execute(
-                    insert(template_traces_table).values(
-                        trace_id=span.trace_id,
-                        prompt_id=usage["prompt_id"],
-                        version=usage["version"],
-                        inputs_json=usage["inputs_json"],
-                        position=usage["position"],
-                        role=usage.get("role"),
-                        source=usage.get("source"),
-                        message_index=usage.get("message_index"),
-                        metadata_json=usage.get("metadata_json"),
-                    )
-                )
-
-        executions_created += 1
-        logger.debug(f"Created execution trace for span {span.span_id}")
-
+    # Count root execution spans for metrics
+    executions_created = sum(1 for span in spans if is_root_execution_span(span))
+    
     return executions_created
 
 
@@ -461,7 +417,7 @@ def _upsert_trace_record(
         "attributes": attributes if attributes else None,
     }
     
-    stmt = insert(traces_new_table).values(**trace_data).on_conflict_do_update(
+    stmt = insert(traces_table).values(**trace_data).on_conflict_do_update(
         index_elements=['trace_id'],
         set_=trace_data
     )
@@ -489,9 +445,9 @@ def _upsert_execution_record(
     parent_span_id = span.parent_span_id
     if parent_span_id is not None:
         result = conn.execute(
-            select(executions_new_table.c.span_id)
-            .where(executions_new_table.c.trace_id == span.trace_id)
-            .where(executions_new_table.c.span_id == parent_span_id)
+            select(executions_table.c.span_id)
+            .where(executions_table.c.trace_id == span.trace_id)
+            .where(executions_table.c.span_id == parent_span_id)
             .limit(1)
         )
         parent_exists = result.first() is not None
@@ -592,7 +548,7 @@ def _upsert_execution_record(
         )
     
     # Use upsert to handle potential duplicates
-    stmt = insert(executions_new_table).values(**execution_data).on_conflict_do_update(
+    stmt = insert(executions_table).values(**execution_data).on_conflict_do_update(
         index_elements=['trace_id', 'span_id'],
         set_=execution_data
     )
@@ -707,7 +663,7 @@ def _store_message(
     }
     
     # Use insert with on_conflict to handle duplicates
-    stmt = insert(execution_messages_new_table).values(**message_data).on_conflict_do_nothing(
+    stmt = insert(execution_messages_table).values(**message_data).on_conflict_do_nothing(
         index_elements=['trace_id', 'span_id', 'direction', 'msg_index']
     )
     conn.execute(stmt)
@@ -761,7 +717,7 @@ def _extract_and_store_tools(span: OTLPSpan, conn: Connection) -> None:
                             "error_message": None,
                         }
                         
-                        stmt = insert(tool_invocations_new_table).values(**tool_data).on_conflict_do_nothing(
+                        stmt = insert(tool_invocations_table).values(**tool_data).on_conflict_do_nothing(
                             index_elements=['trace_id', 'tool_call_id']
                         )
                         conn.execute(stmt)

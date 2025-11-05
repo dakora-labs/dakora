@@ -1,6 +1,11 @@
 """Unit tests for OTLP extraction logic.
 
 Tests core extraction functionality without database dependencies.
+
+NOTE: extract_execution_trace() is a DEPRECATED legacy function.
+It's kept for backward compatibility but NOT used in the main data flow.
+The new OTLP schema uses direct span insertion without this aggregation layer.
+Tests for this function are kept to ensure it still works if needed.
 """
 
 import json
@@ -379,6 +384,10 @@ def test_full_extraction_flow():
         "gen_ai.agent.id": "haiku-bot",
         "gen_ai.agent.name": "HaikuBot",
         "dakora.session_id": "session-abc",
+        # Add system instructions with template metadata
+        "gen_ai.system_instructions": json.dumps([
+            {"type": "text", "content": "<!--dakora:prompt_id=haiku_prompt,version=1-->You are a haiku writing assistant"}
+        ]),
     }
     invoke_span = create_span(
         trace_id="trace-xyz",

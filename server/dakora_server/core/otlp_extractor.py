@@ -53,10 +53,20 @@ def is_root_execution_span(span: OTLPSpan) -> bool:
     if span.parent_span_id:
         return False
 
-    # Must be an agent operation
+    # Must be an agent/chat operation (various naming conventions)
     attrs = span.attributes or {}
     operation = attrs.get("gen_ai.operation.name")
-    return operation in ("invoke_agent", "chat", "execute_tool", "create_agent")
+    
+    # Valid root operations: agent invocation or chat completion
+    # Supports various naming conventions from different frameworks
+    valid_operations = (
+        "invoke_agent", 
+        "chat", 
+        "agent.invoke", 
+        "chat.invoke", 
+        "agent_invoke"
+    )
+    return operation in valid_operations
 
 
 def normalize_provider(raw_provider: str | None) -> str | None:
@@ -66,7 +76,8 @@ def normalize_provider(raw_provider: str | None) -> str | None:
 
     raw_lower = raw_provider.lower()
 
-    if "azure" in raw_lower:
+    # Azure variants (including Microsoft Agent Framework)
+    if "azure" in raw_lower or "microsoft" in raw_lower:
         return "azure_openai"
     elif "openai" in raw_lower:
         return "openai"
@@ -168,7 +179,7 @@ def extract_embedded_metadata_from_text(text: str) -> dict[str, str] | None:
 
 def extract_template_usages_from_messages(
     root_span: OTLPSpan,
-) -> list[dict[str, Any]] | None:
+) -> list[dict[str, Any]]:
     """
     Extract template usages from embedded metadata in message content.
 
@@ -180,7 +191,7 @@ def extract_template_usages_from_messages(
         root_span: Root span to extract from
 
     Returns:
-        List of template usages or None
+        List of template usages (empty list if none found)
     """
     usages = []
     attrs = root_span.attributes or {}
@@ -232,7 +243,7 @@ def extract_template_usages_from_messages(
                     "metadata_json": {},
                 })
 
-    return usages if usages else None
+    return usages
 
 
 def extract_execution_trace(
@@ -253,7 +264,7 @@ def extract_execution_trace(
         project_id: Project UUID
 
     Returns:
-        Dictionary ready for insertion into execution_traces table
+        Dictionary ready for insertion into legacy trace format (deprecated)
     """
     attrs = root_span.attributes or {}
 

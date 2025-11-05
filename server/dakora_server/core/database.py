@@ -35,46 +35,6 @@ logger = logging.getLogger(__name__)
 
 metadata = MetaData()
 
-# Execution traces table - trace-based observability
-# Tracks all LLM executions with optional template linkage
-traces_table = Table(
-    "execution_traces",
-    metadata,
-    Column("id", Integer, primary_key=True, autoincrement=True),
-    # Trace identifiers
-    Column("trace_id", String(255), unique=True, nullable=False, index=True),
-    Column("session_id", String(255), nullable=True, index=True),
-    Column("parent_trace_id", String(255), nullable=True, index=True),  # For nested calls (future)
-    Column("agent_id", String(255), nullable=True, index=True),
-    Column("source", String(50), nullable=True, index=True),
-    # Project context
-    Column(
-        "project_id",
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
-    ),
-    # Execution data
-    Column("conversation_history", JSONB, nullable=True),  # Full conversation context
-    Column("metadata", JSONB, nullable=True),  # Additional context (user_id, tags, etc.)
-    # LLM details
-    Column("provider", String(50), nullable=True),
-    Column("model", String(100), nullable=True),
-    # Metrics
-    Column("tokens_in", Integer, nullable=True),
-    Column("tokens_out", Integer, nullable=True),
-    Column("latency_ms", Integer, nullable=True),
-    Column("cost_usd", Float, nullable=True),  # type: ignore[misc]
-    Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')")),
-    # Legacy columns (kept for backward compatibility)
-    Column("prompt_id", String(255), nullable=True),
-    Column("version", String(50), nullable=True),
-    Column("inputs_json", Text, nullable=True),
-    Column("output_text", Text, nullable=True),
-    Column("cost", Float, nullable=True),  # type: ignore[misc]
-)
-
 # Template traces table - links templates to execution traces
 # Supports multiple templates per execution (multi-turn conversations)
 template_traces_table = Table(
@@ -84,10 +44,11 @@ template_traces_table = Table(
     Column(
         "trace_id",
         String(255),
-        ForeignKey("execution_traces.trace_id", ondelete="CASCADE"),
+        ForeignKey("traces.trace_id", ondelete="CASCADE"),  # Updated to point to new traces table
         nullable=False,
         index=True,
     ),
+    Column("span_id", Text, nullable=True),  # Links template to specific span in execution
     Column("prompt_id", String(255), nullable=False, index=True),
     Column("version", String(50), nullable=False),
     Column("inputs_json", JSONB, nullable=True),
@@ -305,7 +266,7 @@ otel_spans_table = Table(
 # These tables provide a cleaner, more queryable structure for trace data
 
 # Traces table - trace-level metadata grouping multiple spans
-traces_new_table = Table(
+traces_table = Table(
     "traces",
     metadata,
     Column("trace_id", Text, primary_key=True),
@@ -320,7 +281,7 @@ traces_new_table = Table(
 )
 
 # Executions table - individual spans representing executions in a trace
-executions_new_table = Table(
+executions_table = Table(
     "executions",
     metadata,
     Column("trace_id", Text, nullable=False),
@@ -360,7 +321,7 @@ executions_new_table = Table(
 )
 
 # Execution messages table - normalized conversation messages for executions
-execution_messages_new_table = Table(
+execution_messages_table = Table(
     "execution_messages",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
@@ -388,7 +349,7 @@ execution_messages_new_table = Table(
 # - Migration cc4d572fe94a: idx_executions_provider_lower, idx_executions_model_trgm
 
 # Tool invocations table - tool/function calls made during execution
-tool_invocations_new_table = Table(
+tool_invocations_table = Table(
     "tool_invocations",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),

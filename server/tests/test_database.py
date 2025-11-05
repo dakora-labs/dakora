@@ -6,6 +6,7 @@ from dakora_server.core.database import (
     create_test_engine,
     wait_for_db,
     traces_table,
+    executions_table,
     template_traces_table,
     get_database_url,
 )
@@ -73,80 +74,78 @@ class TestDatabaseConnection:
         bad_engine.dispose()
 
 
-class TestLogsTableSchema:
-    """Tests for logs table schema definition"""
+class TestNewSchemaTableDefinitions:
+    """Tests for new OTLP-native schema table definitions"""
 
     def test_traces_table_columns(self):
-        """Test logs table has all required columns for trace-based logging"""
+        """Test traces table has all required columns"""
         columns = {col.name for col in traces_table.columns}
 
         required_columns = {
-            # Primary key and trace identifiers
-            'id', 'trace_id', 'session_id', 'parent_trace_id', 'agent_id', 'source',
-            # Project context
-            'project_id',
-            # Execution data (trace-based)
-            'conversation_history', 'metadata',
-            # LLM details
-            'provider', 'model',
-            # Metrics
-            'tokens_in', 'tokens_out', 'latency_ms', 'cost_usd',
-            'created_at',
-            # Legacy columns (for backward compatibility)
-            'prompt_id', 'version', 'inputs_json', 'output_text', 'cost'
+            'trace_id', 'project_id', 'provider', 
+            'start_time', 'end_time', 'duration_ms',
+            'attributes', 'created_at'
         }
 
         assert columns == required_columns
 
     def test_traces_table_primary_key(self):
-        """Test logs table has id as primary key"""
+        """Test traces table has trace_id as primary key"""
         pk_columns = [col.name for col in traces_table.primary_key.columns]
-        assert pk_columns == ['id']
+        assert pk_columns == ['trace_id']
 
-    def test_traces_table_column_types(self):
-        """Test logs table column types are correct"""
-        from sqlalchemy import Integer, String, Text, Float, DateTime
+    def test_executions_table_columns(self):
+        """Test executions table has all required columns"""
+        columns = {col.name for col in executions_table.columns}
+
+        required_columns = {
+            'trace_id', 'span_id', 'parent_span_id', 'project_id',
+            'type', 'span_kind', 'agent_id', 'agent_name',
+            'provider', 'model', 'start_time', 'end_time', 'latency_ms',
+            'tokens_in', 'tokens_out', 
+            'input_cost_usd', 'output_cost_usd', 'total_cost_usd',
+            'status', 'status_message', 'attributes', 'created_at'
+        }
+
+        assert columns == required_columns
+
+    def test_executions_table_primary_key(self):
+        """Test executions table has composite primary key (trace_id, span_id)"""
+        pk_columns = [col.name for col in executions_table.primary_key.columns]
+        assert set(pk_columns) == {'trace_id', 'span_id'}
+
+    def test_executions_table_column_types(self):
+        """Test executions table column types are correct"""
+        from sqlalchemy import Integer, Text, Numeric, DateTime
         from sqlalchemy.dialects.postgresql import JSONB, UUID
 
-        # Primary key and trace identifiers
-        assert isinstance(traces_table.c.id.type, Integer)
-        assert isinstance(traces_table.c.trace_id.type, String)
-        assert isinstance(traces_table.c.session_id.type, String)
-        assert isinstance(traces_table.c.parent_trace_id.type, String)
-        assert isinstance(traces_table.c.agent_id.type, String)
-        assert isinstance(traces_table.c.source.type, String)
-        
-        # Project context
-        assert isinstance(traces_table.c.project_id.type, UUID)
-        
-        # Execution data (trace-based)
-        assert isinstance(traces_table.c.conversation_history.type, JSONB)
-        assert isinstance(traces_table.c.metadata.type, JSONB)
-        
-        # LLM details
-        assert isinstance(traces_table.c.provider.type, String)
-        assert isinstance(traces_table.c.model.type, String)
-        
-        # Metrics
-        assert isinstance(traces_table.c.tokens_in.type, Integer)
-        assert isinstance(traces_table.c.tokens_out.type, Integer)
-        assert isinstance(traces_table.c.latency_ms.type, Integer)
-        assert isinstance(traces_table.c.cost_usd.type, Float)
-        assert isinstance(traces_table.c.created_at.type, DateTime)
-        
-        # Legacy columns
-        assert isinstance(traces_table.c.prompt_id.type, String)
-        assert isinstance(traces_table.c.version.type, String)
-        assert isinstance(traces_table.c.inputs_json.type, Text)
-        assert isinstance(traces_table.c.output_text.type, Text)
-        assert isinstance(traces_table.c.cost.type, Float)
+        assert isinstance(executions_table.c.trace_id.type, Text)
+        assert isinstance(executions_table.c.span_id.type, Text)
+        assert isinstance(executions_table.c.parent_span_id.type, Text)
+        assert isinstance(executions_table.c.project_id.type, UUID)
+        assert isinstance(executions_table.c.type.type, Text)
+        assert isinstance(executions_table.c.span_kind.type, Text)
+        assert isinstance(executions_table.c.agent_id.type, Text)
+        assert isinstance(executions_table.c.provider.type, Text)
+        assert isinstance(executions_table.c.model.type, Text)
+        assert isinstance(executions_table.c.start_time.type, DateTime)
+        assert isinstance(executions_table.c.end_time.type, DateTime)
+        assert isinstance(executions_table.c.tokens_in.type, Integer)
+        assert isinstance(executions_table.c.tokens_out.type, Integer)
+        assert isinstance(executions_table.c.input_cost_usd.type, Numeric)
+        assert isinstance(executions_table.c.output_cost_usd.type, Numeric)
+        assert isinstance(executions_table.c.total_cost_usd.type, Numeric)
+        assert isinstance(executions_table.c.attributes.type, JSONB)
+        assert isinstance(executions_table.c.created_at.type, DateTime)
 
     def test_template_traces_column_types(self):
         """Test template traces table column types are correct"""
-        from sqlalchemy import Integer, String
-        from sqlalchemy.dialects.postgresql import JSONB
+        from sqlalchemy import Integer, String, Text, DateTime
+        from sqlalchemy.dialects.postgresql import JSONB, UUID
 
+        assert isinstance(template_traces_table.c.id.type, UUID)
         assert isinstance(template_traces_table.c.trace_id.type, String)
+        assert isinstance(template_traces_table.c.span_id.type, Text)  # NEW: links to specific span
         assert isinstance(template_traces_table.c.prompt_id.type, String)
         assert isinstance(template_traces_table.c.version.type, String)
         assert isinstance(template_traces_table.c.inputs_json.type, JSONB)
@@ -155,3 +154,4 @@ class TestLogsTableSchema:
         assert isinstance(template_traces_table.c.source.type, String)
         assert isinstance(template_traces_table.c.message_index.type, Integer)
         assert isinstance(template_traces_table.c.metadata_json.type, JSONB)
+        assert isinstance(template_traces_table.c.created_at.type, DateTime)

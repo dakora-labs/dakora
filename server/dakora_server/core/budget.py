@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, select, update
 from sqlalchemy.engine import Engine
 
-from dakora_server.core.database import get_connection, projects_table, traces_table
+from dakora_server.core.database import get_connection, projects_table, traces_table, executions_table
 
 
 class BudgetService:
@@ -32,12 +32,19 @@ class BudgetService:
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         with get_connection(self.engine) as conn:
+            # Cost is stored in executions.total_cost_usd in the new schema
+            # Join traces -> executions to get costs
             result = conn.execute(
-                select(func.coalesce(func.sum(traces_table.c.cost_usd), 0)).where(
+                select(func.coalesce(func.sum(executions_table.c.total_cost_usd), 0)).select_from(
+                    traces_table.join(
+                        executions_table,
+                        traces_table.c.trace_id == executions_table.c.trace_id
+                    )
+                ).where(
                     and_(
                         traces_table.c.project_id == project_id,
-                        traces_table.c.created_at >= month_start,
-                        traces_table.c.cost_usd.isnot(None),
+                        executions_table.c.created_at >= month_start,
+                        executions_table.c.total_cost_usd.isnot(None),
                     )
                 )
             )

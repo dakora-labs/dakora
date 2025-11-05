@@ -52,10 +52,9 @@ class TemplateUsage(BaseModel):
 
 
 class ExecutionCreate(BaseModel):
-    """Request to create an execution log entry"""
+    """Request to create an execution log entry (OTLP-native schema)"""
     trace_id: str
     parent_trace_id: Optional[str] = None
-    session_id: str
     agent_id: Optional[str] = None
     source: Optional[str] = None
     template_usages: Optional[List[TemplateUsage]] = None

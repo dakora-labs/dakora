@@ -3,12 +3,19 @@
 from typing import Any, Optional
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 from sqlalchemy import select, func, and_, cast, Date
 
-from ..core.database import get_engine, get_connection, prompts_table, traces_table
+from ..core.database import (
+    get_engine,
+    get_connection,
+    prompts_table,
+    traces_table,
+    executions_table,
+    template_traces_table,
+)
 from ..core.budget import BudgetService
 from ..auth import validate_project_access
 
@@ -27,6 +34,7 @@ router = APIRouter(prefix="/api/projects/{project_id}", tags=["projects"])
 async def get_project_stats(
     project_id: UUID = Depends(validate_project_access),
     engine: Engine = Depends(get_engine),
+    days: int = Query(30, ge=1, le=365, description="Number of days for daily trend window"),
 ) -> dict[str, Any]:
     """Get statistics and analytics for the project.
 
@@ -40,7 +48,7 @@ async def get_project_stats(
         - total_cost: total execution cost in USD
         - total_executions: number of executions
         - avg_cost_per_execution: average cost per execution
-        - daily_costs: array of {date, cost} for last 30 days
+        - daily_costs: array of {date, cost} for the last `days` days (default 30)
         - top_prompts: array of {prompt_id, name, cost, execution_count} for top 5 prompts by cost
 
     Raises:
@@ -54,62 +62,118 @@ async def get_project_stats(
             )
             prompt_count = conn.execute(prompt_count_stmt).scalar() or 0
 
-            # Get total cost and execution count
-            cost_stats_stmt = select(
-                func.coalesce(func.sum(traces_table.c.cost_usd), 0).label('total_cost'),
-                func.count(traces_table.c.trace_id).label('total_executions')
-            ).where(
-                and_(
-                    traces_table.c.project_id == project_id,
-                    traces_table.c.cost_usd.isnot(None)
+            # Aggregate only chat executions — these are the spans that
+            # carry model/tokens/cost information. Filter directly on the
+            # executions table (it has project_id) to avoid an unnecessary join.
+            # Total cost from chat spans with a computed cost
+            cost_total_stmt = (
+                select(func.coalesce(func.sum(executions_table.c.total_cost_usd), 0).label("total_cost"))
+                .where(
+                    and_(
+                        executions_table.c.project_id == project_id,
+                        executions_table.c.type == "chat",
+                        executions_table.c.total_cost_usd.isnot(None),
+                    )
                 )
             )
-            cost_stats = conn.execute(cost_stats_stmt).fetchone()
-            total_cost = float(cost_stats.total_cost) if cost_stats else 0.0
-            total_executions = cost_stats.total_executions if cost_stats else 0
+            total_cost_row = conn.execute(cost_total_stmt).fetchone()
+            total_cost = float(total_cost_row.total_cost) if total_cost_row else 0.0
+
+            # Execution count = all chat spans (even when cost is null)
+            exec_count_stmt = (
+                select(func.count(func.distinct(executions_table.c.trace_id)).label("cnt")).where(
+                    and_(
+                        executions_table.c.project_id == project_id,
+                        executions_table.c.type == "chat",
+                    )
+                )
+            )
+            total_executions = (conn.execute(exec_count_stmt).scalar() or 0)
             avg_cost = (total_cost / total_executions) if total_executions > 0 else 0.0
 
             # Get daily costs for last 30 days
-            thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-            daily_costs_stmt = select(
-                cast(traces_table.c.created_at, Date).label('date'),
-                func.coalesce(func.sum(traces_table.c.cost_usd), 0).label('cost')
-            ).where(
-                and_(
-                    traces_table.c.project_id == project_id,
-                    traces_table.c.created_at >= thirty_days_ago,
-                    traces_table.c.cost_usd.isnot(None)
+            # DB-side zero-fill using generate_series for optimal performance
+            # Define the date window [start_date, today], inclusive, for the requested days
+            today_utc = datetime.now(timezone.utc).date()
+            start_date = today_utc - timedelta(days=days - 1)
+
+            # Aggregate costs by day within the window
+            agg_subq = (
+                select(
+                    cast(executions_table.c.start_time, Date).label("day"),
+                    func.coalesce(func.sum(executions_table.c.total_cost_usd), 0).label("cost"),
                 )
-            ).group_by(
-                cast(traces_table.c.created_at, Date)
-            ).order_by(
-                cast(traces_table.c.created_at, Date)
+                .where(
+                    and_(
+                        executions_table.c.project_id == project_id,
+                        executions_table.c.type == "chat",
+                        cast(executions_table.c.start_time, Date) >= start_date,
+                        cast(executions_table.c.start_time, Date) <= today_utc,
+                        executions_table.c.total_cost_usd.isnot(None),
+                    )
+                )
+                .group_by(cast(executions_table.c.start_time, Date))
+                .subquery("agg")
             )
+
+            # Date series for the window (1-day step)
+            date_series = (
+                select(
+                    cast(
+                        func.generate_series(
+                            start_date,
+                            today_utc,
+                            func.make_interval(0, 0, 0, 1),  # 1 day interval
+                        ),
+                        Date,
+                    ).label("day")
+                )
+                .subquery("series")
+            )
+
+            daily_costs_stmt = (
+                select(
+                    date_series.c.day.label("date"),
+                    func.coalesce(agg_subq.c.cost, 0).label("cost"),
+                )
+                .select_from(
+                    date_series.outerjoin(agg_subq, date_series.c.day == agg_subq.c.day)
+                )
+                .order_by(date_series.c.day)
+            )
+
             daily_costs_result = conn.execute(daily_costs_stmt).fetchall()
             daily_costs = [
-                {
-                    "date": row.date.isoformat(),
-                    "cost": float(row.cost)
-                }
-                for row in daily_costs_result
+                {"date": row.date.isoformat(), "cost": float(row.cost)} for row in daily_costs_result
             ]
 
-            # Get top 5 prompts by total cost
-            top_prompts_stmt = select(
-                traces_table.c.prompt_id,
-                func.coalesce(func.sum(traces_table.c.cost_usd), 0).label('total_cost'),
-                func.count(traces_table.c.trace_id).label('execution_count')
-            ).where(
-                and_(
-                    traces_table.c.project_id == project_id,
-                    traces_table.c.prompt_id.isnot(None),
-                    traces_table.c.cost_usd.isnot(None)
+            # Get top 5 prompts by total chat cost. Join template links → executions
+            # by trace_id. We restrict to chat spans for accurate cost accounting.
+            top_prompts_stmt = (
+                select(
+                    template_traces_table.c.prompt_id,
+                    func.coalesce(func.sum(executions_table.c.total_cost_usd), 0).label("total_cost"),
+                    func.count(func.distinct(executions_table.c.trace_id)).label("execution_count"),
                 )
-            ).group_by(
-                traces_table.c.prompt_id
-            ).order_by(
-                func.sum(traces_table.c.cost_usd).desc()
-            ).limit(5)
+                .select_from(
+                    template_traces_table.join(
+                        executions_table,
+                        template_traces_table.c.trace_id == executions_table.c.trace_id,
+                    )
+                )
+                .where(
+                    and_(
+                        executions_table.c.project_id == project_id,
+                        executions_table.c.type == "chat",
+                        cast(executions_table.c.start_time, Date) >= start_date,
+                        cast(executions_table.c.start_time, Date) <= today_utc,
+                        executions_table.c.total_cost_usd.isnot(None),
+                    )
+                )
+                .group_by(template_traces_table.c.prompt_id)
+                .order_by(func.sum(executions_table.c.total_cost_usd).desc())
+                .limit(5)
+            )
 
             top_prompts_result = conn.execute(top_prompts_stmt).fetchall()
             top_prompts = [
@@ -117,7 +181,8 @@ async def get_project_stats(
                     "prompt_id": row.prompt_id,
                     "name": row.prompt_id,  # Use prompt_id as name for now
                     "cost": float(row.total_cost),
-                    "execution_count": row.execution_count
+                    "execution_count": row.execution_count,
+                    "avg_cost": (float(row.total_cost) / row.execution_count) if row.execution_count else 0.0,
                 }
                 for row in top_prompts_result
             ]

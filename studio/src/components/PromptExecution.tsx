@@ -1,6 +1,5 @@
-import { useState, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload, BarChart3, Code, FileText, Check } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload, Code, FileText, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -20,9 +19,7 @@ interface PromptExecutionProps {
   projectSlug?: string | null;
 }
 
-export function PromptExecution({ projectId, promptId, inputs, projectSlug }: PromptExecutionProps) {
-  const navigate = useNavigate();
-  const resolvedProjectSlug = projectSlug ?? 'default';
+export function PromptExecution({ projectId, promptId, inputs }: PromptExecutionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -219,11 +216,6 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug }: Pr
       console.error('Execution failed:', err);
       setIsExpanded(true);
     }
-  };
-
-  const handleViewTrace = (event: ReactMouseEvent<HTMLButtonElement>, traceId: string) => {
-    event.stopPropagation();
-    navigate(`/project/${resolvedProjectSlug}/executions/${traceId}`);
   };
 
   const formatCost = (cost?: number | null) => {
@@ -551,17 +543,6 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug }: Pr
                       <span className="text-xs text-muted-foreground">
                         {formatCost(exec.metrics.cost_usd)}
                       </span>
-                    )}
-                    {exec.trace_id && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-auto h-6 gap-1 text-xs"
-                        onClick={(event) => handleViewTrace(event, exec.trace_id!)}
-                      >
-                        <BarChart3 className="w-3 h-3" />
-                        View trace
-                      </Button>
                     )}
                   </div>
                 ))}
