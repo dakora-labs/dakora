@@ -826,7 +826,7 @@ class TestGetExecutionOTLP:
         )
 
         # Get without specifying span_id - should auto-select chat span
-        response = test_client.get(f"/api/projects/{project_id}/executions/{trace_id}")
+        response = test_client.get(f"/api/projects/{project_id}/executions/{trace_id}?include_messages=true")
 
         assert response.status_code == 200
         data = response.json()
