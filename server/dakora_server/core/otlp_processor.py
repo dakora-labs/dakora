@@ -683,41 +683,81 @@ def _extract_and_store_tools(span: OTLPSpan, conn: Connection) -> None:
     
     try:
         output_messages = json.loads(output_messages_json)
+
+        def parse_if_json_string(val):
+            """Safely parse JSON strings, logging failures at warning level."""
+            if isinstance(val, str):
+                try:
+                    return json.loads(val)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse JSON value: {e}. Using raw string. Value: {val[:100]}")
+                    return val
+                except Exception as e:
+                    logger.warning(f"Unexpected error parsing JSON: {e}. Using raw string.")
+                    return val
+            return val
+
         for msg in output_messages:
             # Look for tool calls in message
             if msg.get("role") == "assistant" and msg.get("parts"):
                 for part in msg["parts"]:
-                    if isinstance(part, dict) and part.get("type") == "function_call":
+                    if isinstance(part, dict) and part.get("type") in ("function_call", "tool_call"):
                         # Extract tool call details
                         tool_call_id = part.get("id") or f"{span.span_id}_tool_{part.get('name')}"
                         tool_name = part.get("name")
                         tool_input = part.get("args") or part.get("arguments")
+                        tool_input = parse_if_json_string(tool_input)
                         
                         # Look for corresponding tool response
                         tool_output = None
                         for resp_msg in output_messages:
                             if resp_msg.get("role") == "tool" and resp_msg.get("parts"):
                                 for resp_part in resp_msg["parts"]:
-                                    if isinstance(resp_part, dict) and resp_part.get("type") == "function_response":
+                                    if isinstance(resp_part, dict) and resp_part.get("type") in ("function_response", "tool_call_response"):
                                         if resp_part.get("id") == tool_call_id or resp_part.get("name") == tool_name:
-                                            tool_output = resp_part.get("response")
+                                            tool_output = parse_if_json_string(resp_part.get("response"))
                         
-                        # Store tool invocation
-                        tool_data = {
-                            "trace_id": span.trace_id,
-                            "span_id": span.span_id,
-                            "tool_call_id": tool_call_id,
-                            "tool_name": tool_name,
-                            "tool_input": tool_input,
-                            "tool_output": tool_output,
-                            "start_time": datetime.fromtimestamp(span.start_time_ns / 1_000_000_000, tz=timezone.utc),
-                            "end_time": datetime.fromtimestamp(span.end_time_ns / 1_000_000_000, tz=timezone.utc),
-                            # latency_ms is computed automatically by the database
-                            "status": "ok" if tool_output else None,
-                            "error_message": None,
+                        # Store tool invocation (support legacy and new schemas)
+                        from sqlalchemy import MetaData, Table
+
+                        try:
+                            tool_inv_rt = Table('tool_invocations', MetaData(), autoload_with=conn)
+                            cols = {c.name for c in tool_inv_rt.c}
+                        except Exception as e:
+                            logger.warning(f"Failed to load tool_invocations schema: {e}. Skipping tool storage.")
+                            continue
+
+                        # Map IO columns based on actual schema
+                        if {'arguments', 'result'}.issubset(cols):
+                            arg_col = 'arguments'
+                            res_col = 'result'
+                        elif {'tool_input', 'tool_output'}.issubset(cols):
+                            arg_col = 'tool_input'
+                            res_col = 'tool_output'
+                        else:
+                            arg_col = None
+                            res_col = None
+
+                        insert_values = {
+                            'trace_id': span.trace_id,
+                            'span_id': span.span_id,
+                            'tool_call_id': tool_call_id,
+                            'tool_name': tool_name,
+                            'start_time': datetime.fromtimestamp(span.start_time_ns / 1_000_000_000, tz=timezone.utc),
+                            'end_time': datetime.fromtimestamp(span.end_time_ns / 1_000_000_000, tz=timezone.utc),
                         }
-                        
-                        stmt = insert(tool_invocations_table).values(**tool_data).on_conflict_do_nothing(
+                        if arg_col:
+                            insert_values[arg_col] = tool_input
+                        if res_col:
+                            insert_values[res_col] = tool_output
+                        if 'status' in cols:
+                            insert_values['status'] = 'ok' if tool_output is not None else 'error'
+                        if 'error_message' in cols:
+                            insert_values['error_message'] = None
+                        if 'error_type' in cols:
+                            insert_values['error_type'] = None
+
+                        stmt = insert(tool_inv_rt).values(**insert_values).on_conflict_do_nothing(
                             index_elements=['trace_id', 'tool_call_id']
                         )
                         conn.execute(stmt)

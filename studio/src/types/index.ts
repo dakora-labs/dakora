@@ -213,13 +213,6 @@ export interface ExecutionListResponse {
   offset: number;
 }
 
-export interface ConversationMessage {
-  role: string;
-  content: string;
-  name?: string | null;
-  timestamp?: string | null;
-  metadata?: Record<string, unknown> | null;
-}
 
 export interface TemplateUsageEntry {
   trace_id?: string;
@@ -233,25 +226,6 @@ export interface TemplateUsageEntry {
   rendered_prompt?: string;
 }
 
-export interface ExecutionDetail {
-  traceId: string;
-  createdAt: string | null;
-  conversationHistory: ConversationMessage[];
-  metadata: Record<string, unknown> | null;
-  provider: string | null;
-  model: string | null;
-  tokens: {
-    in: number | null;
-    out: number | null;
-    total: number | null;
-  };
-  costUsd: number | null;
-  latencyMs: number | null;
-  sessionId?: string | null;
-  agentId?: string | null;
-  parentTraceId?: string | null;
-  templateUsages: TemplateUsageEntry[];
-}
 
 // New schema types for migrated database
 export interface MessagePart {
@@ -315,6 +289,55 @@ export interface ExecutionDetailNew {
   template_info?: TemplateInfo | null;
   created_at: string;
 }
+
+// Normalized timeline events (for simplified chat + tools rendering)
+export type TimelineEvent =
+  | {
+      kind: 'user';
+      ts: string;
+      text: string;
+      role?: string | null;
+      lane?: string | null;
+    }
+  | {
+      kind: 'assistant';
+      ts: string;
+      span_id?: string | null;
+      agent_name?: string | null;
+      text: string;
+      tokens_out?: number | null;
+      latency_ms?: number | null;
+      lane?: string | null;
+    }
+  | {
+      kind: 'tool_call';
+      ts: string;
+      tool_call_id: string;
+      name?: string | null;
+      arguments?: unknown;
+      span_id?: string | null;
+      lane?: string | null;
+    }
+  | {
+      kind: 'tool_result';
+      ts: string;
+      tool_call_id: string;
+      output?: unknown;
+      ok?: boolean | null;
+      span_id?: string | null;
+      lane?: string | null;
+    }
+  | {
+      kind: 'tool';
+      ts: string;
+      tool_call_id: string;
+      name?: string | null;
+      arguments?: unknown;
+      output?: unknown;
+      ok?: boolean | null;
+      span_id?: string | null;
+      lane?: string | null;
+    };
 
 export interface SpanTreeNode {
   span_id: string;

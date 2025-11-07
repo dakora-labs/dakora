@@ -110,6 +110,72 @@ class ExecutionListResponse(BaseModel):
     offset: int
 
 
+# ==============================
+# Timeline (normalized events)
+# ==============================
+
+class TimelineBase(BaseModel):
+    """Base fields for timeline events."""
+
+    kind: str
+    ts: str  # ISO timestamp used for ordering in the UI
+    lane: Optional[str] = None  # Optional grouping (e.g., agent name)
+
+
+class TimelineUserEvent(TimelineBase):
+    kind: str = "user"
+    text: str
+    role: Optional[str] = None  # original role if available (user/system)
+
+
+class TimelineAssistantEvent(TimelineBase):
+    kind: str = "assistant"
+    span_id: Optional[str] = None
+    agent_name: Optional[str] = None
+    text: str
+    tokens_out: Optional[int] = None
+    latency_ms: Optional[int] = None
+
+
+class TimelineToolCallEvent(TimelineBase):
+    kind: str = "tool_call"
+    tool_call_id: str
+    name: Optional[str] = None
+    arguments: Optional[Any] = None
+    span_id: Optional[str] = None
+
+
+class TimelineToolResultEvent(TimelineBase):
+    kind: str = "tool_result"
+    tool_call_id: str
+    output: Optional[Any] = None
+    ok: Optional[bool] = None
+    span_id: Optional[str] = None
+
+
+class TimelineToolCompositeEvent(TimelineBase):
+    kind: str = "tool"
+    tool_call_id: str
+    name: Optional[str] = None
+    arguments: Optional[Any] = None
+    output: Optional[Any] = None
+    ok: Optional[bool] = None
+    span_id: Optional[str] = None
+
+
+TimelineEvent = (
+    TimelineUserEvent
+    | TimelineAssistantEvent
+    | TimelineToolCallEvent
+    | TimelineToolResultEvent
+    | TimelineToolCompositeEvent
+)
+
+
+class TimelineResponse(BaseModel):
+    events: List[TimelineEvent]
+
+
 class ExecuteRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
     model: Optional[str] = Field(default=None, description="Model to use (defaults to workspace default)")
@@ -348,4 +414,3 @@ class FeedbackResponse(BaseModel):
     """Response after feedback submission."""
     id: str = Field(description="Unique feedback ID")
     created_at: str = Field(description="ISO timestamp of feedback creation")
-

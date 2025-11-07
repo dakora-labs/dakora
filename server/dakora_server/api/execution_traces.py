@@ -540,6 +540,7 @@ async def get_execution(
     project_id: UUID,
     trace_id: str,
     span_id: Optional[str] = Query(None, description="Specific span ID to retrieve (defaults to root span)"),
+    include_messages: bool = Query(False, description="Include full input/output messages payload (expensive)."),
     _: UUID = Depends(validate_project_access),
     engine: Engine = Depends(get_engine),
 ) -> dict[str, Any]:
@@ -553,6 +554,20 @@ async def get_execution(
       3. Any other span - last resort
     
     This ensures users see relevant conversation data instead of orchestration-only spans.
+    
+    Args:
+        project_id: Project UUID (validated via auth)
+        trace_id: Execution trace ID
+        span_id: Optional specific span to retrieve (defaults to auto-selected meaningful span)
+        include_messages: If False, returns execution metadata only (fast). If True, includes full 
+                         input/output messages (slower, higher payload). Default: False.
+                         When False, input_messages and output_messages will be empty lists.
+    
+    Returns:
+        Execution details with optional messages based on include_messages parameter.
+        
+    Raises:
+        HTTPException: 404 if execution/span not found; 403 if not authorized
     """
     with get_connection(engine) as conn:
         # NEW SCHEMA QUERY (always - no fallback)
@@ -595,102 +610,100 @@ async def get_execution(
         if not exec_row:
             raise HTTPException(status_code=404, detail="Execution not found")
         
-        # Get input messages from the FIRST chat span only (initial user input + context)
-        # In multi-agent workflows, subsequent spans receive previous outputs as input context,
-        # which creates duplicates. We only need the initial input from the first agent.
-        first_chat_span = conn.execute(
-            select(executions_table.c.span_id)
-            .where(
-                and_(
-                    executions_table.c.trace_id == trace_id,
-                    executions_table.c.type == "chat"
+        input_messages: list[dict[str, Any]] = []
+        output_messages: list[dict[str, Any]] = []
+        if include_messages:
+            # Get input messages from FIRST chat span only (avoid duplicated context)
+            first_chat_span = conn.execute(
+                select(executions_table.c.span_id)
+                .where(
+                    and_(
+                        executions_table.c.trace_id == trace_id,
+                        executions_table.c.type == "chat"
+                    )
                 )
-            )
-            .order_by(executions_table.c.start_time)
-            .limit(1)
-        ).scalar_one_or_none()
+                .order_by(executions_table.c.start_time)
+                .limit(1)
+            ).scalar_one_or_none()
+            if first_chat_span:
+                input_msgs_result = conn.execute(
+                    select(
+                        execution_messages_table.c.role,
+                        execution_messages_table.c.parts,
+                        execution_messages_table.c.msg_index,
+                        execution_messages_table.c.finish_reason,
+                        execution_messages_table.c.span_id,
+                    )
+                    .where(
+                        and_(
+                            execution_messages_table.c.trace_id == trace_id,
+                            execution_messages_table.c.span_id == first_chat_span,
+                            execution_messages_table.c.direction == "input"
+                        )
+                    )
+                    .order_by(execution_messages_table.c.msg_index)
+                )
+                for msg_row in input_msgs_result.fetchall():
+                    input_messages.append({
+                        "role": msg_row.role,
+                        "parts": _strip_dakora_markers(msg_row.parts) if msg_row.parts else [],
+                        "msg_index": msg_row.msg_index,
+                        "finish_reason": msg_row.finish_reason,
+                        "span_id": msg_row.span_id,
+                        "span_type": "chat",
+                    })
         
-        input_messages = []
-        if first_chat_span:
-            input_msgs_result = conn.execute(
+        # Get ALL output messages from ALL chat spans
+        # Each output is unique - it's what each agent produced
+        # This gives us the workflow progression without duplicates
+        # Join with parent agent spans to get agent names
+        if include_messages:
+            parent_agent_alias = executions_table.alias("parent_agent")
+            output_msgs_result = conn.execute(
                 select(
                     execution_messages_table.c.role,
                     execution_messages_table.c.parts,
                     execution_messages_table.c.msg_index,
                     execution_messages_table.c.finish_reason,
                     execution_messages_table.c.span_id,
+                    executions_table.c.start_time,
+                    parent_agent_alias.c.agent_name.label('agent_name')
+                )
+                .select_from(
+                    execution_messages_table.join(
+                        executions_table,
+                        and_(
+                            execution_messages_table.c.trace_id == executions_table.c.trace_id,
+                            execution_messages_table.c.span_id == executions_table.c.span_id
+                        )
+                    ).outerjoin(
+                        parent_agent_alias,
+                        and_(
+                            executions_table.c.trace_id == parent_agent_alias.c.trace_id,
+                            executions_table.c.parent_span_id == parent_agent_alias.c.span_id,
+                            parent_agent_alias.c.type == "agent"
+                        )
+                    )
                 )
                 .where(
                     and_(
                         execution_messages_table.c.trace_id == trace_id,
-                        execution_messages_table.c.span_id == first_chat_span,
-                        execution_messages_table.c.direction == "input"
+                        execution_messages_table.c.direction == "output",
+                        executions_table.c.type == "chat"
                     )
                 )
-                .order_by(execution_messages_table.c.msg_index)
+                .order_by(executions_table.c.start_time, execution_messages_table.c.msg_index)
             )
-            for msg_row in input_msgs_result.fetchall():
-                input_messages.append({
+            for msg_row in output_msgs_result.fetchall():
+                output_messages.append({
                     "role": msg_row.role,
                     "parts": _strip_dakora_markers(msg_row.parts) if msg_row.parts else [],
                     "msg_index": msg_row.msg_index,
                     "finish_reason": msg_row.finish_reason,
                     "span_id": msg_row.span_id,
-                    "span_type": "chat",  # We know it's a chat span
+                    "span_type": "chat",
+                    "agent_name": msg_row.agent_name,
                 })
-        
-        # Get ALL output messages from ALL chat spans
-        # Each output is unique - it's what each agent produced
-        # This gives us the workflow progression without duplicates
-        # Join with parent agent spans to get agent names
-        parent_agent_alias = executions_table.alias("parent_agent")
-        
-        output_msgs_result = conn.execute(
-            select(
-                execution_messages_table.c.role,
-                execution_messages_table.c.parts,
-                execution_messages_table.c.msg_index,
-                execution_messages_table.c.finish_reason,
-                execution_messages_table.c.span_id,
-                executions_table.c.start_time,
-                parent_agent_alias.c.agent_name.label('agent_name')
-            )
-            .select_from(
-                execution_messages_table.join(
-                    executions_table,
-                    and_(
-                        execution_messages_table.c.trace_id == executions_table.c.trace_id,
-                        execution_messages_table.c.span_id == executions_table.c.span_id
-                    )
-                ).outerjoin(
-                    parent_agent_alias,
-                    and_(
-                        executions_table.c.trace_id == parent_agent_alias.c.trace_id,
-                        executions_table.c.parent_span_id == parent_agent_alias.c.span_id,
-                        parent_agent_alias.c.type == "agent"
-                    )
-                )
-            )
-            .where(
-                and_(
-                    execution_messages_table.c.trace_id == trace_id,
-                    execution_messages_table.c.direction == "output",
-                    executions_table.c.type == "chat"
-                )
-            )
-            .order_by(executions_table.c.start_time, execution_messages_table.c.msg_index)
-        )
-        output_messages = []
-        for msg_row in output_msgs_result.fetchall():
-            output_messages.append({
-                "role": msg_row.role,
-                "parts": _strip_dakora_markers(msg_row.parts) if msg_row.parts else [],
-                "msg_index": msg_row.msg_index,
-                "finish_reason": msg_row.finish_reason,
-                "span_id": msg_row.span_id,
-                "span_type": "chat",
-                "agent_name": msg_row.agent_name,  # Add agent name for display
-            })
         
         # Get child spans - return ALL spans in trace for better visibility
         # (Priority 2: Changed from direct children only to all descendants)

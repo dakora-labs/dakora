@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Message, ChildSpan } from '@/types';
 import type { ElementType } from 'react';
-import { Bot, MessageCircle, User, Copy, Check, FileText, Code, Wrench, Zap } from 'lucide-react';
+import { Bot, MessageCircle, User, Copy, Check, FileText, Code, Wrench, Zap, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -142,9 +142,101 @@ export function MessageTimeline({ messages, direction, title, childSpans }: Mess
 
       <div className="space-y-4">
         {messages.map((message, index) => {
+          const isCopied = copiedIndex === index;
+          
+          // Special rendering for error messages
+          const isError = (message as any)._isError;
+          if (isError) {
+            const errorDetails = (message as any)._errorDetails;
+            return (
+              <div key={`error-${index}`} className="flex gap-4 group">
+                {/* Avatar Column */}
+                <div className="flex flex-col items-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-red-100 border border-red-200 flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                  </div>
+                  {index < messages.length - 1 && (
+                    <div className="flex-1 w-px bg-border/40 my-2 min-h-[16px]" />
+                  )}
+                </div>
+
+                {/* Error Content */}
+                <div className="flex-1 min-w-0 bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="mb-3">
+                    <span className="text-xs font-semibold text-red-900">Execution Failed</span>
+                    <div className="text-xs text-red-700 bg-red-100 px-2 py-1 rounded w-fit mt-1">
+                      Status: ERROR
+                    </div>
+                  </div>
+                  
+                  {/* Exception Type */}
+                  <div className="mb-3 bg-white rounded border border-red-200 p-2.5">
+                    <div className="text-xs font-semibold text-red-700 mb-1">Exception Type</div>
+                    <code className="text-sm font-mono text-red-900">
+                      {(() => {
+                        const msg = errorDetails.statusMessage;
+                        const match = msg.match(/^(\w+)\(/);
+                        return match ? match[1] : 'UnknownError';
+                      })()}
+                    </code>
+                  </div>
+                  
+                  {/* Root Cause */}
+                  <div className="mb-3 bg-white rounded border border-red-200 p-2.5">
+                    <div className="text-xs font-semibold text-red-700 mb-1">Root Cause</div>
+                    <p className="text-sm text-red-900 font-mono break-words whitespace-pre-wrap">
+                      {(() => {
+                        let msg = errorDetails.statusMessage;
+                        const innerMatch = msg.match(/\w+\("(.*?)"\)(?:\))?$/);
+                        if (innerMatch) {
+                          msg = innerMatch[1];
+                        }
+                        return msg.replace(/<class '[^']+'>\\s*/g, '').trim();
+                      })()}
+                    </p>
+                  </div>
+                  
+                  {/* Affected Spans */}
+                  {errorDetails.affectedSpanIds && errorDetails.affectedSpanIds.length > 0 && (
+                    <div className="mb-3 bg-white rounded border border-red-200 p-2.5">
+                      <div className="text-xs font-semibold text-red-700 mb-1.5">Affected Spans</div>
+                      <div className="space-y-1">
+                        {errorDetails.affectedSpanIds.map((spanId: string) => (
+                          <div key={spanId} className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-600 flex-shrink-0" />
+                            <code className="text-xs font-mono text-red-900">{spanId}</code>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Copy Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCopy(errorDetails.statusMessage, index)}
+                    className="border-red-200 hover:bg-red-100 text-red-700"
+                  >
+                    {isCopied ? (
+                      <>
+                        <Check className="w-3 h-3 mr-1" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 mr-1" />
+                        Copy Error
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            );
+          }
+
           const roleInfo = roleStyles[message.role] ?? roleStyles.system;
           const Icon = roleInfo.icon;
-          const isCopied = copiedIndex === index;
 
           return (
             <div key={`${message.role}-${message.msg_index}-${index}`} className="flex gap-4 group">
@@ -183,6 +275,7 @@ export function MessageTimeline({ messages, direction, title, childSpans }: Mess
                     <Badge 
                       variant="outline" 
                       className="text-xs flex items-center gap-1 bg-orange-50 text-orange-700 border-orange-200"
+                      title={(() => { const tc = message.parts.find(p => p.type === 'tool_call') as any; return tc?.id ? `Tool call ID: ${tc.id}` : undefined; })()}
                     >
                       <Wrench className="w-2.5 h-2.5" />
                       {message.parts.find(p => p.type === 'tool_call')?.name || 'Tool'}
@@ -218,11 +311,7 @@ export function MessageTimeline({ messages, direction, title, childSpans }: Mess
                                 </div>
                               </div>
                             )}
-                            {part.id && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                ID: <code className="font-mono">{part.id}</code>
-                              </div>
-                            )}
+                            {/* Tool call ID hidden; available via tooltip on badge */}
                           </div>
                         ) : part.type === 'tool_call_response' ? (
                           // Tool Response rendering
@@ -239,11 +328,7 @@ export function MessageTimeline({ messages, direction, title, childSpans }: Mess
                                 </div>
                               </div>
                             )}
-                            {part.id && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                ID: <code className="font-mono">{part.id}</code>
-                              </div>
-                            )}
+                            {/* Tool call ID hidden; available via tooltip on badge */}
                           </div>
                         ) : part.content ? (
                           // Text content rendering

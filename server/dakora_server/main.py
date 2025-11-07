@@ -14,6 +14,7 @@ from .api import (
     api_keys,
     project_executions,
     execution_traces,
+    execution_timeline,
     project_optimizations,
     otlp_traces,
     feedback,
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(api_keys.router)
     app.include_router(project_executions.router)
     app.include_router(execution_traces.router)
+    app.include_router(execution_timeline.router)
     app.include_router(project_optimizations.router)
 
     # OTLP ingestion
