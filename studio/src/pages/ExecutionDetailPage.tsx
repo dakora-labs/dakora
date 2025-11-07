@@ -10,7 +10,6 @@ import { RelatedTracesPanel } from '@/components/executions/RelatedTracesPanel';
 import { useExecutionDetail, useRelatedTraces, useExecutionTimeline } from '@/hooks/useExecutions';
 import { formatNumber } from '@/utils/format';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { ExecutionDetailNew } from '@/types';
 import { timelineToMessages } from '@/utils/timelineAdapter';
 
 // New schema only
@@ -19,14 +18,12 @@ export function ExecutionDetailPage() {
   const navigate = useNavigate();
   const { projectSlug, traceId } = useParams<{ projectSlug?: string; traceId?: string }>();
   const { execution, loading, error, refresh } = useExecutionDetail(traceId);
-  const { timeline, loading: timelineLoading } = useExecutionTimeline(traceId);
+  const { timeline } = useExecutionTimeline(traceId);
   const { related } = useRelatedTraces(traceId);
   const [copied, setCopied] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
   const [rawOpen, setRawOpen] = useState(false);
   const resolvedProjectSlug = projectSlug ?? 'default';
-
-  const conversation: never[] = [];
   
   // Template usages (new schema)
   const templateUsages = execution ? (execution.template_usages ?? []) : [];
@@ -452,39 +449,7 @@ export function ExecutionDetailPage() {
                         </div>
                       )}
 
-                      {/* Metadata (old schema) removed */}
-                      {false && execution.metadata && Object.keys(execution.metadata).length > 0 && (
-                        <div className="pt-3 border-t border-border/60">
-                          <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
-                            Metadata
-                          </div>
-                          <div className="space-y-2">
-                            {Object.entries(execution.metadata).map(([key, value]) => {
-                              const isObject = typeof value === 'object' && value !== null;
-                              const displayValue = isObject 
-                                ? JSON.stringify(value, null, 2) 
-                                : String(value);
-                              
-                              return (
-                                <div key={key} className="p-2.5 bg-muted/30 rounded border border-border/40">
-                                  <div className="text-xs font-medium text-foreground mb-1">
-                                    {key}
-                                  </div>
-                                  {isObject ? (
-                                    <pre className="text-xs text-muted-foreground font-mono overflow-x-auto">
-                                      {displayValue}
-                                    </pre>
-                                  ) : (
-                                    <div className="text-xs text-muted-foreground break-all">
-                                      {displayValue}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                      {/* Metadata removed - not in new schema */}
                     </div>
                   </Card>
                 </div>
