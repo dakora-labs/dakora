@@ -82,8 +82,15 @@ class TestPromptVersioning:
             assert "_v1.yaml" in prompt[2]  # storage_path
 
             # Verify version history
+            # Need to get the prompt UUID first to query versions
+            prompt_uuid = conn.execute(
+                select(prompts_table.c.id)
+                .where(prompts_table.c.prompt_id == spec.id)
+            ).scalar()
+            
             version = conn.execute(
                 select(prompt_versions_table.c.version_number, prompt_versions_table.c.created_by)
+                .where(prompt_versions_table.c.prompt_id == prompt_uuid)
                 .where(prompt_versions_table.c.version_number == 1)
             ).fetchone()
 

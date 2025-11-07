@@ -71,8 +71,9 @@ export function ExecutionsTable({
     if (rows.length === 0) return null;
     
     const totalCost = rows.reduce((sum, exec) => sum + (exec.costUsd ?? 0), 0);
-    const totalTokensIn = rows.reduce((sum, exec) => sum + (exec.tokensIn ?? 0), 0);
-    const totalTokensOut = rows.reduce((sum, exec) => sum + (exec.tokensOut ?? 0), 0);
+    // Use aggregated tokens if available
+    const totalTokensIn = rows.reduce((sum, exec) => sum + (exec.totalTokensIn ?? exec.tokensIn ?? 0), 0);
+    const totalTokensOut = rows.reduce((sum, exec) => sum + (exec.totalTokensOut ?? exec.tokensOut ?? 0), 0);
     const avgLatency = rows.reduce((sum, exec) => sum + (exec.latencyMs ?? 0), 0) / rows.filter(e => e.latencyMs).length;
     const withTemplates = rows.filter(exec => exec.templateCount > 0).length;
     
@@ -153,22 +154,21 @@ export function ExecutionsTable({
       )}
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="w-full text-sm table-fixed">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border/60 bg-muted/20">
-              <th className="px-4 py-3 font-semibold">Time</th>
-              <th className="px-4 py-3 font-semibold">Model</th>
-              <th className="px-4 py-3 font-semibold">Agent / Session</th>
-              <th className="px-4 py-3 font-semibold text-right">Tokens</th>
-              <th className="px-4 py-3 font-semibold text-right">Performance</th>
-              <th className="px-4 py-3 font-semibold text-right">Cost</th>
-              <th className="px-4 py-3 font-semibold text-center">Templates</th>
+              <th className="px-4 py-3 font-semibold w-[140px]">Time</th>
+              <th className="px-4 py-3 font-semibold w-[180px]">Model</th>
+              <th className="px-4 py-3 font-semibold w-[160px]">Agent</th>
+              <th className="px-4 py-3 font-semibold text-right w-[140px]">Tokens</th>
+              <th className="px-4 py-3 font-semibold text-right w-[140px]">Performance</th>
+              <th className="px-4 py-3 font-semibold text-right w-[120px]">Cost</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && !loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <MessageSquare className="w-8 h-8 text-muted-foreground/40" />
                     <p>No executions found for the selected filters.</p>
@@ -178,16 +178,26 @@ export function ExecutionsTable({
               </tr>
             ) : (
               rows.map((execution) => {
-                const totalTokens = (execution.tokensIn ?? 0) + (execution.tokensOut ?? 0);
-                const tokensPerSecond = calculateTokensPerSecond(execution.tokensOut, execution.latencyMs);
+                // Use aggregated tokens if available (from new schema), otherwise fall back to direct tokens
+                const tokensIn = execution.totalTokensIn ?? execution.tokensIn ?? 0;
+                const tokensOut = execution.totalTokensOut ?? execution.tokensOut ?? 0;
+                const totalTokens = tokensIn + tokensOut;
+                const tokensPerSecond = calculateTokensPerSecond(tokensOut, execution.latencyMs);
                 const performanceBadge = getPerformanceBadge(execution.latencyMs);
                 const costBadge = getCostBadge(execution.costUsd);
-                const hasTemplates = execution.templateCount > 0;
+                
+                // Determine row styling based on error status
+                const rowClassName = cn(
+                  "border-t border-border/40 hover:bg-muted/50 cursor-pointer transition-all duration-150",
+                  {
+                    "border-l-4 border-l-red-500 bg-red-50/30": execution.hasErrors,
+                  }
+                );
                 
                 return (
                   <tr
                     key={execution.traceId}
-                    className="border-t border-border/40 hover:bg-muted/50 cursor-pointer transition-all duration-150"
+                    className={rowClassName}
                     onClick={() => onRowClick(execution.traceId)}
                   >
                     {/* Time Column */}
@@ -220,13 +230,33 @@ export function ExecutionsTable({
                         <code className="text-xs font-mono text-foreground/90 bg-muted/50 px-1.5 py-0.5 rounded">
                           {execution.model ?? 'unknown'}
                         </code>
+                        {/* Multi-model indicator */}
+                        {execution.uniqueModels && execution.uniqueModels.length > 1 && (
+                          <Badge 
+                            variant="outline" 
+                            className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200 w-fit"
+                            title={`Multiple models: ${execution.uniqueModels.join(', ')}`}
+                          >
+                            {execution.uniqueModels.length} models
+                          </Badge>
+                        )}
                       </div>
                     </td>
 
-                    {/* Agent / Session Column */}
+                    {/* Agent Column */}
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
-                        {execution.agentId ? (
+                        {/* Multi-agent indicator (show instead of single agent if multiple) */}
+                        {execution.uniqueAgents && execution.uniqueAgents.length > 1 ? (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs bg-purple-50 text-purple-700 border-purple-200 w-fit px-2 py-1"
+                            title={`Multiple agents: ${execution.uniqueAgents.join(', ')}`}
+                          >
+                            <Zap className="w-3 h-3 mr-1" />
+                            {execution.uniqueAgents.length} agents
+                          </Badge>
+                        ) : execution.agentId ? (
                           <div className="flex items-center gap-1.5">
                             <Zap className="w-3 h-3 text-purple-500" />
                             <code className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200 font-mono">
@@ -236,14 +266,6 @@ export function ExecutionsTable({
                         ) : (
                           <span className="text-xs text-muted-foreground italic">No agent</span>
                         )}
-                        {execution.sessionId && (
-                          <div className="flex items-center gap-1.5">
-                            <MessageSquare className="w-3 h-3 text-blue-500" />
-                            <code className="text-[10px] bg-muted/60 text-muted-foreground px-1.5 py-0.5 rounded font-mono truncate max-w-[120px]" title={execution.sessionId}>
-                              {execution.sessionId.substring(0, 12)}...
-                            </code>
-                          </div>
-                        )}
                       </div>
                     </td>
 
@@ -251,9 +273,9 @@ export function ExecutionsTable({
                     <td className="px-4 py-3 text-right">
                       <div className="flex flex-col gap-1 items-end">
                         <div className="flex items-center gap-2 text-sm font-mono">
-                          <span className="text-green-600 font-semibold">{formatNumber(execution.tokensIn)}</span>
+                          <span className="text-green-600 font-semibold">{formatNumber(tokensIn)}</span>
                           <span className="text-muted-foreground">→</span>
-                          <span className="text-blue-600 font-semibold">{formatNumber(execution.tokensOut)}</span>
+                          <span className="text-blue-600 font-semibold">{formatNumber(tokensOut)}</span>
                         </div>
                         <div className="text-[11px] text-muted-foreground">
                           Total: <span className="font-semibold">{formatNumber(totalTokens)}</span>
@@ -317,17 +339,6 @@ export function ExecutionsTable({
                           </span>
                         )}
                       </div>
-                    </td>
-
-                    {/* Templates Column */}
-                    <td className="px-4 py-3 text-center">
-                      {hasTemplates ? (
-                        <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-                          {execution.templateCount} {execution.templateCount === 1 ? 'template' : 'templates'}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
                     </td>
                   </tr>
                 );

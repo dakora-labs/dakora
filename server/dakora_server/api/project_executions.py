@@ -1,13 +1,11 @@
 """API endpoints for prompt execution and history"""
 
-from typing import Dict, Any
 from uuid import UUID, uuid4
-import json
 import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, insert, delete, desc, func, update
+from sqlalchemy import select, insert, delete, desc, func
 from sqlalchemy.engine import Engine
 
 from dakora_server.auth import get_auth_context, validate_project_access, get_project_vault
@@ -15,8 +13,6 @@ from dakora_server.core.database import (
     get_engine,
     get_connection,
     prompt_executions_table,
-    traces_table,
-    template_traces_table,
 )
 from dakora_server.core.llm.registry import ProviderRegistry
 from dakora_server.core.llm.quota import QuotaService
@@ -154,74 +150,8 @@ async def execute_prompt(
             else datetime.utcnow().isoformat()
         )
 
-        if execution_status == "success" and execution_result and trace_value:
-            try:
-                user_id = getattr(auth_context, "user_id", None)
-                session_id = f"manual:{str(uuid4())}"
-
-                inputs_json_str = json.dumps(request.inputs or {}, default=str)
-
-                conn.execute(
-                    insert(traces_table).values(
-                        project_id=project_id,
-                        trace_id=trace_value,
-                        session_id=session_id,
-                        source="dakora-studio",
-                        agent_id=None,
-                        conversation_history=[
-                            {"role": "user", "content": rendered_prompt},
-                            {"role": "assistant", "content": execution_result.content},
-                        ],
-                        metadata={
-                            "prompt_id": prompt_id,
-                            "version": template_spec.version,
-                            "execution_id": execution_id,
-                            "user_id": user_id,
-                        },
-                        provider=execution_result.provider,
-                        model=execution_result.model,
-                        tokens_in=execution_result.tokens_input,
-                        tokens_out=execution_result.tokens_output,
-                        latency_ms=execution_result.latency_ms,
-                        cost_usd=float(execution_result.cost_usd)
-                        if execution_result.cost_usd is not None
-                        else None,
-                        created_at=created_at_dt,
-                        prompt_id=prompt_id,
-                        version=template_spec.version,
-                        inputs_json=inputs_json_str,
-                        output_text=execution_result.content,
-                        cost=float(execution_result.cost_usd)
-                        if execution_result.cost_usd is not None
-                        else None,
-                    )
-                )
-
-                conn.execute(
-                    insert(template_traces_table).values(
-                        trace_id=trace_value,
-                        prompt_id=prompt_id,
-                        source="dakora-studio",
-                        version=template_spec.version,
-                        inputs_json=request.inputs,
-                        position=0,
-                    )
-                )
-
-                trace_id = trace_value
-            except Exception as trace_error:  # pragma: no cover
-                logger.warning(
-                    "Failed to log manual execution trace for prompt %s: %s",
-                    prompt_id,
-                    trace_error,
-                    exc_info=True,
-                )
-                trace_id = None
-                conn.execute(
-                    update(prompt_executions_table)
-                    .where(prompt_executions_table.c.id == UUID(execution_id))
-                    .values(trace_id=None)
-                )
+        # Note: Manual execution trace logging has been removed.
+        # Traces should be created through the OTLP ingestion pipeline instead.
 
         # Cleanup: keep only 20 most recent executions per prompt
         # Count total executions for this prompt

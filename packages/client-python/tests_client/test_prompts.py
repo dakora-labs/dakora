@@ -40,14 +40,16 @@ class TestPromptsAPI:
         assert templates == []
 
     async def test_render_prompt(self, client, mock_api):
-        """Test rendering a prompt template"""
+        """Test rendering a prompt template with default embedded metadata"""
         mock_api.post("https://api.dakora.io/api/projects/test-project-123/prompts/greeting/render").mock(
             return_value=Response(200, json={"rendered": "Hello Alice!"})
         )
 
         result = await client.prompts.render("greeting", {"name": "Alice"})
 
-        assert result.text == "Hello Alice!"
+        # Metadata is embedded by default
+        assert "<!--dakora:prompt_id=greeting,version=latest-->" in result.text
+        assert "Hello Alice!" in result.text
         assert result.prompt_id == "greeting"
 
     async def test_render_prompt_with_multiple_inputs(self, client, mock_api):

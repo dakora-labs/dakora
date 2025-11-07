@@ -20,6 +20,12 @@ class PromptsAPI:
     async def list(self) -> list[str]:
         """List all prompt template IDs.
 
+        Notes:
+            The server now returns a list of template objects with rich metadata.
+            For backward compatibility, this method extracts and returns only the
+            template IDs. If you need full template objects, call `get()` per ID
+            or query the server API directly.
+
         Returns:
             List of prompt IDs
 
@@ -35,36 +41,59 @@ class PromptsAPI:
         logger.debug(f"GET {url} -> {response.status_code}")
 
         response.raise_for_status()
-        templates = response.json()
+        data = response.json()
+        # Server may return either a list of strings (legacy) or a list of
+        # objects with an `id` field (current). Normalize to list[str].
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            templates = [item.get("id", "") for item in data if isinstance(item, dict)]
+        else:
+            templates = data
         logger.info(f"Listed {len(templates)} prompts")
         return templates
 
-    async def render(self, template_id: str, inputs: dict[str, Any], version: str | None = None) -> RenderResult:
+    async def render(
+        self,
+        template_id: str,
+        inputs: dict[str, Any],
+        version: str | None = None,
+        embed_metadata: bool = True,
+        resolve_includes_only: bool = False,
+    ) -> RenderResult:
         """Render a prompt template with inputs and return execution context.
+
+        Template tracking is enabled by default via embedded metadata markers.
+        This allows linking executions to templates across any agent framework.
 
         Args:
             template_id: ID of the template to render
             inputs: Variables to substitute in the template
             version: Specific version to render (optional, defaults to latest)
+            embed_metadata: Embed tracking metadata in rendered text (default: True).
+                Set to False to disable tracking and reduce token overhead.
 
         Returns:
             RenderResult with rendered text and metadata for template tracking
 
         Example:
+            # Default: tracking enabled
             result = await client.prompts.render(
                 "greeting",
                 {"name": "Alice", "role": "Developer"}
             )
-            print(result.text)  # Rendered prompt
-            print(result.prompt_id)  # "greeting"
-            print(result.version)  # "1.0.0"
+            # Text includes: <!--dakora:prompt_id=greeting,version=1.0.0-->
+
+            # Opt-out of tracking
+            result = await client.prompts.render(
+                "greeting",
+                {"name": "Alice"},
+                embed_metadata=False
+            )
+            # Text has no tracking metadata
         """
         project_id = await self._client._get_project_id() # type: ignore
         url = f"/api/projects/{project_id}/prompts/{template_id}/render"
 
-        payload: dict[str, Any] = {"inputs": inputs}
-        if version:
-            payload["version"] = version
+        payload: dict[str, Any] = {"inputs": inputs, "resolve_includes_only": resolve_includes_only}
 
         logger.debug(f"POST {url} with {len(inputs)} inputs")
         response = await self._client.post(url, json=payload)
@@ -72,15 +101,26 @@ class PromptsAPI:
 
         response.raise_for_status()
         data = response.json()
-        
+
+        rendered_text = data["rendered"]
+        # Render endpoint no longer returns version; default to provided
+        # version or "latest" for marker embedding
+        template_version = version or "latest"
+
+        # Optionally embed metadata in text for tracking
+        if embed_metadata:
+            metadata_marker = f"<!--dakora:prompt_id={template_id},version={template_version}-->\n"
+            rendered_text = metadata_marker + rendered_text
+            logger.debug(f"Embedded tracking metadata for '{template_id}' v{template_version}")
+
         result = RenderResult(
-            text=data["rendered"],
+            text=rendered_text,
             prompt_id=template_id,
-            version=data.get("version", version or "latest"),
+            version=template_version,
             inputs=inputs,
             metadata={},
         )
-        
+
         logger.info(f"Rendered prompt '{template_id}' v{result.version} ({len(result.text)} chars)")
         return result
 

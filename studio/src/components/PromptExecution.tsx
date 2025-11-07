@@ -1,6 +1,5 @@
-import { useState, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload, BarChart3, Code, FileText, Check } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ChevronDown, Play, Loader2, Copy, Clock, Coins, Zap, CheckCircle2, XCircle, AlertCircle, ArrowRight, Download, Upload, Code, FileText, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -22,9 +21,7 @@ interface PromptExecutionProps {
   versionNumber?: number | null;
 }
 
-export function PromptExecution({ projectId, promptId, inputs, projectSlug, versionNumber }: PromptExecutionProps) {
-  const navigate = useNavigate();
-  const resolvedProjectSlug = projectSlug ?? 'default';
+export function PromptExecution({ projectId, promptId, inputs, versionNumber }: PromptExecutionProps) {
   const { trackExecutionCompleted } = useFeedbackContext();
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
@@ -224,11 +221,6 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug, vers
       console.error('Execution failed:', err);
       setIsExpanded(true);
     }
-  };
-
-  const handleViewTrace = (event: ReactMouseEvent<HTMLButtonElement>, traceId: string) => {
-    event.stopPropagation();
-    navigate(`/project/${resolvedProjectSlug}/executions/${traceId}`);
   };
 
   const formatCost = (cost?: number | null) => {
@@ -596,17 +588,6 @@ export function PromptExecution({ projectId, promptId, inputs, projectSlug, vers
                       <span className="text-xs text-muted-foreground">
                         {formatCost(exec.metrics.cost_usd)}
                       </span>
-                    )}
-                    {exec.trace_id && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-auto h-6 gap-1 text-xs"
-                        onClick={(event) => handleViewTrace(event, exec.trace_id!)}
-                      >
-                        <BarChart3 className="w-3 h-3" />
-                        View trace
-                      </Button>
                     )}
                   </div>
                 ))}

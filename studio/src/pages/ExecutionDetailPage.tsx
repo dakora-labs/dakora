@@ -6,11 +6,17 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ProviderBadge } from '@/components/executions/ProviderBadge';
 import { ConversationTimeline } from '@/components/executions/ConversationTimeline';
-import { TemplateUsageList } from '@/components/executions/TemplateUsageList';
+import { MessageTimeline } from '@/components/executions/MessageTimeline';
 import { RelatedTracesPanel } from '@/components/executions/RelatedTracesPanel';
 import { useExecutionDetail, useRelatedTraces } from '@/hooks/useExecutions';
 import { formatNumber } from '@/utils/format';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { ExecutionDetailNew } from '@/types';
+
+// Type guard to check if execution is using new schema
+function isNewSchema(execution: any): execution is ExecutionDetailNew {
+  return execution && ('input_messages' in execution || 'output_messages' in execution);
+}
 
 export function ExecutionDetailPage() {
   const navigate = useNavigate();
@@ -22,33 +28,77 @@ export function ExecutionDetailPage() {
   const [rawOpen, setRawOpen] = useState(false);
   const resolvedProjectSlug = projectSlug ?? 'default';
 
-  const conversation = execution?.conversationHistory ?? [];
-  const templateUsages = execution?.templateUsages ?? [];
+  const conversation = execution && !isNewSchema(execution) ? (execution.conversationHistory ?? []) : [];
+  
+  // Template usages - support both schemas
+  const templateUsages = execution 
+    ? (isNewSchema(execution) 
+        ? (execution.template_usages ?? [])
+        : (execution.templateUsages ?? []))
+    : [];
+
+  // New schema data
+  const inputMessages = execution && isNewSchema(execution) ? execution.input_messages : [];
+  const outputMessages = execution && isNewSchema(execution) ? execution.output_messages : [];
+  const childSpans = execution && isNewSchema(execution) ? execution.child_spans : [];
+  
+  // Combine input and output messages for unified conversation view
+  const allMessages = execution && isNewSchema(execution) 
+    ? [...inputMessages, ...outputMessages].sort((a, b) => {
+        // Sort by message index to show correct order
+        return a.msg_index - b.msg_index;
+      })
+    : [];
 
   const handleNavigateToTrace = (navigateTraceId: string) => {
     navigate(`/project/${resolvedProjectSlug}/executions/${navigateTraceId}`);
   };
 
-  // Calculate additional metrics
+  // Calculate additional metrics - handle both schemas
   const derivedMetrics = useMemo(() => {
     if (!execution) return null;
     
-    const totalTokens = (execution.tokens.in ?? 0) + (execution.tokens.out ?? 0);
-    const tokensPerSecond = execution.tokens.out && execution.latencyMs 
-      ? (execution.tokens.out / execution.latencyMs) * 1000 
+    // Get tokens based on schema type
+    const tokensIn = isNewSchema(execution) 
+      ? (execution.tokens_in ?? 0)
+      : (execution.tokens?.in ?? 0);
+    const tokensOut = isNewSchema(execution)
+      ? (execution.tokens_out ?? 0)
+      : (execution.tokens?.out ?? 0);
+    const totalTokens = tokensIn + tokensOut;
+    
+    // Get latency and cost based on schema type
+    const latency = isNewSchema(execution) 
+      ? execution.latency_ms
+      : execution.latencyMs;
+    const cost = isNewSchema(execution)
+      ? execution.total_cost_usd
+      : execution.costUsd;
+    
+    const tokensPerSecond = tokensOut && latency 
+      ? (tokensOut / latency) * 1000 
       : null;
-    const costPerToken = execution.costUsd && totalTokens > 0
-      ? execution.costUsd / totalTokens
+    const costPerToken = cost && totalTokens > 0
+      ? cost / totalTokens
       : null;
     const hasMultipleAgents = related?.session_agents && related.session_agents.length > 1;
     
+    // Check if nested based on schema type
+    const isNested = isNewSchema(execution)
+      ? false // New schema doesn't have parentTraceId at execution level
+      : !!(execution.parentTraceId);
+    
     return {
       totalTokens,
+      tokensIn,
+      tokensOut,
       tokensPerSecond,
       costPerToken,
       costPer1KTokens: costPerToken ? costPerToken * 1000 : null,
       hasMultipleAgents,
-      isNested: !!execution.parentTraceId,
+      isNested,
+      latency,
+      cost,
     };
   }, [execution, related]);
 
@@ -108,7 +158,11 @@ export function ExecutionDetailPage() {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => execution && handleCopy(execution.traceId, 'Trace ID')}
+            onClick={() => {
+              if (!execution) return;
+              const id = isNewSchema(execution) ? execution.trace_id : execution.traceId;
+              handleCopy(id, 'Trace ID');
+            }}
             disabled={!execution}
           >
             {copied ? <Check className="w-4 h-4 mr-2 text-emerald-500" /> : <Copy className="w-4 h-4 mr-2" />}
@@ -153,8 +207,8 @@ export function ExecutionDetailPage() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-green-700">↓ {formatNumber(execution.tokens.in)}</span>
-                    <span className="text-blue-700">↑ {formatNumber(execution.tokens.out)}</span>
+                    <span className="text-green-700">↓ {formatNumber(derivedMetrics?.tokensIn ?? 0)}</span>
+                    <span className="text-blue-700">↑ {formatNumber(derivedMetrics?.tokensOut ?? 0)}</span>
                   </div>
                   {derivedMetrics?.tokensPerSecond && (
                     <div className="mt-2 pt-2 border-t border-blue-300">
@@ -173,7 +227,7 @@ export function ExecutionDetailPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-green-900">
-                        ${execution.costUsd?.toFixed(4) ?? '0.0000'}
+                        ${derivedMetrics?.cost?.toFixed(4) ?? '0.0000'}
                       </div>
                       <div className="text-xs text-green-700 uppercase tracking-wide">Cost (USD)</div>
                     </div>
@@ -195,15 +249,15 @@ export function ExecutionDetailPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-purple-900">
-                        {execution.latencyMs ? `${execution.latencyMs.toLocaleString()}` : '—'}
+                        {derivedMetrics?.latency ? `${derivedMetrics.latency.toLocaleString()}` : '—'}
                       </div>
                       <div className="text-xs text-purple-700 uppercase tracking-wide">Latency (ms)</div>
                     </div>
                   </div>
-                  {execution.latencyMs && (
+                  {derivedMetrics?.latency && (
                     <div className="mt-2 pt-2 border-t border-purple-300">
                       <div className="text-xs text-purple-700">
-                        <span className="font-semibold">{(execution.latencyMs / 1000).toFixed(2)}</span> seconds
+                        <span className="font-semibold">{(derivedMetrics.latency / 1000).toFixed(2)}</span> seconds
                       </div>
                     </div>
                   )}
@@ -217,7 +271,7 @@ export function ExecutionDetailPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-orange-900">
-                        {conversation.length}
+                        {isNewSchema(execution) ? allMessages.length : conversation.length}
                       </div>
                       <div className="text-xs text-orange-700 uppercase tracking-wide">Messages</div>
                     </div>
@@ -236,15 +290,22 @@ export function ExecutionDetailPage() {
 
               {/* Main Content Grid */}
               <div className="grid gap-5 lg:grid-cols-[1fr,400px]">
-                {/* Left Column - Templates & Conversation */}
+                {/* Left Column - Conversation */}
                 <div className="space-y-5 min-w-0">
-                  {/* Templates First - Most Important */}
-                  {templateUsages.length > 0 && (
-                    <TemplateUsageList templateUsages={templateUsages} />
+                  {/* Conversation - OLD SCHEMA */}
+                  {!isNewSchema(execution) && conversation.length > 0 && (
+                    <ConversationTimeline messages={conversation} />
                   )}
-                  
-                  {/* Conversation */}
-                  <ConversationTimeline messages={conversation} />
+
+                  {/* NEW SCHEMA - Unified Conversation */}
+                  {isNewSchema(execution) && allMessages.length > 0 && (
+                    <MessageTimeline 
+                      messages={allMessages} 
+                      direction="input" 
+                      title="Conversation"
+                      childSpans={childSpans}
+                    />
+                  )}
                 </div>
 
                 {/* Right Column - Context & Related */}
@@ -253,7 +314,7 @@ export function ExecutionDetailPage() {
                   {related && (
                     <RelatedTracesPanel
                       related={related}
-                      currentTraceId={execution.traceId}
+                      currentTraceId={isNewSchema(execution) ? execution.trace_id : execution.traceId}
                       onNavigate={handleNavigateToTrace}
                     />
                   )}
@@ -266,6 +327,40 @@ export function ExecutionDetailPage() {
                     </h3>
                     
                     <div className="space-y-3">
+                      {/* Templates Used */}
+                      {templateUsages.length > 0 && (
+                        <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                          <div className="text-xs text-indigo-700 mb-2 font-semibold">
+                            {templateUsages.length === 1 ? 'Template Used' : 'Templates Used'}
+                          </div>
+                          <div className="space-y-2">
+                            {templateUsages.map((usage, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => navigate(`/project/${resolvedProjectSlug}/prompt/edit?prompt=${usage.prompt_id}`)}
+                                className="w-full text-left p-2 bg-white rounded border border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors group"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-mono font-semibold text-indigo-900 truncate group-hover:text-indigo-700">
+                                      {usage.prompt_id}
+                                    </div>
+                                    <div className="text-xs text-indigo-600 mt-0.5">
+                                      v{usage.version}
+                                    </div>
+                                  </div>
+                                  <div className="ml-2 text-indigo-400 group-hover:text-indigo-600">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Model Info */}
                       <div className="p-3 bg-muted/40 rounded-lg border border-border/60">
                         <div className="text-xs text-muted-foreground mb-1">Model</div>
@@ -274,28 +369,31 @@ export function ExecutionDetailPage() {
                         </code>
                       </div>
 
-                      {/* Agent ID */}
-                      {execution.agentId && (
+                      {/* Agent ID - Handle both schemas */}
+                      {((isNewSchema(execution) && execution.agent_name) || (!isNewSchema(execution) && execution.agentId)) && (
                         <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
                           <div className="text-xs text-purple-700 mb-1 flex items-center justify-between">
-                            <span>Agent ID</span>
+                            <span>Agent {isNewSchema(execution) ? 'Name' : 'ID'}</span>
                             <Button 
                               variant="ghost" 
                               size="icon" 
                               className="h-5 w-5"
-                              onClick={() => handleCopy(execution.agentId!, 'Agent ID')}
+                              onClick={() => {
+                                const agentValue = isNewSchema(execution) ? execution.agent_name : execution.agentId;
+                                if (agentValue) handleCopy(agentValue, 'Agent');
+                              }}
                             >
                               <Copy className="w-3 h-3" />
                             </Button>
                           </div>
                           <code className="text-sm font-mono font-semibold text-purple-900 break-all">
-                            {execution.agentId}
+                            {isNewSchema(execution) ? execution.agent_name : execution.agentId}
                           </code>
                         </div>
                       )}
 
-                      {/* Session ID */}
-                      {execution.sessionId && (
+                      {/* Session ID - Old schema only */}
+                      {!isNewSchema(execution) && execution.sessionId && (
                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                           <div className="text-xs text-blue-700 mb-1 flex items-center justify-between">
                             <span>Session ID</span>
@@ -314,8 +412,8 @@ export function ExecutionDetailPage() {
                         </div>
                       )}
 
-                      {/* Parent Trace */}
-                      {execution.parentTraceId && (
+                      {/* Parent Trace - Old schema only */}
+                      {!isNewSchema(execution) && execution.parentTraceId && (
                         <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
                           <div className="text-xs text-orange-700 mb-1">Parent Trace</div>
                           <button
@@ -331,7 +429,10 @@ export function ExecutionDetailPage() {
                       <div className="p-3 bg-muted/40 rounded-lg border border-border/60">
                         <div className="text-xs text-muted-foreground mb-1">Created</div>
                         <div className="text-sm font-semibold text-foreground">
-                          {execution.createdAt ? new Date(execution.createdAt).toLocaleString() : '—'}
+                          {isNewSchema(execution) 
+                            ? new Date(execution.created_at).toLocaleString()
+                            : execution.createdAt ? new Date(execution.createdAt).toLocaleString() : '—'
+                          }
                         </div>
                       </div>
 
@@ -343,18 +444,41 @@ export function ExecutionDetailPage() {
                             variant="ghost" 
                             size="icon" 
                             className="h-5 w-5"
-                            onClick={() => handleCopy(execution.traceId, 'Trace ID')}
+                            onClick={() => {
+                              const id = isNewSchema(execution) ? execution.trace_id : execution.traceId;
+                              handleCopy(id, 'Trace ID');
+                            }}
                           >
                             <Copy className="w-3 h-3" />
                           </Button>
                         </div>
                         <code className="text-xs font-mono text-muted-foreground break-all">
-                          {execution.traceId}
+                          {isNewSchema(execution) ? execution.trace_id : execution.traceId}
                         </code>
                       </div>
 
-                      {/* Metadata - Smart Display */}
-                      {execution.metadata && Object.keys(execution.metadata).length > 0 && (
+                      {/* Span ID - New schema only */}
+                      {isNewSchema(execution) && (
+                        <div className="p-3 bg-muted/40 rounded-lg border border-border/60">
+                          <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
+                            <span>Span ID</span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-5 w-5"
+                              onClick={() => handleCopy(execution.span_id, 'Span ID')}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <code className="text-xs font-mono text-muted-foreground break-all">
+                            {execution.span_id}
+                          </code>
+                        </div>
+                      )}
+
+                      {/* Metadata - Old schema */}
+                      {!isNewSchema(execution) && execution.metadata && Object.keys(execution.metadata).length > 0 && (
                         <div className="pt-3 border-t border-border/60">
                           <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
                             Metadata

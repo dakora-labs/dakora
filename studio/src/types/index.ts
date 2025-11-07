@@ -166,7 +166,6 @@ export interface ExecutionHistoryResponse {
 }
 
 export interface ExecutionListFilters {
-  session_id?: string | null;
   agent_id?: string | null;
   provider?: string | null;
   model?: string | null;
@@ -183,17 +182,28 @@ export interface ExecutionListFilters {
 
 export interface ExecutionListItem {
   traceId: string;
+  spanId?: string; // NEW - optional for backward compatibility
   createdAt: string | null;
   provider: string | null;
   model: string | null;
   tokensIn: number | null;
   tokensOut: number | null;
+  totalTokensIn?: number | null; // NEW - aggregated tokens from all spans
+  totalTokensOut?: number | null; // NEW - aggregated tokens from all spans
   latencyMs: number | null;
   costUsd: number | null;
   sessionId?: string | null;
   agentId?: string | null;
   parentTraceId?: string | null;
   templateCount: number;
+  // Priority 1 UI improvements
+  spanCount?: number;
+  spanTypeBreakdown?: Record<string, number>; // e.g., { agent: 1, chat: 2, tool: 1 }
+  hasErrors?: boolean;
+  errorMessage?: string | null;
+  // Multi-agent/model detection
+  uniqueAgents?: string[] | null;  // List of unique agent names in this execution
+  uniqueModels?: string[] | null;  // List of unique models used in this execution
 }
 
 export interface ExecutionListResponse {
@@ -212,12 +222,15 @@ export interface ConversationMessage {
 }
 
 export interface TemplateUsageEntry {
-  traceId: string;
-  promptId: string;
+  trace_id?: string;
+  prompt_id: string;  // API returns snake_case
   version: string;
   inputs: Record<string, unknown> | null;
   position: number;
-  renderedPrompt?: string;
+  role?: string;
+  source?: string;
+  message_index?: number;
+  rendered_prompt?: string;
 }
 
 export interface ExecutionDetail {
@@ -238,6 +251,86 @@ export interface ExecutionDetail {
   agentId?: string | null;
   parentTraceId?: string | null;
   templateUsages: TemplateUsageEntry[];
+}
+
+// New schema types for migrated database
+export interface MessagePart {
+  type: string;
+  content?: string;
+  // Tool call fields
+  id?: string;
+  name?: string;
+  arguments?: string;
+  // Tool response fields
+  response?: string;
+}
+
+export interface Message {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  parts: MessagePart[];
+  msg_index: number;
+  finish_reason?: string | null;
+  span_id?: string | null; // Priority 2: Track which span generated this message
+  span_type?: string | null; // Priority 2: Type of span (chat, agent, tool)
+  agent_name?: string | null; // Agent name for multi-agent workflows
+}
+
+export interface ChildSpan {
+  span_id: string;
+  type: string;
+  agent_name?: string | null;
+  latency_ms: number | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  start_time: string;
+  status: string | null;
+}
+
+export interface TemplateInfo {
+  prompt_id: string;
+  version: string;
+  inputs: Record<string, unknown>;
+}
+
+export interface ExecutionDetailNew {
+  trace_id: string;
+  span_id: string;
+  type: string;
+  agent_name?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  start_time: string;
+  end_time: string;
+  latency_ms: number | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  total_cost_usd?: number | null;
+  status: string | null;
+  status_message?: string | null;
+  attributes: Record<string, unknown> | null;
+  input_messages: Message[];
+  output_messages: Message[];
+  child_spans: ChildSpan[];
+  template_usages?: TemplateUsageEntry[];  // Added to support template linkage
+  template_info?: TemplateInfo | null;
+  created_at: string;
+}
+
+export interface SpanTreeNode {
+  span_id: string;
+  parent_span_id?: string | null;
+  type: string;
+  agent_name?: string | null;
+  latency_ms: number | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  depth: number;
+  start_time: string;
+  path: string[];
+}
+
+export interface TraceHierarchy {
+  spans: SpanTreeNode[];
 }
 
 export interface RelatedTraceInfo {
