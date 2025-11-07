@@ -46,14 +46,6 @@ export function MessageTimeline({ messages, direction, title, childSpans }: Mess
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showRaw, setShowRaw] = useState<Record<string, boolean>>({});
 
-  // Priority 2: Create span lookup map for quick access
-  const spanMap = useMemo(() => {
-    if (!childSpans) return new Map();
-    const map = new Map<string, ChildSpan>();
-    childSpans.forEach(span => map.set(span.span_id, span));
-    return map;
-  }, [childSpans]);
-
   // Priority 2: Count spans by type for labeling (e.g., "Chat #1", "Chat #2")
   const spanTypeCounters = useMemo(() => {
     const counters = new Map<string, Map<string, number>>(); // type -> span_id -> index

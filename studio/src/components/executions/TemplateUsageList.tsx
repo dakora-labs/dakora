@@ -60,7 +60,7 @@ export function TemplateUsageList({ templateUsages }: TemplateUsageListProps) {
 
             return (
               <div
-                key={`${usage.promptId}-${usage.version}-${usage.position}`}
+                key={`${usage.prompt_id}-${usage.version}-${usage.position}`}
                 className="border border-indigo-200 bg-white rounded-lg p-4 hover:shadow-md transition-shadow"
               >
                 {/* Header */}
@@ -71,11 +71,11 @@ export function TemplateUsageList({ templateUsages }: TemplateUsageListProps) {
                         #{usage.position + 1}
                       </Badge>
                       <button
-                        onClick={() => handleOpenTemplate(usage.promptId)}
+                        onClick={() => handleOpenTemplate(usage.prompt_id)}
                         className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:underline inline-flex items-center gap-1.5 group"
                       >
                         <FileCode className="w-4 h-4" />
-                        {usage.promptId}
+                        {usage.prompt_id}
                         <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </button>
                       <Badge variant="secondary" className="text-xs font-mono">
@@ -108,7 +108,7 @@ export function TemplateUsageList({ templateUsages }: TemplateUsageListProps) {
                 )}
 
                 {/* Rendered Prompt Toggle */}
-                {usage.renderedPrompt && (
+                {usage.rendered_prompt && (
                   <div>
                     <Button
                       variant="ghost"
@@ -132,7 +132,7 @@ export function TemplateUsageList({ templateUsages }: TemplateUsageListProps) {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 bg-white/90 hover:bg-white"
-                            onClick={() => handleCopy(usage.renderedPrompt!, index)}
+                            onClick={() => handleCopy(usage.rendered_prompt!, index)}
                           >
                             {isCopied ? (
                               <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -142,7 +142,7 @@ export function TemplateUsageList({ templateUsages }: TemplateUsageListProps) {
                           </Button>
                         </div>
                         <pre className="rounded-md bg-slate-950 border border-slate-800 p-4 text-xs text-slate-200 overflow-x-auto font-mono leading-relaxed max-h-96 overflow-y-auto">
-                          {usage.renderedPrompt}
+                          {usage.rendered_prompt}
                         </pre>
                       </div>
                     )}
