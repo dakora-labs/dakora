@@ -80,14 +80,9 @@ class Dakora:
             timeout=30.0,
         )
 
-        # Fetch project_id synchronously during initialization if API key is present
-        if project_id:
-            self._project_id = project_id
-        elif api_key_value:
-            self._project_id = self._fetch_project_id_sync()
-            logger.info(f"Project ID fetched during init: {self._project_id}")
-        else:
-            self._project_id = None
+        # Do not eagerly fetch project_id in __init__ to keep lazy semantics.
+        # The project_id will be fetched on first API call via _get_project_id().
+        self._project_id = project_id
 
         # Import here to avoid circular dependency
         from .prompts import PromptsAPI

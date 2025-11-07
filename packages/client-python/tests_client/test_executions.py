@@ -1,4 +1,4 @@
-"""Tests for Dakora traces API client"""
+"""Tests for Dakora executions API client"""
 
 import pytest
 import respx
@@ -8,10 +8,10 @@ from dakora_client import Dakora
 pytestmark = pytest.mark.asyncio
 
 
-class TestTracesAPI:
-    """Test traces API client methods"""
+class TestExecutionsAPI:
+    """Test executions API client methods"""
 
-    async def test_list_traces_returns_list(self):
+    async def test_list_executions_returns_list(self):
         """Test that list() returns a list of executions, not the full response object"""
         with respx.mock:
             client = Dakora(
@@ -37,7 +37,7 @@ class TestTracesAPI:
             ).mock(return_value=Response(200, json=mock_response))
 
             # Call the list method
-            traces = await client.traces.list(project_id="test-project")
+            traces = await client.executions.list(project_id="test-project")
 
             # Verify we get a list, not a dict
             assert isinstance(traces, list)
@@ -53,7 +53,7 @@ class TestTracesAPI:
 
             await client.close()
 
-    async def test_list_traces_with_metadata(self):
+    async def test_list_executions_with_metadata(self):
         """Test that list() with include_metadata=True returns full response"""
         with respx.mock:
             client = Dakora(
@@ -78,7 +78,7 @@ class TestTracesAPI:
             ).mock(return_value=Response(200, json=mock_response))
 
             # Call the list method with include_metadata=True
-            result = await client.traces.list(
+            result = await client.executions.list(
                 project_id="test-project",
                 limit=2,
                 include_metadata=True,
@@ -99,7 +99,7 @@ class TestTracesAPI:
 
             await client.close()
 
-    async def test_list_traces_with_filters(self):
+    async def test_list_executions_with_filters(self):
         """Test that list() properly passes filter parameters"""
         with respx.mock:
             client = Dakora(
@@ -118,14 +118,16 @@ class TestTracesAPI:
             }
 
             respx.get(
-                "https://test.dakora.io/api/projects/test-project/executions"
+                "https://test.dakora.io/api/projects/test-project/executions?limit=100&offset=0&agent_id=agent-1&prompt_id=greeting&provider=openai&model=gpt-4"
             ).mock(return_value=Response(200, json=mock_response))
 
             # Call with filters
-            traces = await client.traces.list(
+            traces = await client.executions.list(
                 project_id="test-project",
-                session_id="session-1",
                 agent_id="agent-1",
+                provider="openai",
+                model="gpt-4",
+                prompt_id="greeting",
             )
 
             # Verify we get the filtered list
@@ -136,7 +138,7 @@ class TestTracesAPI:
 
             await client.close()
 
-    async def test_list_traces_pagination(self):
+    async def test_list_executions_pagination(self):
         """Test that list() handles pagination correctly"""
         with respx.mock:
             client = Dakora(
@@ -176,7 +178,7 @@ class TestTracesAPI:
             ).mock(return_value=Response(200, json=page2_response))
 
             # Get page 1
-            page1 = await client.traces.list(
+            page1 = await client.executions.list(
                 project_id="test-project",
                 limit=2,
                 offset=0,
@@ -189,7 +191,7 @@ class TestTracesAPI:
             assert page1["offset"] == 0
 
             # Get page 2
-            page2 = await client.traces.list(
+            page2 = await client.executions.list(
                 project_id="test-project",
                 limit=2,
                 offset=2,
@@ -203,7 +205,7 @@ class TestTracesAPI:
 
             await client.close()
 
-    async def test_list_traces_empty_result(self):
+    async def test_list_executions_empty_result(self):
         """Test that list() handles empty results correctly"""
         with respx.mock:
             client = Dakora(
@@ -223,7 +225,7 @@ class TestTracesAPI:
                 "https://test.dakora.io/api/projects/test-project/executions?limit=100&offset=0"
             ).mock(return_value=Response(200, json=mock_response))
 
-            traces = await client.traces.list(project_id="test-project")
+            traces = await client.executions.list(project_id="test-project")
 
             # Should return empty list, not error
             assert isinstance(traces, list)

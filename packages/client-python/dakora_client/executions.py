@@ -36,9 +36,10 @@ class ExecutionsAPI:
     async def list(
         self,
         project_id: str,
-        session_id: str | None = None,
         prompt_id: str | None = None,
         agent_id: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
         limit: int = 100,
         offset: int = 0,
         include_metadata: bool = False,
@@ -48,9 +49,10 @@ class ExecutionsAPI:
 
         Args:
             project_id: Dakora project ID
-            session_id: Filter by session ID (optional)
             prompt_id: Filter by template ID (optional)
             agent_id: Filter by agent ID (optional)
+            provider: Filter by provider (optional)
+            model: Filter by model (optional)
             limit: Maximum number of results (default: 100)
             offset: Pagination offset (default: 0)
             include_metadata: If True, return dict with executions, total, limit, offset.
@@ -80,12 +82,14 @@ class ExecutionsAPI:
         url = f"/api/projects/{project_id}/executions"
 
         params: dict[str, Any] = {"limit": limit, "offset": offset}
-        if session_id:
-            params["session_id"] = session_id
         if prompt_id:
             params["prompt_id"] = prompt_id
         if agent_id:
             params["agent_id"] = agent_id
+        if provider:
+            params["provider"] = provider
+        if model:
+            params["model"] = model
 
         logger.debug(f"GET {url} with filters: {params}")
         response = await self._client.get(url, params=params)
@@ -104,14 +108,16 @@ class ExecutionsAPI:
     async def get(
         self,
         project_id: str,
-        execution_id: str,
+        trace_id: str,
+        span_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Get execution details including full conversation.
 
         Args:
             project_id: Dakora project ID
-            execution_id: Execution identifier (trace_id from OTLP)
+            trace_id: Execution identifier (trace_id)
+            span_id: Optional specific span id
 
         Returns:
             Execution with conversation history and templates used
@@ -124,13 +130,14 @@ class ExecutionsAPI:
             >>> print(execution["conversation_history"])
             >>> print(execution["templates_used"])
         """
-        url = f"/api/projects/{project_id}/executions/{execution_id}"
+        url = f"/api/projects/{project_id}/executions/{trace_id}"
 
         logger.debug(f"GET {url}")
-        response = await self._client.get(url)
+        params = {"span_id": span_id} if span_id else None
+        response = await self._client.get(url, params=params)
         logger.debug(f"GET {url} -> {response.status_code}")
 
         response.raise_for_status()
         execution = response.json()
-        logger.info(f"Retrieved execution: {execution_id}")
+        logger.info(f"Retrieved execution: {trace_id}")
         return execution

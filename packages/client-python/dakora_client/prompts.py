@@ -20,6 +20,12 @@ class PromptsAPI:
     async def list(self) -> list[str]:
         """List all prompt template IDs.
 
+        Notes:
+            The server now returns a list of template objects with rich metadata.
+            For backward compatibility, this method extracts and returns only the
+            template IDs. If you need full template objects, call `get()` per ID
+            or query the server API directly.
+
         Returns:
             List of prompt IDs
 
@@ -35,7 +41,13 @@ class PromptsAPI:
         logger.debug(f"GET {url} -> {response.status_code}")
 
         response.raise_for_status()
-        templates = response.json()
+        data = response.json()
+        # Server may return either a list of strings (legacy) or a list of
+        # objects with an `id` field (current). Normalize to list[str].
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            templates = [item.get("id", "") for item in data if isinstance(item, dict)]
+        else:
+            templates = data
         logger.info(f"Listed {len(templates)} prompts")
         return templates
 
@@ -44,7 +56,8 @@ class PromptsAPI:
         template_id: str,
         inputs: dict[str, Any],
         version: str | None = None,
-        embed_metadata: bool = True
+        embed_metadata: bool = True,
+        resolve_includes_only: bool = False,
     ) -> RenderResult:
         """Render a prompt template with inputs and return execution context.
 
@@ -80,9 +93,7 @@ class PromptsAPI:
         project_id = await self._client._get_project_id() # type: ignore
         url = f"/api/projects/{project_id}/prompts/{template_id}/render"
 
-        payload: dict[str, Any] = {"inputs": inputs}
-        if version:
-            payload["version"] = version
+        payload: dict[str, Any] = {"inputs": inputs, "resolve_includes_only": resolve_includes_only}
 
         logger.debug(f"POST {url} with {len(inputs)} inputs")
         response = await self._client.post(url, json=payload)
@@ -92,7 +103,9 @@ class PromptsAPI:
         data = response.json()
 
         rendered_text = data["rendered"]
-        template_version = data.get("version", version or "latest")
+        # Render endpoint no longer returns version; default to provided
+        # version or "latest" for marker embedding
+        template_version = version or "latest"
 
         # Optionally embed metadata in text for tracking
         if embed_metadata:
