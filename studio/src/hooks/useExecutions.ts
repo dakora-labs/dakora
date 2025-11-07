@@ -110,6 +110,7 @@ interface UseExecutionDetailResult {
   loading: boolean;
   error: string | null;
   refresh: () => void;
+  refetchWithMessages: () => Promise<void>;
 }
 
 export function useExecutionDetail(traceId: string | undefined): UseExecutionDetailResult {
@@ -117,8 +118,9 @@ export function useExecutionDetail(traceId: string | undefined): UseExecutionDet
   const [execution, setExecution] = useState<ExecutionDetailNew | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [includeMessages, setIncludeMessages] = useState(false);
 
-  const fetchExecution = useCallback(async () => {
+  const fetchExecution = useCallback(async (withMessages: boolean = false) => {
     if (!traceId || !projectId || contextLoading) {
       return;
     }
@@ -127,8 +129,11 @@ export function useExecutionDetail(traceId: string | undefined): UseExecutionDet
     setError(null);
 
     try {
-      const response = await api.getExecution(projectId, traceId);
+      const response = await api.getExecution(projectId, traceId, undefined, withMessages);
       setExecution(response);
+      if (withMessages) {
+        setIncludeMessages(true);
+      }
     } catch (err) {
       console.error('Failed to load execution', err);
       setError(err instanceof Error ? err.message : 'Failed to load execution');
@@ -137,15 +142,22 @@ export function useExecutionDetail(traceId: string | undefined): UseExecutionDet
     }
   }, [api, contextLoading, projectId, traceId]);
 
+  const refetchWithMessages = useCallback(async () => {
+    if (!includeMessages) {
+      await fetchExecution(true);
+    }
+  }, [fetchExecution, includeMessages]);
+
   useEffect(() => {
-    fetchExecution();
+    fetchExecution(false);
   }, [fetchExecution]);
 
   return {
     execution,
     loading,
     error,
-    refresh: fetchExecution,
+    refresh: () => fetchExecution(includeMessages),
+    refetchWithMessages,
   };
 }
 

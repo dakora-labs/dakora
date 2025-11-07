@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, Copy, FileJson2, Zap, MessageSquare, TrendingUp, Clock, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,13 +17,21 @@ import { timelineToMessages } from '@/utils/timelineAdapter';
 export function ExecutionDetailPage() {
   const navigate = useNavigate();
   const { projectSlug, traceId } = useParams<{ projectSlug?: string; traceId?: string }>();
-  const { execution, loading, error, refresh } = useExecutionDetail(traceId);
-  const { timeline } = useExecutionTimeline(traceId);
+  const { execution, loading, error, refresh, refetchWithMessages } = useExecutionDetail(traceId);
+  const { timeline, error: timelineError } = useExecutionTimeline(traceId);
   const { related } = useRelatedTraces(traceId);
   const [copied, setCopied] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
   const [rawOpen, setRawOpen] = useState(false);
   const resolvedProjectSlug = projectSlug ?? 'default';
+  
+  // When timeline fails to load, fetch messages as fallback
+  useEffect(() => {
+    if (timelineError && execution && (!execution.input_messages?.length && !execution.output_messages?.length)) {
+      console.log('Timeline failed, fetching execution with messages for fallback');
+      refetchWithMessages();
+    }
+  }, [timelineError, execution, refetchWithMessages]);
   
   // Template usages (new schema)
   const templateUsages = execution ? (execution.template_usages ?? []) : [];

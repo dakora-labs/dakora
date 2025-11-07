@@ -442,10 +442,18 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       };
     },
 
-    async getExecution(projectId: string, traceId: string, spanId?: string): Promise<ExecutionDetailNew> {
+    async getExecution(projectId: string, traceId: string, spanId?: string, includeMessages?: boolean): Promise<ExecutionDetailNew> {
       const authHeaders = await getAuthHeaders();
-      const url = spanId 
-        ? `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}?span_id=${encodeURIComponent(spanId)}`
+      const params = new URLSearchParams();
+      if (spanId) {
+        params.append('span_id', spanId);
+      }
+      if (includeMessages) {
+        params.append('include_messages', 'true');
+      }
+      const queryString = params.toString();
+      const url = queryString 
+        ? `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}?${queryString}`
         : `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}`;
       
       const response = await fetch(url, {
