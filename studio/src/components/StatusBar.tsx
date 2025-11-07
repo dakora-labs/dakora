@@ -1,11 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, Database, Folder, Cloud } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle, Wifi, WifiOff, Server, MessageSquare, Bug } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { BugReportDialog } from '@/components/BugReportDialog';
 import type { HealthResponse } from '../types';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { useFeedbackContext } from '@/contexts/FeedbackContext';
+import { useUserContext } from '@/contexts/UserContext';
 
 export function StatusBar() {
   const { api, projectId } = useAuthenticatedApi();
+  const { openFeedbackDialog } = useFeedbackContext();
+  const { userContext } = useUserContext();
+  const [bugReportOpen, setBugReportOpen] = useState(false);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [promptCount, setPromptCount] = useState<number>(0);
   const [connected, setConnected] = useState(false);
@@ -105,47 +113,56 @@ export function StatusBar() {
         </div>
 
         <div className="flex items-center flex-wrap gap-3 text-xs">
-          {/* Prompt Directory or Cloud Location */}
-          {health?.vault_config && (
-            <div className="flex items-center gap-1">
-              {health.vault_config.registry_type === 'azure' ? (
-                <>
-                  <Cloud className="w-3 h-3" />
-                  <span className="hidden sm:inline">Cloud:</span>
-                  <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                    {health.vault_config.cloud_location}
-                  </code>
-                </>
-              ) : (
-                <>
-                  <Folder className="w-3 h-3" />
-                  <span className="hidden sm:inline">Dir:</span>
-                  <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                    {health.vault_config.prompt_dir}
-                  </code>
-                </>
-              )}
-            </div>
-          )}
+          {/* Bug Report Button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setBugReportOpen(true)}
+                >
+                  <Bug className="w-3 h-3 mr-1" />
+                  <span className="hidden sm:inline">Report Bug</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Report an issue or bug</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
-          {/* Logging Status */}
-          {health?.vault_config && (
-            <div className="flex items-center gap-1">
-              <Database className="w-3 h-3" />
-              <span className="hidden sm:inline">Log:</span>
-              <Badge
-                variant={health.vault_config.logging_enabled ? "secondary" : "outline"}
-                className="text-xs"
-              >
-                {health.vault_config.logging_enabled ? 'enabled' : 'disabled'}
-              </Badge>
-            </div>
-          )}
+          {/* Feedback Button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={openFeedbackDialog}
+                >
+                  <MessageSquare className="w-3 h-3 mr-1" />
+                  <span className="hidden sm:inline">Feedback</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Give feedback about Dakora</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {/* Version */}
           <span className="text-muted-foreground/70">Dakora</span>
         </div>
       </div>
+
+      <BugReportDialog
+        open={bugReportOpen}
+        onOpenChange={setBugReportOpen}
+        userEmail={userContext?.email}
+      />
     </div>
   );
 }

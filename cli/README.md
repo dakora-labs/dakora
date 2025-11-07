@@ -1,6 +1,6 @@
 # Dakora CLI
 
-Minimal CLI for managing the Dakora Platform.
+Command-line tool for managing the Dakora platform.
 
 ## Installation
 
@@ -11,29 +11,24 @@ pip install dakora
 ## Commands
 
 ```bash
-# Initialize new project
-dakora init
-
-# Start platform (Docker)
-dakora start
-
-# Stop platform
-dakora stop
-
-# Link to cloud instance
-dakora link https://api.dakora.io
-
-# Show version
-dakora version
+dakora init      # Initialize new project
+dakora start     # Start platform (Docker)
+dakora stop      # Stop platform
+dakora version   # Show version
 ```
 
-## Usage
+## Quick Start
 
-After installation, the `dakora` command will be available globally.
+```bash
+# Initialize and start
+dakora init
+dakora start
+```
 
-For local development with Docker:
+This launches:
+- **API** at http://localhost:54321
+- **Studio** at http://localhost:3000
 
-1. `dakora init` - Creates `prompts/` directory and `docker/` config
-2. `dakora start` - Launches API server, Studio UI, PostgreSQL, and Redis
-3. Access API at http://localhost:54321
-4. Access Studio at http://localhost:3000
+## Documentation
+
+See the [full documentation](https://docs.dakora.io) for advanced usage.

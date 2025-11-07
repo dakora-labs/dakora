@@ -1,0 +1,76 @@
+---
+import '../styles/global.css';
+import StructuredData from '../components/StructuredData.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+  ogType?: string;
+  keywords?: string;
+}
+
+const {
+  title = "Dakora – Make every token count",
+  description = "Track every LLM call. Control costs. Optimize prompts. Open-source prompt management platform with versioning, cost tracking, and AI-powered optimization.",
+  ogImage = "/playground-interface.png",
+  ogType = "website",
+  keywords = "LLM, prompt management, AI optimization, cost tracking, prompt versioning, OpenAI, Claude, open source, Python SDK"
+} = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const ogImageURL = new URL(ogImage, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Primary Meta Tags -->
+    <title>{title}</title>
+    <meta name="title" content={title} />
+    <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content={ogType} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImageURL} />
+    <meta property="og:site_name" content="Dakora" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={canonicalURL} />
+    <meta property="twitter:title" content={title} />
+    <meta property="twitter:description" content={description} />
+    <meta property="twitter:image" content={ogImageURL} />
+
+    <!-- Additional SEO -->
+    <meta name="author" content="Dakora" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#3B82F6" />
+
+    <!-- Sitemap -->
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <!-- Structured Data -->
+    <StructuredData />
+  </head>
+  <body class="bg-gray-50 text-gray-900 antialiased">
+    <slot />
+  </body>
+</html>

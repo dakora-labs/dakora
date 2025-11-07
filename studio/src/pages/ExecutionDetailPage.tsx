@@ -291,7 +291,7 @@ export function ExecutionDetailPage() {
               {/* Main Content Grid */}
               <div className="grid gap-5 lg:grid-cols-[1fr,400px]">
                 {/* Left Column - Conversation */}
-                <div className="space-y-5">
+                <div className="space-y-5 min-w-0">
                   {/* Conversation - OLD SCHEMA */}
                   {!isNewSchema(execution) && conversation.length > 0 && (
                     <ConversationTimeline messages={conversation} />

@@ -114,6 +114,7 @@ class ExecuteRequest(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
     model: Optional[str] = Field(default=None, description="Model to use (defaults to workspace default)")
     provider: Optional[str] = Field(default=None, description="Provider to use (defaults to workspace provider)")
+    version: Optional[int] = Field(default=None, description="Version number to execute (defaults to latest version)")
 
 
 class ExecutionMetrics(BaseModel):
@@ -333,3 +334,18 @@ class HierarchyResponse(BaseModel):
     """Full span hierarchy for a trace"""
     trace_id: str
     spans: List[SpanTreeNode]
+
+
+# Feedback schemas
+
+class FeedbackRequest(BaseModel):
+    """User feedback submission."""
+    rating: int = Field(description="User rating from 1-5", ge=1, le=5)
+    feedback: Optional[str] = Field(default=None, description="Optional text feedback from user")
+
+
+class FeedbackResponse(BaseModel):
+    """Response after feedback submission."""
+    id: str = Field(description="Unique feedback ID")
+    created_at: str = Field(description="ISO timestamp of feedback creation")
+

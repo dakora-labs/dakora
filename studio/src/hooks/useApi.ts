@@ -4,7 +4,7 @@ import type { Template, PartListResponse, PromptPart, CreatePartRequest, UpdateP
 import { useAuthToken } from '@/utils/auth';
 
 export function usePrompts(projectId: string | undefined) {
-  const [prompts, setPrompts] = useState<string[]>([]);
+  const [prompts, setPrompts] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

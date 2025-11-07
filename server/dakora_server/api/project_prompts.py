@@ -77,11 +77,43 @@ def _get_version_number(project_id: UUID, prompt_id: str, engine: Engine) -> int
         return result[0] if result else None
 
 
-@router.get("", response_model=List[str])
-async def list_prompts(manager: PromptManager = Depends(get_prompt_manager)):
-    """List all prompt IDs in the project."""
+@router.get("", response_model=List[TemplateResponse])
+async def list_prompts(
+    manager: PromptManager = Depends(get_prompt_manager),
+    project_id: UUID = Depends(validate_project_access),
+    engine: Engine = Depends(get_engine),
+):
+    """List all prompts in the project with summary information from database.
+
+    This endpoint returns prompt metadata from the database without loading
+    template content from blob storage, making it much faster for listing views.
+    """
     try:
-        return manager.list_ids()
+        with get_connection(engine) as conn:
+            result = conn.execute(
+                select(
+                    prompts_table.c.prompt_id,
+                    prompts_table.c.version,
+                    prompts_table.c.version_number,
+                    prompts_table.c.description,
+                    prompts_table.c.metadata,
+                )
+                .where(prompts_table.c.project_id == project_id)
+                .order_by(prompts_table.c.last_updated_at.desc())
+            ).fetchall()
+
+            return [
+                TemplateResponse(
+                    id=row[0],
+                    version=row[1],
+                    version_number=row[2],
+                    description=row[3],
+                    template="",  # Not loaded for list view
+                    inputs={},  # Not loaded for list view
+                    metadata=row[4] or {},
+                )
+                for row in result
+            ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -297,6 +329,7 @@ async def render_prompt(
     request: RenderRequest,
     project_id: UUID = Depends(validate_project_access),
     manager: PromptManager = Depends(get_prompt_manager),
+    engine: Engine = Depends(get_engine),
 ):
     """Render a prompt template with variables.
 
@@ -323,7 +356,6 @@ async def render_prompt(
         template = manager.load(prompt_id)
         spec = template if isinstance(template, TemplateSpec) else template.spec
 
-        engine = get_engine()
         renderer = Renderer(engine=engine, project_id=project_id)
 
         if request.resolve_includes_only:

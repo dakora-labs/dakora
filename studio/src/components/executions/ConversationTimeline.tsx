@@ -163,13 +163,13 @@ export function ConversationTimeline({ messages }: ConversationTimelineProps) {
                 </div>
 
                 {/* Message Content */}
-                <div className="relative rounded-lg border bg-card p-4">
+                <div className="relative rounded-lg border bg-card p-4 min-w-0">
                   {isRaw || !hasMarkdown ? (
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground break-words">
                       {message.content}
                     </div>
                   ) : (
-                    <div className="prose prose-sm max-w-none dark:prose-invert prose-pre:bg-slate-950 prose-pre:text-slate-200">
+                    <div className="prose prose-sm max-w-none dark:prose-invert prose-pre:bg-slate-950 prose-pre:text-slate-200 prose-pre:overflow-x-auto prose-pre:max-w-full prose-code:break-words">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {message.content}
                       </ReactMarkdown>

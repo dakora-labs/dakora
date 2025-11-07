@@ -26,6 +26,8 @@ import type {
   QuotaInfo, VersionHistoryResponse, RollbackRequest,
   RelatedTracesResponse,
   TraceHierarchy,
+  FeedbackRequest,
+  FeedbackResponse,
 } from '../types';
 
 interface UserContext {
@@ -141,12 +143,12 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       }>(response);
     },
 
-    async getPrompts(projectId: string): Promise<string[]> {
+    async getPrompts(projectId: string): Promise<Template[]> {
       const authHeaders = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts`, {
         headers: authHeaders,
       });
-      return handleResponse<string[]>(response);
+      return handleResponse<Template[]>(response);
     },
 
     async getPrompt(projectId: string, id: string): Promise<Template> {
@@ -763,6 +765,19 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         body: JSON.stringify(request),
       });
       return handleResponse(response);
+    },
+
+    async submitFeedback(request: FeedbackRequest): Promise<FeedbackResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify(request),
+      });
+      return handleResponse<FeedbackResponse>(response);
     },
   };
 }

@@ -1,0 +1,6 @@
+part_id: system_role
+category: system_roles
+name: System Role
+description: Defines the persona or role the AI should adopt.
+content: |
+  You are a helpful AI assistant.

@@ -20,9 +20,18 @@ Automatically tracks:
 - ✅ **Conversation History** - Full input/output context
 - ✅ **Template Linkage** - Which Dakora prompts were used
 
+**Framework Support:**
+- **Microsoft Agent Framework (MAF)** - ✅ Available now
+- **LangChain** - 🔜 Coming soon
+- **CrewAI** - 🔜 Coming soon
+
 ## Installation
 
 ```bash
+# With MAF support
+pip install dakora-agents[maf]
+
+# Base package
 pip install dakora-agents
 ```
 
@@ -63,6 +72,7 @@ response = await agent.run("Hello!")
 ```
 
 **That's it!** Dakora automatically tracks:
+
 - Budget (checked before execution)
 - Agent ID
 - Tokens (input + output)
@@ -155,6 +165,7 @@ await agent.run(template.to_message())
 ```
 
 **Breaking Changes:**
+
 - `create_dakora_middleware()` removed (use `DakoraIntegration.setup()`)
 - `session_id` parameter removed (now optional via span attributes)
 - `instruction_template` parameter removed (use `to_message()`)
@@ -162,14 +173,7 @@ await agent.run(template.to_message())
 ## Development
 
 ```bash
-# Install in development mode
 cd packages/agents
 pip install -e ".[maf]"
-
-# Run tests
 pytest
 ```
-
-## License
-
-Apache 2.0

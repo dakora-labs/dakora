@@ -542,6 +542,7 @@ export function PromptEditPage() {
           promptId={prompt.id}
           inputs={prompt.inputs}
           projectSlug={projectSlug}
+          versionNumber={prompt.version_number}
         />
       )}
 

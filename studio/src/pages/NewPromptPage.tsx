@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { useFeedbackContext } from '@/contexts/FeedbackContext';
 import { PromptPartsPanel } from '@/components/PromptPartsPanel';
 import { RichTemplateEditor, type RichTemplateEditorRef } from '@/components/RichTemplateEditor';
 import type { InputSpec } from '@/types';
@@ -33,6 +34,7 @@ interface VariableConfig {
 export function NewPromptPage() {
   const navigate = useNavigate();
   const { api, projectId, projectSlug, contextLoading } = useAuthenticatedApi();
+  const { trackPromptCreated } = useFeedbackContext();
   const editorRef = useRef<RichTemplateEditorRef>(null);
   const [id, setId] = useState('');
   const [description, setDescription] = useState('');
@@ -101,6 +103,7 @@ export function NewPromptPage() {
         template: template,
         inputs,
       });
+      trackPromptCreated();
       navigate(`/project/${projectSlug}/prompt/edit?prompt=${id.trim()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create prompt');

@@ -204,6 +204,13 @@ python validate_tests.py
 - HTTPException for API errors, DakoraError hierarchy for business logic
 - Black formatting (line length 88)
 - Clean Pylance diagnostics
+- Avoid unnecessary code comments - code should be self-documenting
+- Never use emojis in code, comments, or docstrings
+- Use Python standard logging (`logging` module) following best practices:
+  - Use appropriate log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  - Include contextual information (user_id, project_id, etc.) where relevant
+  - Use structured logging with proper formatting
+  - Log exceptions with `exc_info=True` or `exception()` method
 
 **TypeScript/React:**
 - See [UI Development Guide](assets/ui-development-guide.md)

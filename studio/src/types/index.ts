@@ -132,6 +132,7 @@ export interface ExecutionRequest {
   inputs: Record<string, unknown>;
   model?: string;
   provider?: string;
+  version?: number;
 }
 
 export interface ExecutionResponse {
@@ -458,4 +459,14 @@ export interface VersionHistoryResponse {
 
 export interface RollbackRequest {
   version: number;
+}
+
+export interface FeedbackRequest {
+  rating: number;
+  feedback?: string;
+}
+
+export interface FeedbackResponse {
+  id: string;
+  created_at: string;
 }
