@@ -53,7 +53,6 @@ async def get_execution_timeline(
         HTTPException: 400 if trace_id is invalid; 404 if trace not found or not accessible
     """
     from datetime import timezone
-    import hashlib
     import re
     import logging
     from fastapi import HTTPException
@@ -188,17 +187,21 @@ async def get_execution_timeline(
             role_key = (r.role or "").lower()
             row_seq[(r.span_id, r.msg_index, role_key)] = idx
 
-        seen_text_hashes: set[str] = set()
+        # Track seen messages by (span_id, msg_index) to avoid duplicates from the same message
+        # but allow identical text from different spans/positions
+        seen_messages: set[tuple[str, int]] = set()
         for idx, row in enumerate(output_rows):
             if (row.role or "").lower() == "tool":
                 continue
             text = extract_text_from_parts(row.parts)
             if not text:
                 continue
-            h = hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
-            if h in seen_text_hashes:
+            # Use span_id + msg_index as the dedupe key instead of text hash
+            # This allows legitimate repeated messages from different spans
+            msg_key = (row.span_id, row.msg_index)
+            if msg_key in seen_messages:
                 continue
-            seen_text_hashes.add(h)
+            seen_messages.add(msg_key)
             ev = TimelineAssistantEvent(
                 ts=iso(row.start_time),
                 span_id=row.span_id,
