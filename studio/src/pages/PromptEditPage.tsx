@@ -21,9 +21,10 @@ import {
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import { PromptPartsPanel } from '@/components/PromptPartsPanel';
 import { RichTemplateEditor, type RichTemplateEditorRef } from '@/components/RichTemplateEditor';
+import { useTemplateValidation } from '@/hooks/useTemplateValidation';
 import { PromptExecution } from '@/components/PromptExecution';
 import { VersionHistorySheet } from '@/components/VersionHistorySheet';
-import type { Template, InputSpec } from '@/types';
+import type { Template, InputSpec, ValidationIssue } from '@/types';
 
 type InputType = 'string' | 'number' | 'boolean' | 'array<string>' | 'object';
 
@@ -58,6 +59,11 @@ export function PromptEditPage() {
   const [showUnusedVarsDialog, setShowUnusedVarsDialog] = useState(false);
   const [unusedVars, setUnusedVars] = useState<string[]>([]);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showValidationIssuesDialog, setShowValidationIssuesDialog] = useState(false);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
+
+  const declaredVars = variables.map(v => v.name.trim()).filter(Boolean);
+  const { validation, markers } = useTemplateValidation(template, declaredVars);
 
   useEffect(() => {
     if (contextLoading || !projectId || !projectSlug) return;
@@ -168,7 +174,7 @@ export function PromptEditPage() {
     }
   };
 
-  const handleSave = async () => {
+  const attemptSave = async (options: { skipValidation?: boolean } = {}) => {
     setError('');
 
     for (const v of variables) {
@@ -176,6 +182,12 @@ export function PromptEditPage() {
         setError('All variables must have a name');
         return;
       }
+    }
+
+    if (!options.skipValidation && validation?.errors?.length) {
+      setValidationIssues(validation.errors);
+      setShowValidationIssuesDialog(true);
+      return;
     }
 
     const unused = validateTemplate();
@@ -188,9 +200,18 @@ export function PromptEditPage() {
     await performSave();
   };
 
+  const handleSave = async () => {
+    await attemptSave();
+  };
+
   const handleSaveAnyway = async () => {
     setShowUnusedVarsDialog(false);
     await performSave();
+  };
+
+  const handleProceedDespiteValidationIssues = async () => {
+    setShowValidationIssuesDialog(false);
+    await attemptSave({ skipValidation: true });
   };
 
   const handleDelete = async () => {
@@ -466,24 +487,27 @@ export function PromptEditPage() {
 
                 {variables.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-1">
-                    {variables.map((variable) => (
-                      <Badge
-                        key={variable.name}
-                        variant="secondary"
-                        className="gap-1.5 pl-2.5 pr-1.5 py-1 text-xs"
-                      >
-                        <span>{variable.name}</span>
-                        <span className="text-muted-foreground">({variable.type})</span>
-                        {isEditing && (
-                          <button
-                            onClick={() => removeVariable(variable.name)}
-                            className="ml-1 hover:bg-muted-foreground/20 rounded-sm p-0.5"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                      </Badge>
-                    ))}
+                    {variables.map((variable) => {
+                      const isUnused = validation?.variables_unused?.includes(variable.name);
+                      return (
+                        <Badge
+                          key={variable.name}
+                          variant="secondary"
+                          className={`gap-1.5 pl-2.5 pr-1.5 py-1 text-xs ${isUnused ? 'border border-amber-300 text-amber-700 bg-amber-50' : ''}`}
+                        >
+                          <span>{variable.name}</span>
+                          <span className="text-muted-foreground">({variable.type})</span>
+                          {isEditing && (
+                            <button
+                              onClick={() => removeVariable(variable.name)}
+                              className="ml-1 hover:bg-muted-foreground/20 rounded-sm p-0.5"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </Badge>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -502,8 +526,10 @@ export function PromptEditPage() {
                     value={template}
                     onChange={setTemplate}
                     placeholder="Write your prompt template here. Use {{ variable_name }} for dynamic inputs."
-                    className="min-h-[calc(100vh-180px)]"
+                    className="h-[calc(100vh-220px)] min-h-[420px]"
                     readOnly={false}
+                    markers={markers}
+                    suggestions={declaredVars}
                   />
                 ) : (
                   <div className="relative">
@@ -570,23 +596,52 @@ export function PromptEditPage() {
               <AlertTriangle className="w-5 h-5 text-amber-500" />
               <AlertDialogTitle>Not all variables are used</AlertDialogTitle>
             </div>
-            <AlertDialogDescription>
-              The following variables are declared but not used in the template:
-              <ul className="mt-2 list-disc list-inside space-y-1">
-                {unusedVars.map((varName) => (
-                  <li key={varName} className="font-mono text-sm">
-                    {varName}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3">
-                Do you want to save anyway?
-              </p>
+            <AlertDialogDescription asChild>
+              <div>
+                The following variables are declared but not used in the template:
+                <ul className="mt-2 list-disc list-inside space-y-1">
+                  {unusedVars.map((varName) => (
+                    <li key={varName} className="font-mono text-sm">
+                      {varName}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3">Do you want to save anyway?</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSaveAnyway} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Anyway'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showValidationIssuesDialog} onOpenChange={setShowValidationIssuesDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <AlertDialogTitle>Template has validation errors</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription asChild>
+              <div>
+                Fix the following issues to ensure the prompt renders correctly:
+                <ul className="mt-2 list-disc list-inside space-y-1">
+                  {validationIssues.map((issue, index) => (
+                    <li key={`${issue.message}-${index}`} className="text-sm">
+                      <span className="font-medium">Line {issue.line ?? '?'}:</span> {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleProceedDespiteValidationIssues} disabled={saving}>
               {saving ? 'Saving...' : 'Save Anyway'}
             </AlertDialogAction>
           </AlertDialogFooter>

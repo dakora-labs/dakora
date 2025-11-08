@@ -493,3 +493,24 @@ export interface FeedbackResponse {
   id: string;
   created_at: string;
 }
+
+// Template validation
+export interface ValidateTemplateRequest {
+  template: string;
+  declared_variables?: string[] | null;
+}
+
+export interface ValidationIssue {
+  message: string;
+  line?: number | null;
+  column?: number | null;
+  type: 'syntax' | 'include' | 'other';
+}
+
+export interface ValidateTemplateResponse {
+  ok: boolean;
+  variables_used: string[];
+  variables_missing: string[];
+  variables_unused: string[];
+  errors: ValidationIssue[];
+}
