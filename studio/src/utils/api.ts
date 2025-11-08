@@ -17,7 +17,6 @@ import type {
   ExecutionHistoryResponse,
   ExecutionListResponse,
   ExecutionListFilters,
-  ExecutionDetail,
   ExecutionDetailNew,
   ExecutionListItem,
   OptimizePromptRequest,
@@ -443,10 +442,18 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
       };
     },
 
-    async getExecution(projectId: string, traceId: string, spanId?: string): Promise<ExecutionDetail | ExecutionDetailNew> {
+    async getExecution(projectId: string, traceId: string, spanId?: string, includeMessages?: boolean): Promise<ExecutionDetailNew> {
       const authHeaders = await getAuthHeaders();
-      const url = spanId 
-        ? `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}?span_id=${encodeURIComponent(spanId)}`
+      const params = new URLSearchParams();
+      if (spanId) {
+        params.append('span_id', spanId);
+      }
+      if (includeMessages) {
+        params.append('include_messages', 'true');
+      }
+      const queryString = params.toString();
+      const url = queryString 
+        ? `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}?${queryString}`
         : `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}`;
       
       const response = await fetch(url, {
@@ -455,177 +462,30 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
 
       const data = await handleResponse<any>(response);
 
-      // Check if this is the new schema response (has input_messages/output_messages)
-      if (data?.input_messages || data?.output_messages) {
-        // NEW SCHEMA - Return ExecutionDetailNew
-        return {
-          trace_id: data.trace_id ?? traceId,
-          span_id: data.span_id ?? '',
-          type: data.type ?? 'unknown',
-          agent_name: data.agent_name ?? null,
-          provider: data.provider ?? null,
-          model: data.model ?? null,
-          start_time: data.start_time ?? data.created_at ?? new Date().toISOString(),
-          end_time: data.end_time ?? new Date().toISOString(),
-          latency_ms: data.latency_ms ?? null,
-          tokens_in: data.tokens_in ?? null,
-          tokens_out: data.tokens_out ?? null,
-          total_cost_usd: data.total_cost_usd ?? null,
-          status: data.status ?? null,
-          status_message: data.status_message ?? null,
-          attributes: data.attributes ?? null,
-          input_messages: Array.isArray(data.input_messages) ? data.input_messages : [],
-          output_messages: Array.isArray(data.output_messages) ? data.output_messages : [],
-          child_spans: Array.isArray(data.child_spans) ? data.child_spans : [],
-          template_usages: Array.isArray(data.template_usages) ? data.template_usages : [],
-          template_info: data.template_info ?? null,
-          created_at: data.created_at ?? data.start_time ?? new Date().toISOString(),
-        } as ExecutionDetailNew;
-      }
-
-      // OLD SCHEMA - Return ExecutionDetail (existing logic)
-      const normalizeNumber = (value: unknown): number | null => {
-        if (typeof value === 'number' && Number.isFinite(value)) {
-          return value;
-        }
-        if (value === null || value === undefined) {
-          return null;
-        }
-        const numeric = Number(value);
-        return Number.isFinite(numeric) ? numeric : null;
-      };
-
-      const resolvedTraceIdRaw = data?.trace_id ?? data?.traceId ?? traceId;
-      const resolvedTraceId: string =
-        typeof resolvedTraceIdRaw === 'string'
-          ? resolvedTraceIdRaw
-          : String(resolvedTraceIdRaw ?? traceId ?? '');
-      const createdAtRaw = data?.created_at ?? data?.createdAt ?? null;
-      const createdAt =
-        typeof createdAtRaw === 'string'
-          ? createdAtRaw
-          : createdAtRaw instanceof Date
-            ? createdAtRaw.toISOString()
-            : createdAtRaw
-              ? new Date(createdAtRaw).toISOString()
-              : null;
-
-      const tokensIn = normalizeNumber(data?.tokens_in ?? data?.tokens?.in);
-      const tokensOut = normalizeNumber(data?.tokens_out ?? data?.tokens?.out);
-      const tokensTotalRaw = normalizeNumber(data?.tokens_total ?? data?.tokens?.total);
-      const tokensTotal =
-        tokensTotalRaw ??
-        (tokensIn !== null || tokensOut !== null
-          ? (tokensIn ?? 0) + (tokensOut ?? 0)
-          : null);
-
-      const parseJsonIfString = <T>(value: unknown): T | null => {
-        if (value === null || value === undefined) {
-          return null;
-        }
-        if (typeof value === 'object') {
-          return value as T;
-        }
-        if (typeof value === 'string') {
-          try {
-            return JSON.parse(value) as T;
-          } catch {
-            return null;
-          }
-        }
-        return null;
-      };
-
-      const conversationRaw =
-        data?.conversation_history ??
-        data?.conversationHistory ??
-        parseJsonIfString<any[]>(data?.conversation_history_json) ??
-        [];
-      const conversationHistory = Array.isArray(conversationRaw)
-        ? conversationRaw
-            .filter((entry) => entry && typeof entry === 'object')
-            .map((entry) => ({
-              role: entry.role ?? entry?.speaker ?? 'assistant',
-              content: (() => {
-                const contentRaw = entry.content ?? entry?.message ?? '';
-                if (typeof contentRaw === 'string') {
-                  return contentRaw;
-                }
-                try {
-                  return JSON.stringify(contentRaw, null, 2);
-                } catch {
-                  return String(contentRaw);
-                }
-              })(),
-              name: entry.name ?? null,
-              timestamp: entry.timestamp ?? entry.time ?? null,
-              metadata: entry.metadata ?? null,
-            }))
-        : [];
-
-      const templateUsagesRaw =
-        data?.template_usages ??
-        data?.templates_used ??
-        data?.templateUsages ??
-        [];
-
-      const templateUsages = Array.isArray(templateUsagesRaw)
-        ? templateUsagesRaw
-            .filter((item) => item && typeof item === 'object')
-            .map((item, index) => ({
-              prompt_id: item.prompt_id ?? item.promptId ?? '',
-              version: item.version ?? item.template_version ?? '',
-              inputs: (() => {
-                const raw = item.inputs ?? item.inputs_json ?? null;
-                if (raw === null || raw === undefined) {
-                  return null;
-                }
-                if (typeof raw === 'object') {
-                  return raw;
-                }
-                if (typeof raw === 'string') {
-                  try {
-                    return JSON.parse(raw);
-                  } catch {
-                    return { value: raw };
-                  }
-                }
-                return raw;
-              })(),
-              position:
-                typeof item.position === 'number'
-                  ? item.position
-                  : Number.isFinite(Number(item.position))
-                    ? Number(item.position)
-                    : index,
-              rendered_prompt: item.rendered_prompt ?? item.renderedPrompt ?? undefined,
-            }))
-        : [];
-
-      const metadataParsed = parseJsonIfString<Record<string, unknown>>(data?.metadata);
-      const metadata =
-        metadataParsed ??
-        (data?.metadata && typeof data.metadata === 'object' ? data.metadata : null);
-
+      // Always return new schema
       return {
-        traceId: resolvedTraceId,
-        createdAt,
-        conversationHistory,
-        metadata,
-        provider: data?.provider ?? null,
-        model: data?.model ?? null,
-        tokens: {
-          in: tokensIn ?? null,
-          out: tokensOut ?? null,
-          total: tokensTotal,
-        },
-        costUsd: normalizeNumber(data?.cost_usd ?? data?.costUsd),
-        latencyMs: normalizeNumber(data?.latency_ms ?? data?.latencyMs),
-        sessionId: data?.session_id ?? data?.sessionId ?? null,
-        agentId: data?.agent_id ?? data?.agentId ?? null,
-        parentTraceId: data?.parent_trace_id ?? data?.parentTraceId ?? null,
-        templateUsages,
-      };
+        trace_id: data.trace_id ?? traceId,
+        span_id: data.span_id ?? '',
+        type: data.type ?? 'unknown',
+        agent_name: data.agent_name ?? null,
+        provider: data.provider ?? null,
+        model: data.model ?? null,
+        start_time: data.start_time ?? data.created_at ?? new Date().toISOString(),
+        end_time: data.end_time ?? new Date().toISOString(),
+        latency_ms: data.latency_ms ?? null,
+        tokens_in: data.tokens_in ?? null,
+        tokens_out: data.tokens_out ?? null,
+        total_cost_usd: data.total_cost_usd ?? null,
+        status: data.status ?? null,
+        status_message: data.status_message ?? null,
+        attributes: data.attributes ?? null,
+        input_messages: Array.isArray(data.input_messages) ? data.input_messages : [],
+        output_messages: Array.isArray(data.output_messages) ? data.output_messages : [],
+        child_spans: Array.isArray(data.child_spans) ? data.child_spans : [],
+        template_usages: Array.isArray(data.template_usages) ? data.template_usages : [],
+        template_info: data.template_info ?? null,
+        created_at: data.created_at ?? data.start_time ?? new Date().toISOString(),
+      } as ExecutionDetailNew;
     },
 
     async getRelatedTraces(projectId: string, traceId: string): Promise<RelatedTracesResponse> {
@@ -778,6 +638,14 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         body: JSON.stringify(request),
       });
       return handleResponse<FeedbackResponse>(response);
+    },
+
+    async getExecutionTimeline(projectId: string, traceId: string, options?: { compact_tools?: boolean }): Promise<{ events: import('../types').TimelineEvent[] }> {
+      const authHeaders = await getAuthHeaders();
+      const compact = options?.compact_tools ?? true;
+      const url = `${API_BASE}/projects/${encodeURIComponent(projectId)}/executions/${encodeURIComponent(traceId)}/timeline${compact ? '?compact_tools=true' : ''}`;
+      const response = await fetch(url, { headers: authHeaders });
+      return handleResponse<{ events: import('../types').TimelineEvent[] }>(response);
     },
   };
 }

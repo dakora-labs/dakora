@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
-import type {
-  ExecutionDetail,
-  ExecutionDetailNew,
-  ExecutionListFilters,
-  ExecutionListItem,
-  RelatedTracesResponse,
-  TraceHierarchy,
-} from '@/types';
+import type { TimelineEvent } from '@/types';
+import type { ExecutionDetailNew, ExecutionListFilters, ExecutionListItem, RelatedTracesResponse, TraceHierarchy } from '@/types';
 
 interface UseExecutionsResult {
   executions: ExecutionListItem[];
@@ -112,19 +106,21 @@ export function useExecutions(filters: ExecutionListFilters = {}): UseExecutions
 }
 
 interface UseExecutionDetailResult {
-  execution: ExecutionDetail | ExecutionDetailNew | null;
+  execution: ExecutionDetailNew | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
+  refetchWithMessages: () => Promise<void>;
 }
 
 export function useExecutionDetail(traceId: string | undefined): UseExecutionDetailResult {
   const { api, projectId, contextLoading } = useAuthenticatedApi();
-  const [execution, setExecution] = useState<ExecutionDetail | ExecutionDetailNew | null>(null);
+  const [execution, setExecution] = useState<ExecutionDetailNew | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [includeMessages, setIncludeMessages] = useState(false);
 
-  const fetchExecution = useCallback(async () => {
+  const fetchExecution = useCallback(async (withMessages: boolean = false) => {
     if (!traceId || !projectId || contextLoading) {
       return;
     }
@@ -133,8 +129,11 @@ export function useExecutionDetail(traceId: string | undefined): UseExecutionDet
     setError(null);
 
     try {
-      const response = await api.getExecution(projectId, traceId);
+      const response = await api.getExecution(projectId, traceId, undefined, withMessages);
       setExecution(response);
+      if (withMessages) {
+        setIncludeMessages(true);
+      }
     } catch (err) {
       console.error('Failed to load execution', err);
       setError(err instanceof Error ? err.message : 'Failed to load execution');
@@ -143,15 +142,22 @@ export function useExecutionDetail(traceId: string | undefined): UseExecutionDet
     }
   }, [api, contextLoading, projectId, traceId]);
 
+  const refetchWithMessages = useCallback(async () => {
+    if (!includeMessages) {
+      await fetchExecution(true);
+    }
+  }, [fetchExecution, includeMessages]);
+
   useEffect(() => {
-    fetchExecution();
+    fetchExecution(false);
   }, [fetchExecution]);
 
   return {
     execution,
     loading,
     error,
-    refresh: fetchExecution,
+    refresh: () => fetchExecution(includeMessages),
+    refetchWithMessages,
   };
 }
 
@@ -197,6 +203,41 @@ export function useExecutionHierarchy(traceId: string | undefined): UseExecution
     error,
     refresh: fetchHierarchy,
   };
+}
+
+// New: Fetch normalized timeline for a trace
+export function useExecutionTimeline(traceId: string | undefined): {
+  timeline: TimelineEvent[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+} {
+  const { api, projectId, contextLoading } = useAuthenticatedApi();
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchTimeline = useCallback(async () => {
+    if (!traceId || !projectId || contextLoading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getExecutionTimeline(projectId, traceId);
+      setTimeline(Array.isArray(res?.events) ? res.events : []);
+    } catch (err) {
+      console.error('Failed to load timeline', err);
+      setError(err instanceof Error ? err.message : 'Failed to load timeline');
+      setTimeline([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [api, projectId, traceId, contextLoading]);
+
+  useEffect(() => {
+    fetchTimeline();
+  }, [fetchTimeline]);
+
+  return { timeline, loading, error, refresh: fetchTimeline };
 }
 
 interface UseRelatedTracesResult {

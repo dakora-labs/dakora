@@ -7,6 +7,7 @@
     "build": "tsc && vite build",
     "build-dev": "vite build --mode development --outDir ../playground",
     "preview": "vite preview",
+    "test": "vitest run",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit"
   },
@@ -47,6 +48,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "vitest": "^2.0.5",
     "@sentry/vite-plugin": "^4.6.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",

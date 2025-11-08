@@ -1,79 +1,112 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, Copy, FileJson2, Zap, MessageSquare, TrendingUp, Clock, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ProviderBadge } from '@/components/executions/ProviderBadge';
-import { ConversationTimeline } from '@/components/executions/ConversationTimeline';
 import { MessageTimeline } from '@/components/executions/MessageTimeline';
 import { RelatedTracesPanel } from '@/components/executions/RelatedTracesPanel';
-import { useExecutionDetail, useRelatedTraces } from '@/hooks/useExecutions';
+import { useExecutionDetail, useRelatedTraces, useExecutionTimeline } from '@/hooks/useExecutions';
 import { formatNumber } from '@/utils/format';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { ExecutionDetailNew } from '@/types';
+import { timelineToMessages } from '@/utils/timelineAdapter';
 
-// Type guard to check if execution is using new schema
-function isNewSchema(execution: any): execution is ExecutionDetailNew {
-  return execution && ('input_messages' in execution || 'output_messages' in execution);
-}
+// New schema only
 
 export function ExecutionDetailPage() {
   const navigate = useNavigate();
   const { projectSlug, traceId } = useParams<{ projectSlug?: string; traceId?: string }>();
-  const { execution, loading, error, refresh } = useExecutionDetail(traceId);
+  const { execution, loading, error, refresh, refetchWithMessages } = useExecutionDetail(traceId);
+  const { timeline, error: timelineError } = useExecutionTimeline(traceId);
   const { related } = useRelatedTraces(traceId);
   const [copied, setCopied] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
   const [rawOpen, setRawOpen] = useState(false);
   const resolvedProjectSlug = projectSlug ?? 'default';
-
-  const conversation = execution && !isNewSchema(execution) ? (execution.conversationHistory ?? []) : [];
   
-  // Template usages - support both schemas
-  const templateUsages = execution 
-    ? (isNewSchema(execution) 
-        ? (execution.template_usages ?? [])
-        : (execution.templateUsages ?? []))
-    : [];
-
-  // New schema data
-  const inputMessages = execution && isNewSchema(execution) ? execution.input_messages : [];
-  const outputMessages = execution && isNewSchema(execution) ? execution.output_messages : [];
-  const childSpans = execution && isNewSchema(execution) ? execution.child_spans : [];
+  // When timeline fails to load, fetch messages as fallback
+  useEffect(() => {
+    if (timelineError && execution && (!execution.input_messages?.length && !execution.output_messages?.length)) {
+      console.log('Timeline failed, fetching execution with messages for fallback');
+      refetchWithMessages();
+    }
+  }, [timelineError, execution, refetchWithMessages]);
   
-  // Combine input and output messages for unified conversation view
-  const allMessages = execution && isNewSchema(execution) 
-    ? [...inputMessages, ...outputMessages].sort((a, b) => {
-        // Sort by message index to show correct order
-        return a.msg_index - b.msg_index;
-      })
-    : [];
+  // Template usages (new schema)
+  const templateUsages = execution ? (execution.template_usages ?? []) : [];
+
+  const inputMessages = execution ? execution.input_messages : [];
+  const outputMessages = execution ? execution.output_messages : [];
+  const childSpans = execution ? execution.child_spans : [];
+  
+  // Build a unified conversation view from normalized timeline when available
+  const allMessages = useMemo(() => {
+    if (!execution) return [];
+    
+    let messages = [];
+    
+    // If timeline loaded, adapt it to Message[] expected by MessageTimeline
+    if (Array.isArray(timeline) && timeline.length > 0) {
+      messages = timelineToMessages(timeline);
+    } else {
+      // Fallback to existing merged messages if no timeline available
+      // Fallback ordering: always show inputs before outputs, then by msg_index.
+      // We infer outputs by span_type === 'chat' (set on output_messages in API).
+      const merged = [
+        ...inputMessages.map((m) => ({ ...m, _isOutput: false } as any)),
+        ...outputMessages.map((m) => ({ ...m, _isOutput: true } as any)),
+      ];
+      merged.sort((a: any, b: any) => {
+        const aw = a._isOutput ? 1 : 0;
+        const bw = b._isOutput ? 1 : 0;
+        if (aw !== bw) return aw - bw;
+        return (a.msg_index ?? 0) - (b.msg_index ?? 0);
+      });
+      messages = merged.map(({ _isOutput, ...rest }: any) => rest);
+    }
+    
+    // If execution failed, append error after input messages but before any outputs
+    // (or at the end if there are no outputs, which is typical for failed executions)
+    if (execution.status === 'ERROR' && execution.status_message) {
+      const errorMessage = {
+        role: 'system',
+        parts: [{ type: 'text', content: `ERROR: ${execution.status_message}` }],
+        _isError: true,
+        _errorDetails: {
+          statusMessage: execution.status_message,
+          affectedSpanIds: execution.child_spans?.map(span => span.span_id) || [],
+        },
+      };
+      
+      // Find the last input message index
+      const lastInputIndex = messages.findIndex((m: any) => m.role !== 'user');
+      if (lastInputIndex === -1) {
+        // All messages are inputs, append at end
+        messages.push(errorMessage as any);
+      } else {
+        // Insert after last input, before first output
+        messages.splice(lastInputIndex, 0, errorMessage as any);
+      }
+    }
+    
+    return messages;
+  }, [execution, timeline, inputMessages, outputMessages]);
 
   const handleNavigateToTrace = (navigateTraceId: string) => {
     navigate(`/project/${resolvedProjectSlug}/executions/${navigateTraceId}`);
   };
 
-  // Calculate additional metrics - handle both schemas
+  // Calculate additional metrics (new schema only)
   const derivedMetrics = useMemo(() => {
     if (!execution) return null;
     
-    // Get tokens based on schema type
-    const tokensIn = isNewSchema(execution) 
-      ? (execution.tokens_in ?? 0)
-      : (execution.tokens?.in ?? 0);
-    const tokensOut = isNewSchema(execution)
-      ? (execution.tokens_out ?? 0)
-      : (execution.tokens?.out ?? 0);
+    const tokensIn = execution.tokens_in ?? 0;
+    const tokensOut = execution.tokens_out ?? 0;
     const totalTokens = tokensIn + tokensOut;
     
-    // Get latency and cost based on schema type
-    const latency = isNewSchema(execution) 
-      ? execution.latency_ms
-      : execution.latencyMs;
-    const cost = isNewSchema(execution)
-      ? execution.total_cost_usd
-      : execution.costUsd;
+    const latency = execution.latency_ms;
+    const cost = execution.total_cost_usd;
     
     const tokensPerSecond = tokensOut && latency 
       ? (tokensOut / latency) * 1000 
@@ -83,10 +116,7 @@ export function ExecutionDetailPage() {
       : null;
     const hasMultipleAgents = related?.session_agents && related.session_agents.length > 1;
     
-    // Check if nested based on schema type
-    const isNested = isNewSchema(execution)
-      ? false // New schema doesn't have parentTraceId at execution level
-      : !!(execution.parentTraceId);
+    const isNested = false; // no nested concept in new schema here
     
     return {
       totalTokens,
@@ -132,12 +162,13 @@ export function ExecutionDetailPage() {
               <code className="text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded truncate max-w-md">
                 {traceId}
               </code>
-              {execution?.provider && <ProviderBadge provider={execution.provider} />}
-              {derivedMetrics?.isNested && (
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
-                  Nested Trace
+              {execution?.status === 'ERROR' && (
+                <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+                  Error
                 </Badge>
               )}
+              {execution?.provider && <ProviderBadge provider={execution.provider} />}
+              {/* Nested trace badge removed (new schema only) */}
               {derivedMetrics?.hasMultipleAgents && (
                 <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
                   Multi-Agent
@@ -160,8 +191,7 @@ export function ExecutionDetailPage() {
             size="sm" 
             onClick={() => {
               if (!execution) return;
-              const id = isNewSchema(execution) ? execution.trace_id : execution.traceId;
-              handleCopy(id, 'Trace ID');
+              handleCopy(execution.trace_id, 'Trace ID');
             }}
             disabled={!execution}
           >
@@ -271,7 +301,7 @@ export function ExecutionDetailPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-orange-900">
-                        {isNewSchema(execution) ? allMessages.length : conversation.length}
+                        {allMessages.length}
                       </div>
                       <div className="text-xs text-orange-700 uppercase tracking-wide">Messages</div>
                     </div>
@@ -292,13 +322,8 @@ export function ExecutionDetailPage() {
               <div className="grid gap-5 lg:grid-cols-[1fr,400px]">
                 {/* Left Column - Conversation */}
                 <div className="space-y-5 min-w-0">
-                  {/* Conversation - OLD SCHEMA */}
-                  {!isNewSchema(execution) && conversation.length > 0 && (
-                    <ConversationTimeline messages={conversation} />
-                  )}
-
-                  {/* NEW SCHEMA - Unified Conversation */}
-                  {isNewSchema(execution) && allMessages.length > 0 && (
+                  {/* Unified Conversation */}
+                  {allMessages.length > 0 && (
                     <MessageTimeline 
                       messages={allMessages} 
                       direction="input" 
@@ -311,10 +336,10 @@ export function ExecutionDetailPage() {
                 {/* Right Column - Context & Related */}
                 <div className="space-y-4">
                   {/* Related Traces Panel */}
-                  {related && (
+                  {related && execution && (
                     <RelatedTracesPanel
                       related={related}
-                      currentTraceId={isNewSchema(execution) ? execution.trace_id : execution.traceId}
+                      currentTraceId={execution.trace_id}
                       onNavigate={handleNavigateToTrace}
                     />
                   )}
@@ -369,96 +394,51 @@ export function ExecutionDetailPage() {
                         </code>
                       </div>
 
-                      {/* Agent ID - Handle both schemas */}
-                      {((isNewSchema(execution) && execution.agent_name) || (!isNewSchema(execution) && execution.agentId)) && (
+                      {/* Agent Name */}
+                      {execution.agent_name && (
                         <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
                           <div className="text-xs text-purple-700 mb-1 flex items-center justify-between">
-                            <span>Agent {isNewSchema(execution) ? 'Name' : 'ID'}</span>
+                            <span>Agent Name</span>
                             <Button 
                               variant="ghost" 
                               size="icon" 
                               className="h-5 w-5"
                               onClick={() => {
-                                const agentValue = isNewSchema(execution) ? execution.agent_name : execution.agentId;
-                                if (agentValue) handleCopy(agentValue, 'Agent');
+                                if (execution.agent_name) handleCopy(execution.agent_name, 'Agent');
                               }}
                             >
                               <Copy className="w-3 h-3" />
                             </Button>
                           </div>
                           <code className="text-sm font-mono font-semibold text-purple-900 break-all">
-                            {isNewSchema(execution) ? execution.agent_name : execution.agentId}
+                            {execution.agent_name}
                           </code>
                         </div>
                       )}
 
-                      {/* Session ID - Old schema only */}
-                      {!isNewSchema(execution) && execution.sessionId && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="text-xs text-blue-700 mb-1 flex items-center justify-between">
-                            <span>Session ID</span>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-5 w-5"
-                              onClick={() => handleCopy(execution.sessionId!, 'Session ID')}
-                            >
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                          </div>
-                          <code className="text-sm font-mono font-semibold text-blue-900 break-all">
-                            {execution.sessionId}
-                          </code>
-                        </div>
-                      )}
+                      {/* Session ID (old schema) removed */}
 
-                      {/* Parent Trace - Old schema only */}
-                      {!isNewSchema(execution) && execution.parentTraceId && (
-                        <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                          <div className="text-xs text-orange-700 mb-1">Parent Trace</div>
-                          <button
-                            onClick={() => handleNavigateToTrace(execution.parentTraceId!)}
-                            className="text-sm font-mono font-semibold text-orange-900 hover:text-orange-700 hover:underline text-left break-all"
-                          >
-                            {execution.parentTraceId}
-                          </button>
-                        </div>
-                      )}
+                      {/* Parent trace (old schema) removed */}
 
                       {/* Timestamp */}
                       <div className="p-3 bg-muted/40 rounded-lg border border-border/60">
-                        <div className="text-xs text-muted-foreground mb-1">Created</div>
-                        <div className="text-sm font-semibold text-foreground">
-                          {isNewSchema(execution) 
-                            ? new Date(execution.created_at).toLocaleString()
-                            : execution.createdAt ? new Date(execution.createdAt).toLocaleString() : '—'
-                          }
-                        </div>
+                         <div className="text-xs text-muted-foreground mb-1">Created</div>
+                         <div className="text-sm font-semibold text-foreground">{new Date(execution.created_at).toLocaleString()}</div>
                       </div>
 
                       {/* Trace ID */}
                       <div className="p-3 bg-muted/40 rounded-lg border border-border/60">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
-                          <span>Trace ID</span>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-5 w-5"
-                            onClick={() => {
-                              const id = isNewSchema(execution) ? execution.trace_id : execution.traceId;
-                              handleCopy(id, 'Trace ID');
-                            }}
-                          >
-                            <Copy className="w-3 h-3" />
-                          </Button>
-                        </div>
-                        <code className="text-xs font-mono text-muted-foreground break-all">
-                          {isNewSchema(execution) ? execution.trace_id : execution.traceId}
-                        </code>
+                           <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
+                             <span>Trace ID</span>
+                             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleCopy(execution.trace_id, 'Trace ID')}>
+                               <Copy className="w-3 h-3" />
+                             </Button>
+                           </div>
+                           <code className="text-xs font-mono text-muted-foreground break-all">{execution.trace_id}</code>
                       </div>
 
-                      {/* Span ID - New schema only */}
-                      {isNewSchema(execution) && (
+                      {/* Span ID */}
+                      {execution && (
                         <div className="p-3 bg-muted/40 rounded-lg border border-border/60">
                           <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
                             <span>Span ID</span>
@@ -477,39 +457,7 @@ export function ExecutionDetailPage() {
                         </div>
                       )}
 
-                      {/* Metadata - Old schema */}
-                      {!isNewSchema(execution) && execution.metadata && Object.keys(execution.metadata).length > 0 && (
-                        <div className="pt-3 border-t border-border/60">
-                          <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
-                            Metadata
-                          </div>
-                          <div className="space-y-2">
-                            {Object.entries(execution.metadata).map(([key, value]) => {
-                              const isObject = typeof value === 'object' && value !== null;
-                              const displayValue = isObject 
-                                ? JSON.stringify(value, null, 2) 
-                                : String(value);
-                              
-                              return (
-                                <div key={key} className="p-2.5 bg-muted/30 rounded border border-border/40">
-                                  <div className="text-xs font-medium text-foreground mb-1">
-                                    {key}
-                                  </div>
-                                  {isObject ? (
-                                    <pre className="text-xs text-muted-foreground font-mono overflow-x-auto">
-                                      {displayValue}
-                                    </pre>
-                                  ) : (
-                                    <div className="text-xs text-muted-foreground break-all">
-                                      {displayValue}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                      {/* Metadata removed - not in new schema */}
                     </div>
                   </Card>
                 </div>
