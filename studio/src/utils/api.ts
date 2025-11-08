@@ -27,6 +27,8 @@ import type {
   TraceHierarchy,
   FeedbackRequest,
   FeedbackResponse,
+  ValidateTemplateRequest,
+  ValidateTemplateResponse,
 } from '../types';
 
 interface UserContext {
@@ -219,6 +221,24 @@ export function createApiClient(getToken?: () => Promise<string | null>) {
         headers: authHeaders,
       });
       return handleResponse<Template[]>(response);
+    },
+
+    async validateTemplate(
+      projectId: string,
+      request: ValidateTemplateRequest,
+      options: { signal?: AbortSignal } = {}
+    ): Promise<ValidateTemplateResponse> {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/prompts/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        signal: options.signal,
+        body: JSON.stringify(request),
+      });
+      return handleResponse<ValidateTemplateResponse>(response);
     },
 
     async getPromptParts(projectId: string): Promise<PartListResponse> {

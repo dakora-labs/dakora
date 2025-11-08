@@ -40,6 +40,27 @@ class RenderResponse(BaseModel):
     rendered: str
     inputs_used: Dict[str, Any]
 
+
+# Validation schemas
+class ValidateTemplateRequest(BaseModel):
+    template: str
+    declared_variables: List[str] | None = Field(default=None, description="Optional list of declared input variable names for unused/unknown checks")
+
+
+class ValidationIssue(BaseModel):
+    message: str
+    line: int | None = None
+    column: int | None = None
+    type: str = Field(description="Issue type (e.g., 'syntax', 'include', 'other')")
+
+
+class ValidateTemplateResponse(BaseModel):
+    ok: bool = True
+    variables_used: List[str] = Field(default_factory=list)
+    variables_missing: List[str] = Field(default_factory=list, description="Variables used in the template but not declared")
+    variables_unused: List[str] = Field(default_factory=list, description="Variables declared but not used in the template")
+    errors: List[ValidationIssue] = Field(default_factory=list)
+
 class TemplateUsage(BaseModel):
     """Information about a template used in an execution"""
     prompt_id: str

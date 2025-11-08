@@ -22,7 +22,8 @@ import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
 import { useFeedbackContext } from '@/contexts/FeedbackContext';
 import { PromptPartsPanel } from '@/components/PromptPartsPanel';
 import { RichTemplateEditor, type RichTemplateEditorRef } from '@/components/RichTemplateEditor';
-import type { InputSpec } from '@/types';
+import { useTemplateValidation } from '@/hooks/useTemplateValidation';
+import type { InputSpec, ValidationIssue } from '@/types';
 
 type InputType = 'string' | 'number' | 'boolean' | 'array<string>' | 'object';
 
@@ -44,9 +45,14 @@ export function NewPromptPage() {
   const [error, setError] = useState('');
   const [showUnusedVarsDialog, setShowUnusedVarsDialog] = useState(false);
   const [unusedVars, setUnusedVars] = useState<string[]>([]);
+  const [showValidationIssuesDialog, setShowValidationIssuesDialog] = useState(false);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>([]);
   const [showAddVariable, setShowAddVariable] = useState(false);
   const [newVarName, setNewVarName] = useState('');
   const [newVarType, setNewVarType] = useState<InputType>('string');
+
+  const declaredVars = variables.map(v => v.name.trim()).filter(Boolean);
+  const { validation, markers } = useTemplateValidation(template, declaredVars);
 
   const handleAddVariable = () => {
     if (!newVarName.trim()) return;
@@ -112,7 +118,7 @@ export function NewPromptPage() {
     }
   };
 
-  const handleSave = async () => {
+  const attemptSave = async (options: { skipValidation?: boolean } = {}) => {
     setError('');
 
     if (!id.trim()) {
@@ -127,6 +133,12 @@ export function NewPromptPage() {
       }
     }
 
+    if (!options.skipValidation && validation?.errors?.length) {
+      setValidationIssues(validation.errors);
+      setShowValidationIssuesDialog(true);
+      return;
+    }
+
     const unused = validateTemplate();
     if (unused.length > 0) {
       setUnusedVars(unused);
@@ -137,9 +149,18 @@ export function NewPromptPage() {
     await performSave();
   };
 
+  const handleSave = async () => {
+    await attemptSave();
+  };
+
   const handleSaveAnyway = async () => {
     setShowUnusedVarsDialog(false);
     await performSave();
+  };
+
+  const handleProceedDespiteValidationIssues = async () => {
+    setShowValidationIssuesDialog(false);
+    await attemptSave({ skipValidation: true });
   };
 
   const getUsedParts = useCallback((): Array<{ category: string; partId: string }> => {
@@ -306,11 +327,13 @@ export function NewPromptPage() {
 
                 {variables.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-1">
-                    {variables.map((variable) => (
+                    {variables.map((variable) => {
+                      const isUnused = validation?.variables_unused?.includes(variable.name);
+                      return (
                       <Badge
                         key={variable.name}
                         variant="secondary"
-                        className="gap-1.5 pl-2.5 pr-1.5 py-1 text-xs"
+                        className={`gap-1.5 pl-2.5 pr-1.5 py-1 text-xs ${isUnused ? 'border border-amber-300 text-amber-700 bg-amber-50' : ''}`}
                       >
                         <span>{variable.name}</span>
                         <span className="text-muted-foreground">({variable.type})</span>
@@ -321,7 +344,7 @@ export function NewPromptPage() {
                           <X className="w-3 h-3" />
                         </button>
                       </Badge>
-                    ))}
+                    );})}
                   </div>
                 )}
               </div>
@@ -339,7 +362,9 @@ export function NewPromptPage() {
                   value={template}
                   onChange={setTemplate}
                   placeholder="Write your prompt template here. Use {{ variable_name }} for dynamic inputs."
-                  className="min-h-[calc(100vh-180px)]"
+                  className="h-[calc(100vh-220px)] min-h-[420px]"
+                  markers={markers}
+                  suggestions={declaredVars}
                 />
               </div>
             </div>
@@ -380,6 +405,33 @@ export function NewPromptPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSaveAnyway} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Anyway'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showValidationIssuesDialog} onOpenChange={setShowValidationIssuesDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <AlertDialogTitle>Template has validation errors</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              Fix the following issues before saving to avoid runtime failures:
+              <ul className="mt-2 list-disc list-inside space-y-1">
+                {validationIssues.map((issue, index) => (
+                  <li key={`${issue.message}-${index}`} className="text-sm">
+                    <span className="font-medium">Line {issue.line ?? '?'}:</span> {issue.message}
+                  </li>
+                ))}
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleProceedDespiteValidationIssues} disabled={saving}>
               {saving ? 'Saving...' : 'Save Anyway'}
             </AlertDialogAction>
           </AlertDialogFooter>

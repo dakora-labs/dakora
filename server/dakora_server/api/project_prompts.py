@@ -1,6 +1,8 @@
 """Project-scoped prompts API routes."""
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
+import logging
+import re
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Depends, Response
 from sqlalchemy.engine import Engine
@@ -21,6 +23,9 @@ from .schemas import (
     VersionHistoryResponse,
     VersionHistoryItem,
     RollbackRequest,
+    ValidateTemplateRequest,
+    ValidateTemplateResponse,
+    ValidationIssue,
 )
 
 router = APIRouter(
@@ -377,6 +382,156 @@ async def render_prompt(
         raise HTTPException(status_code=400, detail=f"Render error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _line_col_from_index(source: str, index: int) -> Tuple[int, int]:
+    """Convert a string index to 1-based (line, column)."""
+    line = source.count("\n", 0, index) + 1
+    last_newline = source.rfind("\n", 0, index)
+    if last_newline == -1:
+        col = index + 1
+    else:
+        col = index - last_newline
+    return line, col
+
+
+RAW_BLOCK_PATTERN = re.compile(
+    r"{%\s*raw\s*%}.*?{%\s*endraw\s*%}",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _detect_brace_issues(template: str) -> list[ValidationIssue]:
+    """Detect unmatched double-curly braces commonly caused by typos."""
+    issues: list[ValidationIssue] = []
+    raw_spans = [(m.start(), m.end()) for m in RAW_BLOCK_PATTERN.finditer(template)]
+    span_idx = 0
+    current_span = raw_spans[span_idx] if raw_spans else None
+
+    def advance_span(pos: int):
+        nonlocal span_idx, current_span
+        while current_span and pos >= current_span[1]:
+            span_idx += 1
+            current_span = raw_spans[span_idx] if span_idx < len(raw_spans) else None
+
+    stack: list[int] = []
+    i = 0
+    length = len(template)
+
+    while i < length:
+        if current_span and current_span[0] <= i < current_span[1]:
+            i = current_span[1]
+            advance_span(i)
+            continue
+
+        if template[i] == "{" and i + 1 < length and template[i + 1] == "{":
+            stack.append(i)
+            i += 2
+            continue
+
+        if template[i] == "}" and i + 1 < length and template[i + 1] == "}":
+            if stack:
+                stack.pop()
+            else:
+                line, col = _line_col_from_index(template, i)
+                issues.append(
+                    ValidationIssue(
+                        message="Unmatched closing '}}'. Check for a missing opening '{{'.",
+                        line=line,
+                        column=col,
+                        type="brace",
+                    )
+                )
+            i += 2
+            continue
+
+        i += 1
+
+    for idx in stack:
+        line, col = _line_col_from_index(template, idx)
+        issues.append(
+            ValidationIssue(
+                message="Opening '{{' is missing a closing '}}'.",
+                line=line,
+                column=col,
+                type="brace",
+            )
+        )
+
+    return issues
+
+
+@router.post("/validate", response_model=ValidateTemplateResponse)
+async def validate_template(
+    request: ValidateTemplateRequest,
+    project_id: UUID = Depends(validate_project_access),
+    engine: Engine = Depends(get_engine),
+):
+    """Validate a Jinja2 template for syntax and variable usage.
+
+    - Parses the template to report syntax errors (line/column when available)
+    - Extracts used variables via Jinja2's meta analysis
+    - Optionally compares against declared variables to report missing/unused
+    - Attempts to resolve include directives to catch missing parts
+    """
+    from jinja2 import TemplateSyntaxError
+    from jinja2 import meta as jinja_meta
+
+    errors: list[ValidationIssue] = []
+    variables_used: set[str] = set()
+    declared = set(request.declared_variables or [])
+
+    # Build env with part loader for include resolution
+    try:
+        from ..core.renderer import Renderer, make_env
+
+        # Use env without loader for parse/meta to avoid IO on syntax pass
+        parse_env = make_env()
+        try:
+            ast = parse_env.parse(request.template)
+            variables_used = set(jinja_meta.find_undeclared_variables(ast))
+        except TemplateSyntaxError as e:
+            errors.append(
+                ValidationIssue(
+                    message=str(e),
+                    line=getattr(e, "lineno", None),
+                    column=getattr(e, "offset", None),
+                    type="syntax",
+                )
+            )
+
+        # Try resolving includes to surface missing include parts (ignore variables)
+        try:
+            renderer = Renderer(engine=engine, project_id=project_id)
+            # Will raise if include part is missing or loader fails
+            _ = renderer.resolve_includes(request.template)
+        except RuntimeError as e:
+            errors.append(
+                ValidationIssue(
+                    message=str(e),
+                    line=None,
+                    column=None,
+                    type="include",
+                )
+            )
+
+        variables_missing = sorted(list(variables_used - declared)) if declared else []
+        variables_unused = sorted(list(declared - variables_used)) if declared else []
+
+        errors.extend(_detect_brace_issues(request.template))
+
+        return ValidateTemplateResponse(
+            ok=len(errors) == 0,
+            variables_used=sorted(list(variables_used)),
+            variables_missing=variables_missing,
+            variables_unused=variables_unused,
+            errors=errors,
+        )
+
+    except Exception as e:
+        # Any unexpected error -> return as a generic issue but keep request working
+        logging.getLogger(__name__).exception("Template validation failed")
+        raise HTTPException(status_code=500, detail="Template validation failed")
 
 
 @router.delete("/{prompt_id}", status_code=204)
