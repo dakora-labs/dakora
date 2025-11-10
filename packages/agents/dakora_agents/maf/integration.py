@@ -140,11 +140,24 @@ class DakoraIntegration:
         # Optionally suppress console metrics (verbose JSON output)
         if suppress_console_metrics:
             try:
-                from io import StringIO
-                from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, MetricExporter
+                from opentelemetry.sdk.metrics.export import (
+                    ConsoleMetricExporter,
+                    MetricExporter,
+                )
+
+                class _NullWriter:
+                    """Lightweight sink that drops OTEL console metric writes."""
+
+                    __slots__ = ()
+
+                    def write(self, message: str) -> int:
+                        return len(message) if message is not None else 0
+
+                    def flush(self) -> None:
+                        return None
 
                 if not any(isinstance(exp, MetricExporter) for exp in exporters):
-                    exporters.append(ConsoleMetricExporter(out=StringIO()))
+                    exporters.append(ConsoleMetricExporter(out=_NullWriter()))
             except Exception as error:
                 logger.debug(f"Unable to disable console metrics: {error}")
 
