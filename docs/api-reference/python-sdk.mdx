@@ -1,0 +1,63 @@
+---
+title: Python SDK
+description: 'Use the Dakora Python SDK for project-scoped API access'
+---
+
+## Install
+
+```bash
+pip install dakora-client  # or: pip install dakora_client
+```
+
+## Initialize
+
+```python
+import asyncio
+from dakora_client import Dakora
+
+async def main():
+    client = Dakora()  # reads DAKORA_BASE_URL and DAKORA_API_KEY
+
+    # Project context resolves automatically from your API key on first use
+
+    # List prompts
+    ids = await client.prompts.list()
+    print("Templates:", ids)
+
+    # Render
+    result = await client.prompts.render(
+        "faq_responder",
+        {
+            "question": "How do I reset my password?",
+            "knowledge_base": "Click Forgot Password on the login page."
+        }
+    )
+    print(result.text)
+
+    # Log execution (project resolves automatically from your API key)
+    await client.executions.create(
+        trace_id="demo-trace-001",
+        agent_id="sample-agent",
+        template_usages=[{"prompt_id": "faq_responder", "version": "latest", "inputs": {"question": "How do I reset my password?"}}],
+        conversation_history=[{"role": "user", "content": "Say hello"}],
+        provider="openai",
+        model="gpt-4o",
+        tokens_in=50,
+        tokens_out=120,
+        latency_ms=1200,
+    )
+
+asyncio.run(main())
+```
+
+## Configuration
+
+Environment variables:
+
+```bash
+export DAKORA_BASE_URL="https://api.dakora.io"
+export DAKORA_API_KEY="dkr_..."
+```
+
+The SDK automatically attaches `X-API-Key` and resolves `project_id` automatically.
+

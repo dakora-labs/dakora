@@ -1,0 +1,124 @@
+---
+title: Introduction
+description: 'Observability and cost control for your AI apps, with prompt management and a hosted studio.'
+---
+
+### Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Cost Analytics"
+    icon="chart-line"
+    href="/features/logging"
+  >
+    Real‑time insight into token usage and spend across models, agents, and templates
+  </Card>
+  <Card
+    title="Policy Engine"
+    icon="shield-check"
+    href="/guides/project-budgets"
+  >
+    Set budgets and alerts, enforce limits, and prevent runaway costs
+  </Card>
+  <Card
+    title="Prompt Management"
+    icon="file-lines"
+    href="/concepts/templates"
+  >
+    Author, version, validate, and render templates with reusable parts
+  </Card>
+  <Card
+    title="Performance Monitoring"
+    icon="gauge"
+    href="/features/logging"
+  >
+    Track latency and errors; explore timelines for chat and tool executions
+  </Card>
+</CardGroup>
+
+ 
+
+## Quick Example
+
+Render a template with the Python SDK:
+
+```python
+import asyncio
+from dotenv import load_dotenv
+from dakora_client import Dakora
+
+# Load environment variables from .env file
+load_dotenv()
+
+
+async def main():
+    # uses env vars: DAKORA_API_KEY and DAKORA_BASE_URL
+    # initialize Dakora client
+    dakora = Dakora()
+
+    # Render a Dakora template and run it through the agent (auto-tracked)
+    faq_template = await dakora.prompts.render(
+        "faq_responder",
+        {
+            "question": "What is Dakora?",
+            "knowledge_base": "**Dakora** is an open‑source AI observability and prompt management platform that delivers real‑time cost analytics, policy controls, and a hosted studio to help teams make every token count. Learn more at https://dakora.io.",
+            "tone": "helpful",
+            "include_sources": True,
+        },
+    )
+
+    print("Rendered template:\n\n", faq_template.text)
+
+
+asyncio.run(main())
+```
+
+### Works With Your Stack
+
+- Microsoft Agent Framework
+- Soon: OpenAI Agents, LangChain and many more
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card
+    title="Live Playground"
+    icon="globe"
+    href="https://playground.dakora.io"
+  >
+    Try Dakora in your browser without installing anything
+  </Card>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/getting-started/quickstart"
+  >
+    Get up and running in minutes
+  </Card>
+</CardGroup>
+
+## Dig Deeper
+
+<CardGroup cols={3}>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/concepts/templates"
+  >
+    Learn about templates, vault, and inputs
+  </Card>
+  <Card
+    title="Features"
+    icon="gauge"
+    href="/features/logging"
+  >
+    Explore logging, integrations, and the playground
+  </Card>
+  <Card
+    title="REST API"
+    icon="code"
+    href="/api-reference/rest"
+  >
+    Explore project‑scoped endpoints
+  </Card>
+</CardGroup>

@@ -1,0 +1,138 @@
+---
+title: Quick Start
+description: 'Sign up, create an API key, render a template, and log your first execution.'
+---
+
+<Tip>
+  Recommended: Use the Python SDK for the fastest start and best developer experience
+</Tip>
+
+<Steps>
+  <Step title="Sign in and create a project">
+    - Sign in to the Dakora web app and create (or select) a project.
+    - From Settings → API Keys, generate your first project API key. Copy it — it’s shown only once.
+  </Step>
+
+  <Step title="Install the Python SDK">
+
+```bash
+pip install dakora-client
+```
+  </Step>
+
+  <Step title="Set environment variables">
+    Set `DAKORA_API_KEY` and (optionally) `DAKORA_BASE_URL` as OS environment variables. Examples:
+```bash
+export DAKORA_BASE_URL="https://api.dakora.io"    # or your deployment URL
+export DAKORA_API_KEY="dkr_..."                   # your project API key
+export OPENAI_API_KEY="sk-..."                    # your OpenAI key (for agent examples)
+export OPENAI_CHAT_MODEL_ID="gpt-4o-mini"                 # model for OpenAI agent client
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:DAKORA_BASE_URL = "https://api.dakora.io"
+$env:DAKORA_API_KEY = "dkr_..."
+$env:OPENAI_API_KEY = "sk-..."
+$env:OPENAI_CHAT_MODEL_ID = "gpt-4o-mini"
+```
+  </Step>
+
+  <Step title="Render your first template">
+
+```python
+import asyncio
+from dotenv import load_dotenv
+from dakora_client import Dakora
+
+# Load environment variables from .env file
+load_dotenv()
+
+
+async def main():
+    # uses env vars: DAKORA_API_KEY and DAKORA_BASE_URL
+    # initialize Dakora client
+    dakora = Dakora()
+
+    # Render a Dakora template and run it through the agent (auto-tracked)
+    faq_template = await dakora.prompts.render(
+        "faq_responder",
+        {
+            "question": "What is Dakora?",
+            "knowledge_base": "**Dakora** is an open‑source AI observability and prompt management platform that delivers real‑time cost analytics, policy controls, and a hosted studio to help teams make every token count. Learn more at https://dakora.io.",
+            "tone": "helpful",
+            "include_sources": True,
+        },
+    )
+
+    print("Rendered template:\n\n", faq_template.text)
+
+
+asyncio.run(main())
+```
+  </Step>
+
+  <Step title="Log your first execution">
+    Implement it with your agent. The middleware sends OpenTelemetry spans automatically so executions appear in Dakora.
+
+   [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/overview/agent-framework-overview) example (uses the `faq_responder` template from above):
+
+```python
+import asyncio
+from dotenv import load_dotenv
+from agent_framework import ChatAgent
+from dakora_client import Dakora
+from dakora_agents.maf import DakoraIntegration
+from agent_framework.openai import OpenAIChatClient
+
+# Load environment variables from .env file
+load_dotenv()
+
+async def main():
+    # uses env vars: DAKORA_API_KEY and DAKORA_BASE_URL
+    # initialize Dakora client
+    dakora = Dakora()
+
+    # One-line observability setup (OTel via OTLP/HTTP → Dakora)
+    middleware = DakoraIntegration.setup(dakora)
+
+    # uses env vars: OPENAI_API_KEY and OPENAI_CHAT_MODEL_ID
+    # Create your agent with middleware attached
+    agent = ChatAgent(
+        id="dakora_faq_agent",
+        name="DakoraFAQAgent",
+        chat_client=OpenAIChatClient(),
+        middleware=[middleware],
+    )
+
+    # Render a Dakora template and run it through the agent (auto-tracked)
+    faq_template = await dakora.prompts.render(
+        "faq_responder",
+        {
+            "question": "What is Dakora?",
+            "knowledge_base": "**Dakora** is an open‑source AI observability and prompt management platform that delivers real‑time cost analytics, policy controls, and a hosted studio to help teams make every token count. Learn more at https://dakora.io.",
+            "tone": "helpful",
+            "include_sources": True,
+        },
+    )
+
+    # Run the agent with the rendered template
+    reply = await agent.run(faq_template.text)
+    print(reply)
+
+    # Optional: ensure spans are flushed before exit
+    DakoraIntegration.force_flush()
+
+asyncio.run(main())
+```
+
+    Tip: install extras for MAF support with `pip install "dakora-client[maf]"`.
+
+    For more, see `packages/agents/examples/maf_integration_example.py`.
+  </Step>
+
+  <Step title="Explore the timeline">
+    Open the Dakora Studio, go to Executions, and search for your `trace_id` to view the normalized chat + tools timeline.
+  </Step>
+</Steps>

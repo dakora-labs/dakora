@@ -1,0 +1,66 @@
+---
+title: REST API
+description: 'Project-scoped REST endpoints for Dakora'
+---
+
+## Auth & Context
+
+- `GET /api/me/context` — Resolve user and default `project_id` (X‑API‑Key)
+- `GET /api/health`, `GET /api/latency` — Health checks
+
+## Prompts (Project‑Scoped)
+
+- `GET /api/projects/{project_id}/prompts` — List
+- `GET /api/projects/{project_id}/prompts/{prompt_id}` — Get
+- `POST /api/projects/{project_id}/prompts` — Create
+- `PUT /api/projects/{project_id}/prompts/{prompt_id}` — Update
+- `DELETE /api/projects/{project_id}/prompts/{prompt_id}` — Delete
+- `POST /api/projects/{project_id}/prompts/{prompt_id}/render` — Render
+- `POST /api/projects/{project_id}/prompts/validate` — Validate
+- Versions: list/get/rollback
+
+## Parts (Project‑Scoped)
+
+- CRUD under `/api/projects/{project_id}/parts`
+
+## Executions & Observability
+
+- `POST /api/projects/{project_id}/executions` — Create
+- `GET /api/projects/{project_id}/executions` — List (filters, pagination)
+- `GET /api/projects/{project_id}/executions/{trace_id}` — Detail
+- `GET /api/projects/{project_id}/executions/{trace_id}/hierarchy` — Hierarchy
+- `GET /api/projects/{project_id}/executions/{trace_id}/timeline` — Normalized timeline
+- `GET /api/projects/{project_id}/prompts/{prompt_id}/analytics` — Template analytics
+
+## OpenTelemetry (OTLP) Ingestion
+
+- `POST /api/v1/traces` - OTLP/HTTP protobuf or Dakora OTLP‑compatible JSON
+
+## API Keys (Project‑Scoped)
+
+- `POST /api/projects/{project_id}/api-keys` — Create (JWT or admin)
+- `GET /api/projects/{project_id}/api-keys` — List
+- `GET /api/projects/{project_id}/api-keys/{key_id}` — Get
+- `DELETE /api/projects/{project_id}/api-keys/{key_id}` — Revoke
+
+## Projects
+
+- `GET /api/projects/{project_id}/stats` — Stats & trends
+- `GET /api/projects/{project_id}/budget`, `PUT /api/projects/{project_id}/budget` — Budgets
+
+## Optimization
+
+- `POST /api/projects/{project_id}/prompts/{prompt_id}/optimize` — Optimize
+- `GET /api/projects/{project_id}/prompts/{prompt_id}/optimization-runs` — History
+- `GET /api/workspaces/{workspace_id}/quota` — Quotas
+
+## Feedback & Webhooks
+
+- `POST /api/feedback` — Submit user feedback
+- `POST /api/webhooks/clerk` — Clerk webhooks
+
+## Conventions
+
+- All project resources require `project_id` path param and authentication.
+- Use `GET /api/me/context` once per session to resolve project context.
+- Rate limiting and quotas apply per plan.

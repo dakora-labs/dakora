@@ -1,0 +1,68 @@
+---
+title: Integrations
+description: 'Works with your stack — Microsoft Agent Framework (MAF), OpenAI Agents, and LangChain'
+---
+
+## Overview
+
+Dakora integrates with popular agent and orchestration frameworks. Send OpenTelemetry traces via OTLP/HTTP or log executions directly — no SDK lock‑in. Use project‑scoped APIs and your `X-API-Key`.
+
+## Microsoft Agent Framework (MAF)
+
+Use the built-in MAF middleware for one-line setup — no manual HTTP calls required.
+
+```bash
+pip install "dakora-client[maf]"
+```
+
+```python
+from dakora_client import Dakora
+from dakora_agents.maf import DakoraIntegration
+from agent_framework.openai import OpenAIChatClient  # or agent_framework.azure.AzureOpenAIChatClient
+
+# 1) Initialize Dakora (uses DAKORA_API_KEY env var if present)
+dakora = Dakora()
+
+# 2) One-line observability setup (OpenTelemetry via OTLP/HTTP → Dakora, budget checks, etc.)
+middleware = DakoraIntegration.setup(dakora)
+
+# 3) Plug into your MAF chat client
+client = OpenAIChatClient(api_key="sk-...", middleware=[middleware])
+agent = client.create_agent(id="support-bot")
+
+# 4) Render a Dakora template and convert to an agent message (auto-tracked)
+tmpl = await dakora.prompts.render(
+    "faq_responder",
+    {"question": "How do I reset my password?", "knowledge_base": "Click Forgot Password."}
+)
+response = await agent.run(tmpl.to_message())
+
+# Optional: flush OpenTelemetry exporter (OTLP) before exiting
+DakoraIntegration.force_flush()
+```
+
+What you get automatically:
+- Token, latency, and cost tracking via OpenTelemetry (OTLP exporter)
+- Template attribution (via metadata markers or template_usages)
+- Budget checks (configurable TTL cache)
+- Rich timeline and hierarchy views in the UI
+
+## OpenAI Agents (Coming Soon)
+
+Developer‑friendly adapter for one‑line instrumentation. No manual HTTP.
+
+## LangChain (Coming Soon)
+
+Lightweight package for easy tracing and budgets with minimal setup.
+
+## Best Practices
+
+- Prefer OpenTelemetry (OTLP) ingestion for rich timelines and low overhead.
+- Use stable `trace_id` for idempotency.
+- Include `provider`, `model`, `tokens_in`, `tokens_out`, and `latency_ms` for cost visibility.
+- Link templates via `template_usages` for accurate attribution.
+
+## See Also
+
+- Observability & Logging: /features/logging
+- REST API: /api-reference/rest
