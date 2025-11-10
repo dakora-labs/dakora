@@ -57,6 +57,7 @@ class DakoraIntegration:
         dakora_client: Dakora,
         enable_sensitive_data: bool = True,
         budget_check_cache_ttl: int = 30,
+        suppress_console_metrics: bool = True,
         additional_exporters: list[LogExporter | SpanExporter | MetricExporter] | None = None,
         **observability_kwargs: Any,
     ) -> DakoraTraceMiddleware:
@@ -72,6 +73,7 @@ class DakoraIntegration:
             dakora_client: Dakora client instance with API key configured
             enable_sensitive_data: Capture messages and prompts in OTEL (default: True)
             budget_check_cache_ttl: Budget check cache TTL in seconds (default: 30)
+            suppress_console_metrics: Suppress verbose JSON metrics from console (default: True)
             additional_exporters: Optional OTEL exporters (Jaeger, Azure Monitor, etc.)
             **observability_kwargs: Additional args passed to setup_observability()
 
@@ -131,9 +133,33 @@ class DakoraIntegration:
         import os
         os.environ.setdefault("OTEL_LOG_LEVEL", "ERROR")
 
-        # Suppress console metrics output
+        # Suppress console output from OpenTelemetry
         otel_logger = logging.getLogger("opentelemetry")
         otel_logger.setLevel(logging.ERROR)
+        
+        # Optionally suppress console metrics (verbose JSON output)
+        if suppress_console_metrics:
+            try:
+                from opentelemetry.sdk.metrics.export import (
+                    ConsoleMetricExporter,
+                    MetricExporter,
+                )
+
+                class _NullWriter:
+                    """Lightweight sink that drops OTEL console metric writes."""
+
+                    __slots__ = ()
+
+                    def write(self, message: str) -> int:
+                        return len(message) if message is not None else 0
+
+                    def flush(self) -> None:
+                        return None
+
+                if not any(isinstance(exp, MetricExporter) for exp in exporters):
+                    exporters.append(ConsoleMetricExporter(out=_NullWriter()))
+            except Exception as error:
+                logger.debug(f"Unable to disable console metrics: {error}")
 
         # Setup OTEL with all exporters
         logger.info(

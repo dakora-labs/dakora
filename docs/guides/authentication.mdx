@@ -7,43 +7,32 @@ description: 'Set up and use authentication with Dakora'
 
 Dakora supports multiple authentication methods to protect your API endpoints and manage access control:
 
-1. **JWT Authentication** - Clerk-based user authentication for web applications
-2. **API Key Authentication** - For programmatic access and integrations
-3. **Development Mode** - No authentication (for local development)
+1. **API Key Authentication** — for programmatic access and integrations (recommended for server‑to‑server)
+2. **JWT Authentication (Clerk)** — for browser and user‑initiated flows
+3. **Development Mode** — no authentication (local development only)
 
-The system prioritizes authentication in the following order:
-1. API Key (if provided in `X-API-Key` header)
-2. JWT Token (if provided in `Authorization: Bearer` header)
-3. Development Mode (if `AUTH_REQUIRED=false`)
+Priority order per request:
+1. API Key via `X-API-Key`
+2. JWT Bearer via `Authorization: Bearer <token>`
+3. No‑auth (only when `AUTH_REQUIRED=false`)
 
 ## Authentication Modes
 
 ### Production Mode (Auth Enabled)
 
-When `AUTH_REQUIRED=true` (or `AUTH_REQUIRED=true` on backend):
-- All API endpoints require authentication
-- Users must be signed in via Clerk or provide an API key
-- Multi-tenant architecture with user and project scoping
-- Endpoints return `401 Unauthorized` for missing/invalid credentials
+When `AUTH_REQUIRED=true`:
+- All API endpoints require valid auth
+- Multi‑tenant scoping applies (user/workspace/project)
+- Unauthorized requests return `401`/`403`
 
 ### Development Mode (No Auth)
 
 When `AUTH_REQUIRED=false`:
-- All API endpoints are public (no authentication required)
-- Ideal for local development and testing
-- All requests treated as default user with default project scoping
-- No Clerk setup needed
+- Endpoints are public (no headers required)
+- Intended for local development only
+- Requests are scoped to a default project
 
 ## Frontend Setup (Clerk JWT)
-
-### Step 1: Get Clerk Publishable Key
-
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com)
-2. Create an application (or use existing)
-3. Navigate to **API Keys**
-4. Copy your **Publishable Key** (starts with `pk_test_` or `pk_live_`)
-
-### Step 2: Configure Environment Variables
 
 Create `studio/.env.local`:
 
@@ -51,18 +40,14 @@ Create `studio/.env.local`:
 # Enable authentication
 VITE_AUTH_REQUIRED=true
 
-# Clerk configuration
+# Clerk
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_YOUR_KEY_HERE
 
-# API configuration
+# API
 VITE_API_URL=http://localhost:8000
 ```
 
-<Info>
-  For development without authentication, set `VITE_AUTH_REQUIRED=false` to skip Clerk setup.
-</Info>
-
-### Step 3: Run Frontend
+Run the frontend:
 
 ```bash
 cd studio
@@ -70,14 +55,7 @@ npm install
 npm run dev
 ```
 
-The frontend will:
-- Show Clerk sign-in/sign-up when `AUTH_REQUIRED=true`
-- Automatically add auth tokens to API requests
-- Allow public access when `AUTH_REQUIRED=false`
-
 ## Backend Setup
-
-### Enable Authentication
 
 Set environment variables in your backend `.env` or deployment:
 
@@ -85,83 +63,93 @@ Set environment variables in your backend `.env` or deployment:
 # Enable authentication
 AUTH_REQUIRED=true
 
-# Clerk JWT configuration
+# Clerk JWT verification
 CLERK_JWT_ISSUER=https://YOUR-CLERK-DOMAIN.clerk.accounts.prod.liveblocks.io
 CLERK_JWKS_URL=https://YOUR-CLERK-DOMAIN.clerk.accounts.prod.liveblocks.io/.well-known/jwks.json
 
-# Database (required for API key storage)
+# Database
 DATABASE_URL=postgresql://user:password@localhost:5432/dakora
 ```
 
-### Disable Authentication (Development)
+## API Key Authentication (Project‑Scoped)
 
-```bash
-AUTH_REQUIRED=false
-```
-
-## API Key Authentication
-
-<Info>
-  **Note:** API key database models and management endpoints are currently in development.
-</Info>
-
-### Generating API Keys
+### Generate API Keys
 
 <Tabs>
-  <Tab title="Frontend (Coming Soon)">
-    In the frontend UI:
-    1. Navigate to Settings → API Keys
-    2. Click "Generate New Key"
-    3. Copy and save the key (shown only once)
-    4. Use in API requests
+  <Tab title="Web App">
+    Use Settings → API Keys to create a project API key. Keys are shown once; copy and store securely.
   </Tab>
+  <Tab title="API (JWT required)">
 
-  <Tab title="Backend (Manual)">
-    Generate a key manually and store in database:
+```bash
+# Resolve project via JWT (Authorization header), then create a key for that project
+ACCESS_TOKEN="<clerk-jwt>"
+PROJECT_ID="<project-uuid>"
 
-    ```python
-    # This is manual for now; UI support coming soon
-    import secrets
-    api_key = secrets.token_urlsafe(32)
-    ```
+curl -s -X POST "http://localhost:8000/api/projects/$PROJECT_ID/api-keys" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "CI Key", "expires_in_days": 90}'
+```
+
   </Tab>
 </Tabs>
 
-### Using API Keys
+### Use API Keys
 
-Add your API key to request headers:
+First, resolve your default project with your API key:
 
 <CodeGroup>
 
 ```bash curl
-curl -X GET http://localhost:8000/api/templates \
-  -H "X-API-Key: your-api-key-here"
+curl -s http://localhost:8000/api/me/context \
+  -H "X-API-Key: dkr_..."
 ```
 
 ```python Python
 import requests
 
-headers = {
-    "X-API-Key": "your-api-key-here"
-}
-
-response = requests.get(
-    "http://localhost:8000/api/templates",
-    headers=headers
-)
+r = requests.get("http://localhost:8000/api/me/context", headers={"X-API-Key": "dkr_..."})
+project_id = r.json()["project_id"]
 ```
 
 ```typescript TypeScript
-const apiKey = "your-api-key-here";
-
-const response = await fetch("http://localhost:8000/api/templates", {
-  headers: {
-    "X-API-Key": apiKey,
-  },
+const resp = await fetch("http://localhost:8000/api/me/context", {
+  headers: { "X-API-Key": "dkr_..." },
 });
+const { project_id } = await resp.json();
 ```
 
 </CodeGroup>
+
+Call project‑scoped endpoints with `project_id`:
+
+```bash
+curl -s "http://localhost:8000/api/projects/$PROJECT_ID/prompts" \
+  -H "X-API-Key: dkr_..."
+```
+
+### Manage API Keys (CRUD)
+
+```bash
+# Create
+curl -s -X POST "http://localhost:8000/api/projects/$PROJECT_ID/api-keys" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Prod Key", "expires_in_days": 365}'
+
+# List (X-API-Key or JWT)
+curl -s "http://localhost:8000/api/projects/$PROJECT_ID/api-keys" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Get by ID
+curl -s "http://localhost:8000/api/projects/$PROJECT_ID/api-keys/$KEY_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Revoke
+curl -s -X DELETE "http://localhost:8000/api/projects/$PROJECT_ID/api-keys/$KEY_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
 
 ### API Key Best Practices
 
@@ -308,18 +296,18 @@ assert response.status_code == 401
 ### Using cURL (Manual)
 
 ```bash
-# Health check (public, no auth needed)
+# Health check (public)
 curl http://localhost:8000/api/health
 
-# With API Key
-curl -H "X-API-Key: your-key" http://localhost:8000/api/templates
+# Resolve project
+curl -H "X-API-Key: dkr_..." http://localhost:8000/api/me/context
 
-# With Bearer Token
-curl -H "Authorization: Bearer <token>" http://localhost:8000/api/templates
+# List prompts (project‑scoped)
+curl -H "X-API-Key: dkr_..." "http://localhost:8000/api/projects/$PROJECT_ID/prompts"
 
 # Invalid key
-curl -H "X-API-Key: invalid" http://localhost:8000/api/templates
-# Returns: 401 Unauthorized
+curl -H "X-API-Key: invalid" http://localhost:8000/api/me/context
+# → 401 Unauthorized
 ```
 
 ## Troubleshooting
@@ -374,10 +362,10 @@ curl -H "X-API-Key: invalid" http://localhost:8000/api/templates
     Detailed API key management
   </Card>
   <Card
-    title="Quick Start"
+    title="Getting Started"
     icon="rocket"
-    href="/quickstart"
+    href="/getting-started/quickstart"
   >
-    Get started with Dakora
+    Make your first API calls
   </Card>
 </CardGroup>

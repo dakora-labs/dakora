@@ -1,0 +1,34 @@
+---
+title: Versioning
+description: 'Track and roll back changes with template versioning'
+---
+
+## Overview
+
+Every template change creates a new version. You can inspect history and roll back to a prior version.
+
+## Version History
+
+Endpoint: `GET /api/projects/{project_id}/prompts/{prompt_id}/versions`
+
+```bash
+curl -s "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/prompts/$PROMPT_ID/versions" \
+  -H "X-API-Key: $DAKORA_API_KEY"
+```
+
+## Get a Specific Version
+
+Endpoint: `GET /api/projects/{project_id}/prompts/{prompt_id}/versions/{version}`
+
+## Roll Back
+
+Endpoint: `POST /api/projects/{project_id}/prompts/{prompt_id}/rollback`
+
+```bash
+curl -s -X POST "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/prompts/$PROMPT_ID/rollback" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $DAKORA_API_KEY" \
+  -d '{"version": 3}'
+```
+
+Rollbacks create a new version using the selected content (history remains intact).

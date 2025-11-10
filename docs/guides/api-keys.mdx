@@ -14,6 +14,34 @@ This guide covers two types of API keys in Dakora:
 
 For authentication and API access, see the [Authentication Guide](/guides/authentication#api-key-authentication).
 
+### Management API (Project‑Scoped)
+
+Use these endpoints to manage project API keys. Creating and revoking keys typically requires a JWT (user context) or an admin API key.
+
+```bash
+# Create a key
+PROJECT_ID="<project-uuid>"
+ACCESS_TOKEN="<clerk-jwt>"
+curl -s -X POST "http://localhost:8000/api/projects/$PROJECT_ID/api-keys" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "CI Key", "expires_in_days": 90}'
+
+# List keys (JWT or API key)
+curl -s "http://localhost:8000/api/projects/$PROJECT_ID/api-keys" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Get a key by ID
+curl -s "http://localhost:8000/api/projects/$PROJECT_ID/api-keys/$KEY_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# Revoke a key
+curl -s -X DELETE "http://localhost:8000/api/projects/$PROJECT_ID/api-keys/$KEY_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Response fields include `id`, `name`, `key` (only on creation), `key_prefix`, `created_at`, `expires_at`, and masked `key_preview` values for reads.
+
 Dakora API keys allow you to:
 - Authenticate API requests without browser login
 - Access Dakora APIs from external services

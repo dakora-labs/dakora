@@ -1,6 +1,6 @@
 {
   "name": "Dakora",
-  "favicon": "/favicon.svg",
+  "favicon": "/assets/favicon.svg",
   "colors": {
     "primary": "#F03000",
     "light": "#FF6A3D",
@@ -10,10 +10,15 @@
       "to": "#FF3300"
     }
   },
+  "logo": {
+    "light": "/assets/logo/light.svg",
+    "dark": "/assets/logo/dark.svg",
+    "href": "https://docs.dakora.io"
+  },
   "topbarLinks": [
     {
       "name": "GitHub",
-      "url": "https://github.com/bogdan-pistol/dakora"
+      "url": "https://github.com/dakora-labs/dakora"
     }
   ],
   "topbarCtaButton": {
@@ -24,10 +29,6 @@
     {
       "name": "API Reference",
       "url": "api-reference"
-    },
-    {
-      "name": "Examples",
-      "url": "examples"
     }
   ],
   "anchors": [
@@ -46,16 +47,14 @@
     {
       "group": "Getting Started",
       "pages": [
-        "introduction",
-        "quickstart",
-        "installation"
+        "getting-started/introduction",
+        "getting-started/quickstart"
       ]
     },
     {
       "group": "Core Concepts",
       "pages": [
         "concepts/templates",
-        "concepts/vault",
         "concepts/inputs",
         "concepts/versioning"
       ]
@@ -64,37 +63,24 @@
       "group": "Features",
       "pages": [
         "features/playground",
-        "features/llm-execution",
-        "features/model-comparison",
         "features/logging",
-        "features/cli"
+        "features/integrations"
       ]
     },
     {
       "group": "API Reference",
       "pages": [
-        "api-reference/vault",
-        "api-reference/template-handle",
-        "api-reference/execution-result",
-        "api-reference/comparison-result"
+        "api-reference/rest",
+        "api-reference/python-sdk"
       ]
     },
-    {
-      "group": "Examples",
-      "pages": [
-        "examples/basic-usage",
-        "examples/fastapi-integration",
-        "examples/openai-agents",
-        "examples/hot-reload"
-      ]
-    },
+    
     {
       "group": "Guides",
       "pages": [
+        "guides/authentication",
         "guides/api-keys",
-        "guides/custom-filters",
-        "guides/logging-setup",
-        "guides/deployment"
+        "guides/project-budgets"
       ]
     }
   ],

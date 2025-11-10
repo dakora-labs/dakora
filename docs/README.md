@@ -5,8 +5,8 @@ This directory contains the Mintlify documentation for Dakora.
 ## Structure
 
 - `mint.json` - Mintlify configuration
-- `introduction.mdx` - Landing page
-- `quickstart.mdx` - Quick start guide
+- `getting-started/introduction.mdx` - Introduction
+- `getting-started/quickstart.mdx` - Quick Start guide
 - `installation.mdx` - Installation instructions
 - `concepts/` - Core concepts
 - `features/` - Feature documentation

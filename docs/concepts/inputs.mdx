@@ -1,0 +1,29 @@
+---
+title: Inputs
+description: 'Define and validate inputs for your templates'
+---
+
+## Input Schema
+
+Templates declare inputs with type and validation metadata. Example:
+
+```yaml
+inputs:
+  name:
+    type: string
+    required: true
+  age:
+    type: number
+    required: false
+  tags:
+    type: array<string>
+    required: false
+```
+
+Types supported: `string`, `number`, `boolean`, `array<string>`, `object`.
+
+## Best Practices
+
+- Mark only truly required fields as `required: true`.
+- Provide sensible defaults where possible.
+- Use includes for large boilerplate and keep inputs focused on variation.

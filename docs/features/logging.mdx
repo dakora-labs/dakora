@@ -1,0 +1,131 @@
+---
+title: Observability & Logging
+description: 'Ingest traces, log executions, and explore timelines for your AI workflows'
+---
+
+## Overview
+
+Dakora provides first-class observability for AI agents and LLM calls. You can:
+- Ingest OpenTelemetry spans (OTLP/HTTP)
+- Log executions directly via the Dakora API
+- List and filter executions by provider/model/agent/time/cost
+- Inspect execution detail, hierarchy, and a normalized chat/tools timeline
+- Analyze per‑template cost and usage
+
+Authentication is required for all endpoints. With the SDK, your `project_id` resolves automatically from your API key; for raw REST, call `/api/me/context`.
+
+## Ingest OpenTelemetry Spans (OTLP/HTTP)
+
+Endpoint: `POST /api/v1/traces`
+
+Content types:
+- `application/x-protobuf` (OTLP protobuf)
+- `application/json` (Dakora OTLP‑compatible JSON)
+
+```bash
+curl -s -X POST "$DAKORA_BASE_URL/api/v1/traces" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $DAKORA_API_KEY" \
+  -d '{
+    "spans": [
+      {
+        "trace_id": "0123456789abcdef0123456789abcdef",
+        "span_id": "0123456789abcdef",
+        "parent_span_id": null,
+        "span_name": "chat",
+        "span_kind": "INTERNAL",
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.model.id": "gpt-4o",
+          "gen_ai.system": "openai"
+        },
+        "events": [],
+        "start_time_ns": 1000000000,
+        "end_time_ns": 2000000000,
+        "status_code": "OK"
+      }
+    ]
+  }'
+```
+
+Response includes spans ingested and executions created.
+
+## Create Executions via API
+
+Endpoint: `POST /api/projects/{project_id}/executions`
+
+```bash
+TRACE_ID="demo-trace-001"
+curl -s -X POST "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/executions" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $DAKORA_API_KEY" \
+  -d '{
+    "trace_id": "'"$TRACE_ID"'",
+    "agent_id": "sample-agent",
+    "provider": "openai",
+    "model": "gpt-4o",
+    "tokens_in": 50,
+    "tokens_out": 120,
+    "latency_ms": 1200,
+    "conversation_history": [
+      {"role": "user", "content": "Say hello to Alice"},
+      {"role": "assistant", "content": "Hello Alice!"}
+    ],
+    "template_usages": [
+      {
+        "prompt_id": "faq_responder",
+        "version": "latest",
+        "inputs": {"question": "How do I reset my password?"},
+        "role": "assistant",
+        "source": "sdk",
+        "message_index": 1
+      }
+    ]
+  }'
+```
+
+## List Executions
+
+Endpoint: `GET /api/projects/{project_id}/executions`
+
+Query params: `provider`, `model`, `agent_id`, `has_templates`, `min_cost`, `start`, `end`, `limit`, `offset`
+
+```bash
+curl -s "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/executions?provider=openai&limit=20" \
+  -H "X-API-Key: $DAKORA_API_KEY"
+```
+
+## Execution Detail & Hierarchy
+
+Endpoints:
+- `GET /api/projects/{project_id}/executions/{trace_id}`
+- `GET /api/projects/{project_id}/executions/{trace_id}/hierarchy`
+
+```bash
+curl -s "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/executions/$TRACE_ID?include_messages=true" \
+  -H "X-API-Key: $DAKORA_API_KEY"
+```
+
+## Normalized Timeline (Chat + Tools)
+
+Endpoint: `GET /api/projects/{project_id}/executions/{trace_id}/timeline`
+
+```bash
+curl -s "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/executions/$TRACE_ID/timeline" \
+  -H "X-API-Key: $DAKORA_API_KEY"
+```
+
+Use `?compact_tools=true` to collapse tool call/result pairs into a single event.
+
+## Template Analytics
+
+Endpoint: `GET /api/projects/{project_id}/prompts/{prompt_id}/analytics`
+
+Returns total executions, cost, latency, and tokens aggregated for the template.
+
+## Best Practices
+
+- Use idempotent `trace_id` generation to avoid duplicates on retries.
+- Include `provider`, `model`, `tokens_in/out`, and `latency_ms` to enable accurate cost/usage.
+- Link templates by embedding metadata or passing `template_usages` for precise attribution.
+- Use pagination (`limit`, `offset`) and time windows for efficient listing.

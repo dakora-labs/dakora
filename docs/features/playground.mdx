@@ -1,0 +1,34 @@
+---
+title: Web Studio
+description: 'Build, version, and analyze prompts in the hosted Dakora Studio'
+---
+
+## Overview
+
+The Dakora Studio is a hosted web experience for:
+- Authoring and versioning templates
+- Managing prompt parts and includes
+- Viewing execution timelines and analytics
+- Generating API keys and managing budgets
+- Running prompt optimization (when enabled on your plan)
+
+## Access
+
+- Sign in with your account.
+- Select a workspace and project (defaults provision automatically on first sign‑in).
+
+## Key Workflows
+
+- Create/Update Templates: Edit templates with input schemas, preview renders, and save versions. Roll back from version history.
+- Parts Library: Manage reusable snippets, include via `{% include 'part_id' %}`.
+- Executions: Inspect runs, drill into detail/hierarchy, and review normalized chat/tool timelines.
+- API Keys: Create per‑project API keys for server‑to‑server use.
+- Budgets & Analytics: Set monthly budgets, view daily cost trends and top templates by spend.
+
+<Tip>
+  Your first project is pre‑seeded with sample templates and parts. Look for them in the Templates and Parts panels and use them as a starting point.
+</Tip>
+
+## Authentication
+
+Studio requires sign‑in. API requests from the Studio include JWTs automatically. For backends/integrations, use API keys.

@@ -1,0 +1,49 @@
+---
+title: Project Budgets & Analytics
+description: 'Set monthly budgets, monitor spend, and analyze template costs'
+---
+
+## Overview
+
+Track spend, set budgets with alerts, and analyze template costs at the project level.
+
+## Project Stats
+
+Endpoint: `GET /api/projects/{project_id}/stats`
+
+Returns:
+- `prompts_count`
+- `total_cost`
+- `total_executions`
+- `avg_cost_per_execution`
+- `daily_costs` (date, cost)
+- `top_prompts` (prompt_id, cost, execution_count, avg_cost)
+
+```bash
+curl -s "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/stats" \
+  -H "X-API-Key: $DAKORA_API_KEY"
+```
+
+## Budgets
+
+Endpoints:
+- `GET /api/projects/{project_id}/budget`
+- `PUT /api/projects/{project_id}/budget`
+
+```bash
+# Get current budget
+curl -s "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/budget" \
+  -H "X-API-Key: $DAKORA_API_KEY"
+
+# Update budget (example)
+curl -s -X PUT "$DAKORA_BASE_URL/api/projects/$PROJECT_ID/budget" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $DAKORA_API_KEY" \
+  -d '{
+    "budget_monthly_usd": 200.0,
+    "alert_threshold_pct": 80,
+    "enforcement_mode": "alert"  
+  }'
+```
+
+Enforcement modes and alerting capabilities vary by plan.
