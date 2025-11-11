@@ -22,15 +22,28 @@ class InviteRequest(BaseModel):
 
 @router.post("/invite-request", status_code=status.HTTP_200_OK)
 @limiter.limit("3/15minutes")
-async def request_invite(http_request: Request, request: InviteRequest):
+async def request_invite(request: Request, invite_data: InviteRequest):
     """
     Public endpoint to request invite. Automatically sends Clerk invitation email.
     No authentication required.
     
     Rate limited to 3 requests per IP per 15 minutes to prevent spam.
+    
+    Args:
+        request: FastAPI request object (required by slowapi for rate limiting)
+        invite_data: Invitation request data (email, name, company, use_case)
+        
+    Returns:
+        Dict with message and optional status field
+        
+    Raises:
+        HTTPException: 503 if Clerk not configured, 504 on timeout, 500 on error
     """
     if not settings.clerk_secret_key:
-        logger.error("CLERK_SECRET_KEY not configured")
+        logger.error(
+            "Invitation service not configured - CLERK_SECRET_KEY missing",
+            extra={"email": invite_data.email}
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Invitation service not configured"
@@ -51,12 +64,12 @@ async def request_invite(http_request: Request, request: InviteRequest):
                     "Content-Type": "application/json"
                 },
                 json={
-                    "email_address": request.email,
+                    "email_address": invite_data.email,
                     **({"redirect_url": redirect_url} if redirect_url else {}),
                     "public_metadata": {
-                        "name": request.name,
-                        "company": request.company,
-                        "use_case": request.use_case,
+                        "name": invite_data.name,
+                        "company": invite_data.company,
+                        "use_case": invite_data.use_case,
                         "source": "landing_page_request",
                     }
                 },
@@ -68,7 +81,10 @@ async def request_invite(http_request: Request, request: InviteRequest):
                 response_data = response.json()
                 errors = response_data.get("errors", [])
                 if errors and errors[0].get("code") == "duplicate_record":
-                    logger.info(f"Duplicate invitation attempt for {request.email}")
+                    logger.info(
+                        "Duplicate invitation attempt",
+                        extra={"email": invite_data.email}
+                    )
                     return {
                         "message": "You already have a pending invitation! Please check your email inbox (and spam folder) for the invite link. If you can't find it, contact support.",
                         "status": "already_invited"
@@ -76,32 +92,58 @@ async def request_invite(http_request: Request, request: InviteRequest):
             
             if response.status_code == 422:
                 # User already exists or other validation error
-                logger.info(f"Validation error for {request.email}")
+                logger.info(
+                    "User already exists",
+                    extra={"email": invite_data.email}
+                )
                 return {
-                    "message": "This email is already registered. Please signing in.",
+                    "message": "This email is already registered. Please sign in.",
                     "status": "already_exists"
                 }
             
             if response.status_code not in [200, 201]:
-                logger.error(f"Clerk API error: {response.status_code} - {response.text}")
+                logger.error(
+                    "Clerk API error",
+                    extra={
+                        "status_code": response.status_code,
+                        "response_text": response.text[:500],  # Limit log size
+                        "email": invite_data.email
+                    }
+                )
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to send invitation"
                 )
         
-        logger.info(f"Invitation sent to {request.email}")
+        logger.info(
+            "Invitation sent successfully",
+            extra={
+                "email": invite_data.email,
+                "has_name": invite_data.name is not None,
+                "has_company": invite_data.company is not None,
+                "has_use_case": invite_data.use_case is not None
+            }
+        )
         return {
             "message": "Invitation sent! Check your email for your exclusive access link."
         }
     
     except httpx.TimeoutException:
-        logger.error("Clerk API timeout")
+        logger.error(
+            "Clerk API timeout",
+            extra={"email": invite_data.email},
+            exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail="Invitation service timed out"
         )
     except Exception as e:
-        logger.error(f"Failed to create invitation: {str(e)}")
+        logger.error(
+            "Failed to create invitation",
+            extra={"email": invite_data.email, "error": str(e)},
+            exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process invite request"
