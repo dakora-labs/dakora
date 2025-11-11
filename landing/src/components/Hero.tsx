@@ -36,7 +36,7 @@ export default function Hero() {
             >
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="px-8 py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-all hover:-translate-y-0.5 shadow-md hover:shadow-lg"
+                className="px-8 py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-all hover:-translate-y-0.5 shadow-md hover:shadow-lg cursor-pointer"
               >
                 Request Invite
               </button>

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     clerk_jwks_url: str | None = None  # e.g., "https://your-domain.clerk.accounts.dev/.well-known/jwks.json"
     clerk_webhook_secret: str | None = None  # Clerk webhook signing secret
     clerk_secret_key: str | None = None  # Clerk secret key for creating invitations
-    invite_redirect_url: str | None = None  # Optional redirect URL for invitations; falls back to Clerk's default when unset
+    invite_redirect_url: str | None = None  # Redirect URL for invitations (leave None for Clerk default Account Portal)
     auth_required: bool = False  # Set to True to enforce authentication
 
     # Azure OpenAI settings (shared instance for all workspaces)

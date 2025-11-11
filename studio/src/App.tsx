@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
+import { SignedIn, SignedOut } from '@clerk/clerk-react';
 const AUTH_REQUIRED = import.meta.env.VITE_AUTH_REQUIRED !== 'false';
 import { MainLayout } from './components/layout/MainLayout';
 import { DashboardPage } from './pages/DashboardPage';
@@ -18,6 +18,7 @@ import { ExecutionsPage } from './pages/ExecutionsPage';
 import { ExecutionDetailPage } from './pages/ExecutionDetailPage';
 import { Toaster } from './components/ui/toaster';
 import { OnboardingWrapper } from './components/OnboardingWrapper';
+import { InviteOnlyLoginPage } from './pages/InviteOnlyLoginPage';
 
 function App() {
   if (AUTH_REQUIRED) {
@@ -53,7 +54,9 @@ function App() {
           </UserContextProvider>
         </SignedIn>
         <SignedOut>
-          <RedirectToSignIn />
+          <Routes>
+            <Route path="*" element={<InviteOnlyLoginPage />} />
+          </Routes>
         </SignedOut>
       </>
     );
