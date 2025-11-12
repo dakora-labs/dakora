@@ -1,10 +1,13 @@
 """Dakora Platform Server"""
 
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from .api import (
     health,
     webhooks,
@@ -18,6 +21,7 @@ from .api import (
     project_optimizations,
     otlp_traces,
     feedback,
+    invitations,
 )
 
 
@@ -28,6 +32,11 @@ def create_app() -> FastAPI:
         version="2.0.0",
     )
 
+    # Configure rate limiting
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -35,6 +44,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Public routes (no auth)
+    app.include_router(invitations.router)
 
     # User context routes
     app.include_router(me.router)
