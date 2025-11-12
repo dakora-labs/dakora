@@ -38,6 +38,7 @@ interface UserContext {
   project_id: string;
   project_slug: string;
   project_name: string;
+  is_platform_admin: boolean;
 }
 
 const getApiBase = () => {

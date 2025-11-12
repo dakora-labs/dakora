@@ -1,10 +1,13 @@
 import { ReactNode, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { Activity, FileText, Menu, ChevronLeft, Library, Settings, LayoutDashboard } from 'lucide-react';
+import { Activity, FileText, Menu, ChevronLeft, Library, Settings, LayoutDashboard, Shield } from 'lucide-react';
 import { StatusBar } from '../StatusBar';
 import { AppTopBar } from './AppTopBar';
 import { cn } from '@/lib/utils';
 import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi';
+import { useUser } from '@clerk/clerk-react';
+
+const AUTH_REQUIRED = import.meta.env.VITE_AUTH_REQUIRED !== 'false';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -14,10 +17,19 @@ export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const { projectSlug: paramProjectSlug } = useParams<{ projectSlug: string }>();
-  const { projectSlug: contextProjectSlug } = useAuthenticatedApi();
+  const { projectSlug: contextProjectSlug, userContext } = useAuthenticatedApi();
+  const { user } = useUser();
 
   // Use projectSlug from route params if available, otherwise from context
   const projectSlug = paramProjectSlug || contextProjectSlug || 'default';
+
+  // Check if user is platform admin
+  // Priority 1: Check Clerk public_metadata (most reliable for UI)
+  // Priority 2: Check backend user context (auth_ctx.is_platform_admin)
+  const isPlatformAdmin = AUTH_REQUIRED && (
+    user?.publicMetadata?.platform_role === 'admin' ||
+    userContext?.is_platform_admin === true
+  );
 
   const isActive = (path: string) => location.pathname.includes(path);
 
@@ -71,6 +83,22 @@ export function MainLayout({ children }: MainLayoutProps) {
       ],
     },
   ];
+
+  // Add admin section if user is platform admin
+  if (isPlatformAdmin) {
+    navigationSections.push({
+      key: 'admin',
+      title: 'Admin',
+      items: [
+        {
+          label: 'Invitations',
+          icon: Shield,
+          to: '/admin/invitations',
+          match: '/admin/invitations',
+        },
+      ],
+    });
+  }
 
   return (
     <div className="h-screen bg-background flex flex-col">
