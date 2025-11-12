@@ -41,6 +41,14 @@ services:
         sync: false  # Set in Render dashboard (from Clerk dashboard)
       - key: CLERK_WEBHOOK_SECRET
         sync: false  # Set in Render dashboard (from Clerk dashboard > Webhooks)
+      - key: CLERK_SECRET_KEY
+        sync: false  # Set in Render dashboard (from Clerk dashboard > API Keys)
+      - key: INVITE_REDIRECT_URL
+        sync: false  # Optional: Set to Studio URL to land users post-accept
+
+      # Email (Resend)
+      - key: RESEND_API_KEY
+        sync: false  # Set in Render dashboard (from Resend > API Keys)
     healthCheckPath: /api/health
     plan: free
 
