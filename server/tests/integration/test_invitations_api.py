@@ -33,21 +33,17 @@ class TestInvitationsAPICore:
 
     def test_invite_request_success(self, client):
         """Test successful invitation request with full data."""
-        with patch("dakora_server.api.invitations.httpx.AsyncClient") as mock_client:
-            mock_response = MagicMock()
-            mock_response.status_code = 201
-            mock_response.json.return_value = {"id": "inv_test123"}
+        # Mock both Clerk user and invitation lookups to return empty
+        with patch("dakora_server.api.invitations._clerk_user_exists") as mock_user_exists, \
+             patch("dakora_server.api.invitations._clerk_invite_status") as mock_invite_status:
             
-            mock_client_instance = AsyncMock()
-            mock_client_instance.post.return_value = mock_response
-            mock_client_instance.__aenter__.return_value = mock_client_instance
-            mock_client_instance.__aexit__.return_value = None
-            mock_client.return_value = mock_client_instance
+            mock_user_exists.return_value = False
+            mock_invite_status.return_value = None
 
             response = client.post(
                 "/api/public/invite-request",
                 json={
-                    "email": "test@example.com",
+                    "email": "unique_test_1@example.com",
                     "name": "Test User",
                     "company": "Test Corp",
                     "use_case": "Testing the platform",
@@ -57,50 +53,29 @@ class TestInvitationsAPICore:
             assert response.status_code == 200
             data = response.json()
             assert "message" in data
-            assert "invitation sent" in data["message"].lower()
-
-            # Verify Clerk API was called with correct data
-            mock_client_instance.post.assert_called_once()
-            call_args = mock_client_instance.post.call_args
-            
-            assert call_args[0][0] == "https://api.clerk.com/v1/invitations"
-            
-            headers = call_args[1]["headers"]
-            assert "Authorization" in headers
-            assert headers["Authorization"].startswith("Bearer ")
-            
-            json_data = call_args[1]["json"]
-            assert json_data["email_address"] == "test@example.com"
-            assert json_data["public_metadata"]["name"] == "Test User"
-            assert json_data["public_metadata"]["company"] == "Test Corp"
-            assert json_data["public_metadata"]["use_case"] == "Testing the platform"
-            assert json_data["public_metadata"]["source"] == "landing_page_request"
+            # Should receive confirmation message for new request
+            assert ("request received" in data["message"].lower() or 
+                    "under review" in data["message"].lower())
 
     def test_invite_request_minimal_data(self, client):
         """Test invitation with only email (minimal required data)."""
-        with patch("dakora_server.api.invitations.httpx.AsyncClient") as mock_client:
-            mock_response = MagicMock()
-            mock_response.status_code = 201
+        with patch("dakora_server.api.invitations._clerk_user_exists") as mock_user_exists, \
+             patch("dakora_server.api.invitations._clerk_invite_status") as mock_invite_status:
             
-            mock_client_instance = AsyncMock()
-            mock_client_instance.post.return_value = mock_response
-            mock_client_instance.__aenter__.return_value = mock_client_instance
-            mock_client_instance.__aexit__.return_value = None
-            mock_client.return_value = mock_client_instance
+            mock_user_exists.return_value = False
+            mock_invite_status.return_value = None
 
             response = client.post(
                 "/api/public/invite-request",
-                json={"email": "minimal@example.com"},
+                json={"email": "unique_minimal_2@example.com"},
             )
 
             assert response.status_code == 200
-            
-            # Verify metadata only includes source for minimal request
-            call_args = mock_client_instance.post.call_args
-            json_data = call_args[1]["json"]
-            metadata = json_data["public_metadata"]
-            assert metadata["source"] == "landing_page_request"
-            assert "name" not in metadata or metadata.get("name") is None
+            data = response.json()
+            assert "message" in data
+            # Should receive confirmation message
+            assert ("request received" in data["message"].lower() or 
+                    "under review" in data["message"].lower())
 
     def test_invite_request_invalid_email(self, client):
         """Test invitation with invalid email format."""
@@ -112,19 +87,12 @@ class TestInvitationsAPICore:
         assert response.status_code == 422  # Validation error
 
     def test_invite_request_duplicate_invitation(self, client):
-        """Test handling of duplicate invitation (Clerk returns 400)."""
-        with patch("dakora_server.api.invitations.httpx.AsyncClient") as mock_client:
-            mock_response = MagicMock()
-            mock_response.status_code = 400
-            mock_response.json.return_value = {
-                "errors": [{"code": "duplicate_record", "message": "Invitation already exists"}]
-            }
+        """Test handling of duplicate invitation (Clerk has pending invitation)."""
+        with patch("dakora_server.api.invitations._clerk_user_exists") as mock_user_exists, \
+             patch("dakora_server.api.invitations._clerk_invite_status") as mock_invite_status:
             
-            mock_client_instance = AsyncMock()
-            mock_client_instance.post.return_value = mock_response
-            mock_client_instance.__aenter__.return_value = mock_client_instance
-            mock_client_instance.__aexit__.return_value = None
-            mock_client.return_value = mock_client_instance
+            mock_user_exists.return_value = False
+            mock_invite_status.return_value = "pending"  # Simulate pending invitation
 
             response = client.post(
                 "/api/public/invite-request",
@@ -133,5 +101,5 @@ class TestInvitationsAPICore:
 
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "already_invited"
-            assert "already have a pending invitation" in data["message"].lower()
+            assert data["status"] == "already_pending"
+            assert "under review" in data["message"].lower()

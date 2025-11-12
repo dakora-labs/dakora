@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     invite_redirect_url: str | None = None  # Redirect URL for invitations (leave None for Clerk default Account Portal)
     auth_required: bool = False  # Set to True to enforce authentication
 
+    # Email settings
+    resend_api_key: str | None = None  # Resend API key for sending emails
+
     # Azure OpenAI settings (shared instance for all workspaces)
     azure_openai_endpoint: str = ""  # e.g., "https://your-resource.openai.azure.com/"
     azure_openai_api_key: str = ""

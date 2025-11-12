@@ -54,6 +54,7 @@ class UserContextResponse(BaseModel):
     project_id: str
     project_slug: str
     project_name: str
+    is_platform_admin: bool = False
 
 
 @router.get("/context", response_model=UserContextResponse)
@@ -87,6 +88,7 @@ async def get_user_context(
             project_id="default",
             project_slug="default",
             project_name="Default Project",
+            is_platform_admin=False,
         )
     
     # Check cache first (unless bypass requested)
@@ -154,6 +156,7 @@ async def get_user_context(
                     project_id=str(project_id),
                     project_slug=project_slug,
                     project_name=project_name,
+                    is_platform_admin=auth_ctx.is_platform_admin(),
                 )
         else:
             workspace_id = workspace_result[0]
@@ -183,6 +186,7 @@ async def get_user_context(
             project_id=str(project_id),
             project_slug=project_slug,
             project_name=project_name,
+            is_platform_admin=auth_ctx.is_platform_admin(),
         )
         
         # Cache the result

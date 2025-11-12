@@ -22,6 +22,7 @@ from .api import (
     otlp_traces,
     feedback,
     invitations,
+    admin_invitations,
 )
 
 
@@ -47,6 +48,9 @@ def create_app() -> FastAPI:
 
     # Public routes (no auth)
     app.include_router(invitations.router)
+
+    # Admin routes (platform admin only)
+    app.include_router(admin_invitations.router)
 
     # User context routes
     app.include_router(me.router)

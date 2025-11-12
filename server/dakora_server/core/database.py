@@ -71,6 +71,24 @@ users_table = Table(
     Column("created_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False),
 )
 
+# Invitation requests table (pre-approval queue)
+invitation_requests_table = Table(
+    "invitation_requests",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("email", String(255), nullable=False, index=True),
+    Column("name", String(255), nullable=True),
+    Column("company", String(255), nullable=True),
+    Column("use_case", Text, nullable=True),
+    Column("status", String(20), server_default=text("'pending'"), nullable=False, index=True),
+    Column("requested_at", DateTime(timezone=True), server_default=text("(NOW() AT TIME ZONE 'UTC')"), nullable=False, index=True),
+    Column("reviewed_at", DateTime(timezone=True), nullable=True),
+    Column("reviewed_by", UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    Column("rejection_reason", Text, nullable=True),
+    Column("clerk_invitation_id", String(255), nullable=True),
+    Column("metadata", JSONB, nullable=True),
+)
+
 # Workspaces table definition (SQLAlchemy Core)
 workspaces_table = Table(
     "workspaces",
