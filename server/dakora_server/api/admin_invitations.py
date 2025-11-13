@@ -60,13 +60,13 @@ class RejectRequest(BaseModel):
     reason: Optional[str] = None
 
 
-@router.get("", response_model=InvitationListResponse)
+@router.get("")
 async def list_invitations(
     status_filter: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     _: AuthContext = Depends(require_platform_admin),
-):
+) -> InvitationListResponse:
     """
     List all invitation requests with optional filtering.
     

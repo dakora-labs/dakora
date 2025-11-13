@@ -38,12 +38,15 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+    # CORS middleware - MUST be before routes to handle preflight requests
+    # CORSMiddleware automatically handles OPTIONS requests for CORS preflight
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
 
     # Public routes (no auth)
