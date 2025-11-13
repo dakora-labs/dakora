@@ -149,7 +149,7 @@ class TestAdminApprovalWithEmail:
                 mock_email_service.send_email.assert_called_once()
                 call_args = mock_email_service.send_email.call_args
                 
-                assert call_args.kwargs["to"] == "john@example.com"
+                assert call_args.kwargs["to"] == ["john@example.com"]
                 assert call_args.kwargs["subject"] == "You're Invited to Dakora Studio!"
                 assert "John Doe" in call_args.kwargs["html_content"]
                 
@@ -335,7 +335,7 @@ class TestAdminRejectionWithEmail:
             mock_email_service.send_email.assert_called_once()
             call_args = mock_email_service.send_email.call_args
             
-            assert call_args.kwargs["to"] == "reject@example.com"
+            assert call_args.kwargs["to"] == ["reject@example.com"]
             assert call_args.kwargs["subject"] == "Thank You for Your Interest in Dakora"
             assert "Reject User" in call_args.kwargs["html_content"]
             assert "thank you" in call_args.kwargs["html_content"].lower()

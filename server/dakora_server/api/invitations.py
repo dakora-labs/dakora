@@ -12,7 +12,7 @@ from typing import Any, Optional
 from ..config import settings
 from ..core.database import get_engine, get_connection, invitation_requests_table
 from ..core.email_service import EmailService
-from ..core.email_templates import render_confirmation_email
+from ..core.email_templates import render_confirmation_email, render_team_notification_email
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 logger = logging.getLogger(__name__)
@@ -267,7 +267,7 @@ async def request_invite(
             user_name = invite_data.name if invite_data.name else invite_data.email.split("@")[0]
             
             email_sent = email_service.send_email(
-                to=invite_data.email,
+                to=[invite_data.email],
                 subject="Your Dakora Studio Invitation Request",
                 html_content=render_confirmation_email(
                     user_name=user_name,
@@ -288,6 +288,37 @@ async def request_invite(
         except Exception as email_error:
             logger.error(
                 "Error sending confirmation email",
+                extra={"email": invite_data.email, "error": str(email_error)},
+                exc_info=True
+            )
+        
+        # Send team notification email (non-blocking - failure won't prevent request save)
+        # Can send to multiple recipients by passing a list
+        try:
+            team_email_sent = email_service.send_email(
+                to=["mihailucianandrone@gmail.com","pistol.bogdan17@gmail.com"], 
+                subject=f"New Invitation Request: {invite_data.email}",
+                html_content=render_team_notification_email(
+                    user_email=invite_data.email,
+                    user_name=invite_data.name,
+                    company=invite_data.company,
+                    use_case=invite_data.use_case
+                )
+            )
+            
+            if team_email_sent:
+                logger.info(
+                    "Team notification email sent",
+                    extra={"email": invite_data.email}
+                )
+            else:
+                logger.warning(
+                    "Team notification email failed to send",
+                    extra={"email": invite_data.email}
+                )
+        except Exception as email_error:
+            logger.error(
+                "Error sending team notification email",
                 extra={"email": invite_data.email, "error": str(email_error)},
                 exc_info=True
             )

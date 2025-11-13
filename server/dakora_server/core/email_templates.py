@@ -96,3 +96,61 @@ def render_rejection_email(user_name: str) -> str:
         '<p style="margin:0;color:#9ca3af;font-size:12px">© 2025 Dakora Labs. All rights reserved.</p>'
         '</td></tr></table></td></tr></table></body></html>'
     )
+
+
+def render_team_notification_email(
+    user_email: str,
+    user_name: str | None = None,
+    company: str | None = None,
+    use_case: str | None = None,
+) -> str:
+    """Render team notification email for new invitation request"""
+    name_display = user_name if user_name else "(not provided)"
+    company_display = company if company else "(not provided)"
+    use_case_display = use_case if use_case else "(not provided)"
+    
+    return (
+        '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+        '<title>New Invitation Request</title></head>'
+        '<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,\'Helvetica Neue\',Arial,sans-serif;background:#f9fafb">'
+        '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:40px 20px">'
+        '<tr><td align="center">'
+        '<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;box-shadow:0 4px 6px rgba(0,0,0,0.05);overflow:hidden">'
+        '<tr><td style="background:#fff;padding:40px;text-align:center;border-bottom:1px solid #e5e7eb">'
+        '<img src="https://playground.dakora.io/logo-light.png" alt="Dakora Studio" style="max-width:200px;height:auto;margin:0 auto;display:block">'
+        '</td></tr>'
+        '<tr><td style="padding:40px">'
+        '<p style="margin:0 0 24px;color:#4b5563;font-size:18px;font-weight:600;line-height:1.6">New Invitation Request</p>'
+        '<div style="background:#f0fdf4;border-left:4px solid #10b981;padding:20px 24px;margin:0 0 24px;border-radius:4px">'
+        '<p style="margin:0;color:#111827;font-size:15px;line-height:1.6"><strong style="color:#10b981">Action Required</strong><br>'
+        'A new user has requested access to Dakora Studio. Please review and respond within 24 hours.</p></div>'
+        '<table width="100%" cellpadding="12" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:0 0 24px">'
+        '<tr><td style="padding:12px;border-bottom:1px solid #e5e7eb">'
+        '<p style="margin:0;color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Email</p>'
+        f'<p style="margin:4px 0 0;color:#111827;font-size:15px;font-weight:500">{user_email}</p>'
+        '</td></tr>'
+        '<tr><td style="padding:12px;border-bottom:1px solid #e5e7eb">'
+        '<p style="margin:0;color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Name</p>'
+        f'<p style="margin:4px 0 0;color:#111827;font-size:15px">{name_display}</p>'
+        '</td></tr>'
+        '<tr><td style="padding:12px;border-bottom:1px solid #e5e7eb">'
+        '<p style="margin:0;color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Company</p>'
+        f'<p style="margin:4px 0 0;color:#111827;font-size:15px">{company_display}</p>'
+        '</td></tr>'
+        '<tr><td style="padding:12px">'
+        '<p style="margin:0;color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Use Case</p>'
+        f'<p style="margin:4px 0 0;color:#111827;font-size:15px">{use_case_display}</p>'
+        '</td></tr>'
+        '</table>'
+        '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 0 24px">'
+        '<a href="https://playground.dakora.io/admin/invitations" style="display:inline-block;background:#E7390E;color:#fff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 32px;border-radius:8px">Review Request</a>'
+        '</td></tr></table>'
+        '<p style="margin:0;color:#4b5563;font-size:14px;line-height:1.6;text-align:center">Review and approve/reject this request in the admin dashboard.</p>'
+        '</td></tr>'
+        '<tr><td style="background:#f9fafb;padding:30px 40px;text-align:center;border-top:1px solid #e5e7eb">'
+        '<p style="margin:0 0 12px;color:#6b7280;font-size:14px">Questions? Contact us at '
+        '<a href="mailto:support@dakora.io" style="color:#E7390E;text-decoration:none">support@dakora.io</a></p>'
+        '<p style="margin:0;color:#9ca3af;font-size:12px">© 2025 Dakora Labs. All rights reserved.</p>'
+        '</td></tr></table></td></tr></table></body></html>'
+    )

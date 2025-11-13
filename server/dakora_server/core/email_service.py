@@ -32,38 +32,40 @@ class EmailService:
 
     def send_email(
         self,
-        to: str,
+        to: list[str],
         subject: str,
         html_content: str,
     ) -> bool:
         """Send an email via Resend API
         
         Args:
-            to: Recipient email address
+            to: List of recipient email addresses
             subject: Email subject line
             html_content: HTML content of the email
             
         Returns:
             True if email sent successfully, False otherwise
         """
+        to_list = to
+        
         if not self.api_key:
             logger.warning(
                 "Email send skipped (no API key configured)",
-                extra={"to": to, "subject": subject}
+                extra={"to": to_list, "subject": subject}
             )
             return False
             
         if not resend:
             logger.error(
                 "Cannot send email: resend package not installed",
-                extra={"to": to, "subject": subject}
+                extra={"to": to_list, "subject": subject}
             )
             return False
 
         try:
             params = {
                 "from": self.from_email,
-                "to": [to],
+                "to": to_list,
                 "subject": subject,
                 "html": html_content,
             }
@@ -71,14 +73,14 @@ class EmailService:
             result = resend.Emails.send(params)
             logger.info(
                 "Email sent successfully",
-                extra={"to": to, "subject": subject, "email_id": result.get("id")}
+                extra={"to": to_list, "subject": subject, "email_id": result.get("id")}
             )
             return True
             
         except Exception as e:
             logger.error(
                 "Failed to send email",
-                extra={"to": to, "subject": subject, "error": str(e)},
+                extra={"to": to_list, "subject": subject, "error": str(e)},
                 exc_info=True
             )
             return False

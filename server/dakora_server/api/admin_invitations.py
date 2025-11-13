@@ -294,7 +294,7 @@ async def approve_invitation(
                 else:
                     email_html = render_invitation_email(user_name, invite_url)
                     email_sent = email_service.send_email(
-                        to=result.email,
+                        to=[result.email],
                         subject="You're Invited to Dakora Studio!",
                         html_content=email_html,
                     )
@@ -394,7 +394,7 @@ async def reject_invitation(
             user_name = full_result.name if (full_result and full_result.name) else result.email.split("@")[0]
             email_html = render_rejection_email(user_name)
             email_sent = email_service.send_email(
-                to=result.email,
+                to=[result.email],
                 subject="Thank You for Your Interest in Dakora",
                 html_content=email_html
             )

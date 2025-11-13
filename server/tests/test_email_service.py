@@ -25,12 +25,12 @@ class TestEmailService:
 
     @patch("dakora_server.core.email_service.resend.Emails.send")
     def test_send_email_success(self, mock_send):
-        """Verify email sends successfully with correct structure"""
+        """Verify email sends successfully with correct structure (single recipient)"""
         mock_send.return_value = {"id": "email_123"}
         
         service = EmailService(api_key="test_key")
         result = service.send_email(
-            to="user@example.com",
+            to=["user@example.com"],
             subject="Test Subject",
             html_content="<h1>Test</h1>",
         )
@@ -44,13 +44,33 @@ class TestEmailService:
         assert call_args["html"] == "<h1>Test</h1>"
 
     @patch("dakora_server.core.email_service.resend.Emails.send")
+    def test_send_email_success_list_input(self, mock_send):
+        """Verify email sends successfully with list of recipients"""
+        mock_send.return_value = {"id": "email_456"}
+        
+        service = EmailService(api_key="test_key")
+        result = service.send_email(
+            to=["user1@example.com", "user2@example.com"],
+            subject="Test Subject",
+            html_content="<h1>Test</h1>",
+        )
+        
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args[0][0]
+        assert call_args["from"] == "Dakora Team <team@dakora.io>"
+        assert call_args["to"] == ["user1@example.com", "user2@example.com"]
+        assert call_args["subject"] == "Test Subject"
+        assert call_args["html"] == "<h1>Test</h1>"
+
+    @patch("dakora_server.core.email_service.resend.Emails.send")
     def test_send_email_failure(self, mock_send):
         """Verify email failure is handled gracefully"""
         mock_send.side_effect = Exception("API Error")
         
         service = EmailService(api_key="test_key")
         result = service.send_email(
-            to="user@example.com",
+            to=["user@example.com"],
             subject="Test",
             html_content="<h1>Test</h1>",
         )
@@ -61,7 +81,7 @@ class TestEmailService:
         """Verify sending without API key returns False"""
         service = EmailService(api_key=None)
         result = service.send_email(
-            to="user@example.com",
+            to=["user@example.com"],
             subject="Test",
             html_content="<h1>Test</h1>",
         )
