@@ -13,10 +13,11 @@ export function InviteOnlyLoginPage() {
           className="space-y-8"
         >
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-2xl">D</span>
-            </div>
-            <span className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Dakora</span>
+            <img 
+              src="/logo-light.svg" 
+              alt="Dakora Logo" 
+              className="h-12 w-auto"
+            />
           </div>
 
           <div className="space-y-4">
