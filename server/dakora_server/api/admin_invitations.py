@@ -191,6 +191,10 @@ async def approve_invitation(
         # Determine redirect URL
         redirect_url = settings.invite_redirect_url if settings.invite_redirect_url else None
         
+        # Decide whether to use Clerk's built-in email or custom email
+        # If we don't have Resend configured, let Clerk send the email
+        use_clerk_email = not settings.resend_api_key
+        
         try:
             # Call Clerk API to create invitation
             async with httpx.AsyncClient() as client:
@@ -204,9 +208,7 @@ async def approve_invitation(
                         "email_address": result.email,
                         # Match email template text (7 days) vs Clerk default (30)
                         "expires_in_days": 7,
-                        "notify": False,
-                        # Keep Clerk notification default (true) unless you prefer only branded emails
-                        # Set "notify": False to avoid sending duplicate emails
+                        "notify": use_clerk_email,  # Fallback to Clerk email if no custom email service
                         **({"redirect_url": redirect_url} if redirect_url else {}),
                         "public_metadata": {
                             "name": result.name,
@@ -275,36 +277,38 @@ async def approve_invitation(
             }
         )
         
-        # Send custom branded invitation email
-        try:
-            user_name = result.name if result.name else result.email.split("@")[0]
-            # Prefer the URL provided by Clerk API response
-            invite_url = clerk_invitation_url
-            if not invite_url:
-                logger.warning(
-                    "Clerk invitation response missing URL; skipping custom email",
-                    extra={
-                        "invitation_id": str(invitation_id),
-                        "email": result.email,
-                    },
-                )
-                invite_url = None
+        # Send custom branded invitation email (only if Resend is configured)
+        if settings.resend_api_key:
+            try:
+                user_name = result.name if result.name else result.email.split("@")[0]
+                invite_url = clerk_invitation_url
+                
+                if not invite_url:
+                    logger.error(
+                        "Clerk invitation response missing URL; cannot send custom email",
+                        extra={
+                            "invitation_id": str(invitation_id),
+                            "email": result.email,
+                        },
+                    )
+                else:
+                    email_html = render_invitation_email(user_name, invite_url)
+                    email_sent = email_service.send_email(
+                        to=result.email,
+                        subject="You're Invited to Dakora Studio!",
+                        html_content=email_html,
+                    )
 
-            email_sent = False
-            if invite_url:
-                email_html = render_invitation_email(user_name, invite_url)
-                email_sent = email_service.send_email(
-                    to=result.email,
-                    subject="You're Invited to Dakora Studio!",
-                    html_content=email_html,
-                )
-
-            if email_sent:
-                logger.info(f"Custom invitation email sent to {result.email}")
-            else:
-                logger.warning(f"Failed to send custom invitation email to {result.email}")
-        except Exception as e:
-            logger.error(f"Error sending custom invitation email: {e}", exc_info=True)
+                    if email_sent:
+                        logger.info(f"Custom invitation email sent to {result.email}")
+                    else:
+                        logger.warning(f"Failed to send custom invitation email to {result.email}")
+            except Exception as e:
+                logger.error(f"Error sending custom invitation email: {e}", exc_info=True)
+        else:
+            logger.info(
+                f"Using Clerk's built-in email notification for {result.email} (no Resend API key configured)"
+            )
         
         return {
             "message": f"Invitation approved and sent to {result.email}",
@@ -380,14 +384,14 @@ async def reject_invitation(
         
         # Send polite rejection email
         try:
-            # Need to get name from full record
+            # Get full record including name (optimize: reuse earlier query)
             full_result = conn.execute(
-                select(invitation_requests_table.c.name).where(
+                select(invitation_requests_table).where(
                     invitation_requests_table.c.id == invitation_id
                 )
             ).fetchone()
             
-            user_name = full_result[0] if (full_result and full_result[0]) else result.email.split("@")[0]
+            user_name = full_result.name if (full_result and full_result.name) else result.email.split("@")[0]
             email_html = render_rejection_email(user_name)
             email_sent = email_service.send_email(
                 to=result.email,

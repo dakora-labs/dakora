@@ -24,6 +24,8 @@ export function MainLayout({ children }: MainLayoutProps) {
   const projectSlug = paramProjectSlug || contextProjectSlug || 'default';
 
   // Check if user is platform admin
+  // NOTE: This is for UI visibility only. Backend properly enforces authorization
+  // via require_platform_admin() dependency on all admin endpoints.
   // Priority 1: Check Clerk public_metadata (most reliable for UI)
   // Priority 2: Check backend user context (auth_ctx.is_platform_admin)
   const isPlatformAdmin = AUTH_REQUIRED && (

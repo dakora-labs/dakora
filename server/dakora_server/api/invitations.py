@@ -7,6 +7,7 @@ import logging
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select, insert
+from sqlalchemy.exc import IntegrityError
 from typing import Any, Optional
 from ..config import settings
 from ..core.database import get_engine, get_connection, invitation_requests_table
@@ -44,7 +45,11 @@ def _as_list(payload: Any) -> list[dict[str, Any]]:
 
 
 async def _clerk_user_exists(email: str) -> bool:
-    """Return True if Clerk has a user with the given email."""
+    """Return True if Clerk has a user with the given email.
+    
+    Raises:
+        HTTPException: 503 if Clerk API is unavailable or times out
+    """
     if not settings.clerk_secret_key:
         return False
     email_lower = email.lower()
@@ -76,13 +81,33 @@ async def _clerk_user_exists(email: str) -> bool:
                             return True
                     except Exception:
                         continue
+    except httpx.TimeoutException:
+        logger.error("Clerk API timeout during user lookup", extra={"email": email}, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="User verification service is temporarily unavailable. Please try again later."
+        )
+    except httpx.HTTPError as err:
+        logger.error("Clerk API HTTP error during user lookup", extra={"email": email, "error": str(err)}, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="User verification service is temporarily unavailable. Please try again later."
+        )
     except Exception as err:
-        logger.warning("Clerk users lookup failed", extra={"email": email, "error": str(err)})
+        logger.error("Unexpected error during Clerk user lookup", extra={"email": email, "error": str(err)}, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify user status. Please try again later."
+        )
     return False
 
 
 async def _clerk_invite_status(email: str) -> Optional[str]:
-    """Return invitation status in Clerk for email: 'pending', 'accepted', or None."""
+    """Return invitation status in Clerk for email: 'pending', 'accepted', or None.
+    
+    Raises:
+        HTTPException: 503 if Clerk API is unavailable or times out
+    """
     if not settings.clerk_secret_key:
         return None
     email_lower = email.lower()
@@ -121,8 +146,24 @@ async def _clerk_invite_status(email: str) -> Optional[str]:
                 return "pending"
             if found_accepted:
                 return "accepted"
+    except httpx.TimeoutException:
+        logger.error("Clerk API timeout during invitation lookup", extra={"email": email}, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Invitation verification service is temporarily unavailable. Please try again later."
+        )
+    except httpx.HTTPError as err:
+        logger.error("Clerk API HTTP error during invitation lookup", extra={"email": email, "error": str(err)}, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Invitation verification service is temporarily unavailable. Please try again later."
+        )
     except Exception as err:
-        logger.warning("Clerk invitations lookup failed", extra={"email": email, "error": str(err)})
+        logger.error("Unexpected error during Clerk invitation lookup", extra={"email": email, "error": str(err)}, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify invitation status. Please try again later."
+        )
     return None
 
 
@@ -186,22 +227,30 @@ async def request_invite(
             client_ip = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
             
-            # Insert new request
-            conn.execute(
-                insert(invitation_requests_table).values(
-                    email=invite_data.email,
-                    name=invite_data.name,
-                    company=invite_data.company,
-                    use_case=invite_data.use_case,
-                    status="pending",
-                    metadata={
-                        "source": "landing_page_request",
-                        "ip": client_ip,
-                        "user_agent": user_agent,
-                    }
+            # Insert new request (with unique constraint protection)
+            try:
+                conn.execute(
+                    insert(invitation_requests_table).values(
+                        email=invite_data.email,
+                        name=invite_data.name,
+                        company=invite_data.company,
+                        use_case=invite_data.use_case,
+                        status="pending",
+                        metadata={
+                            "source": "landing_page_request",
+                            "ip": client_ip,
+                            "user_agent": user_agent,
+                        }
+                    )
                 )
-            )
-            conn.commit()
+                conn.commit()
+            except IntegrityError:
+                # Race condition: another request just created a pending record
+                logger.info(
+                    "Duplicate pending invitation request detected (race condition)",
+                    extra={"email": invite_data.email}
+                )
+                return {"message": MSG_PENDING, "status": "already_pending"}
         
         logger.info(
             "Invitation request saved",
