@@ -82,7 +82,7 @@ class TestEmailTemplates:
         assert "john@example.com" in html
         assert "24 hours" in html.lower() or "24-hour" in html.lower()
         assert "<!DOCTYPE html>" in html or "<html" in html
-        assert "team@dakora.io" in html.lower()
+        assert "support@dakora.io" in html.lower()
 
     def test_invitation_email_rendering(self):
         """Verify invitation email template renders with invite link"""
