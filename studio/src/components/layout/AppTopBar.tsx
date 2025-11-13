@@ -7,10 +7,11 @@ export function AppTopBar() {
     <div className="h-12 border-b border-border bg-card flex items-center justify-between px-4">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xs">D</span>
-          </div>
-          <span className="text-sm font-medium">Dakora</span>
+          <img 
+            src="/logo-light.svg" 
+            alt="Dakora Logo" 
+            className="h-8 w-auto"
+          />
         </div>
       </div>
 

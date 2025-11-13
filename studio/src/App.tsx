@@ -19,6 +19,7 @@ import { ExecutionDetailPage } from './pages/ExecutionDetailPage';
 import { Toaster } from './components/ui/toaster';
 import { OnboardingWrapper } from './components/OnboardingWrapper';
 import { InviteOnlyLoginPage } from './pages/InviteOnlyLoginPage';
+import { AdminInvitationsPage } from './pages/AdminInvitationsPage';
 
 function App() {
   if (AUTH_REQUIRED) {
@@ -30,6 +31,7 @@ function App() {
             <MainLayout>
               <Routes>
                 <Route path="/" element={<ProjectRedirect />} />
+                <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
                 <Route path="/project/:projectSlug/*" element={
                   <OnboardingWrapper>
                     <Routes>

@@ -8,7 +8,7 @@ Supports multiple authentication methods:
 """
 
 import jwt
-from typing import Optional, cast
+from typing import Optional, cast, Any
 from uuid import UUID
 from fastapi import Depends, Header, HTTPException, Path
 from pydantic import BaseModel
@@ -27,6 +27,7 @@ class AuthContext(BaseModel):
     user_id: str
     project_id: Optional[str] = None
     auth_method: str  # "api_key", "jwt", "none"
+    public_metadata: dict[str, Any] = {}  # Clerk public metadata from JWT
 
     @property
     def storage_prefix(self) -> str:
@@ -38,6 +39,14 @@ class AuthContext(BaseModel):
         if self.project_id:
             return f"projects/{self.project_id}"
         return f"users/{self.user_id}"
+    
+    def is_platform_admin(self) -> bool:
+        """Check if user has platform admin role in Clerk metadata.
+        
+        Returns:
+            True if user has platform_role=admin in public_metadata
+        """
+        return self.public_metadata.get("platform_role") == "admin"
 
 async def get_auth_context(
     authorization: Optional[str] = Header(None),
@@ -117,6 +126,7 @@ async def get_auth_context(
                 user_id=user_id,
                 project_id=payload.get("project_id"),
                 auth_method="jwt",
+                public_metadata=payload.get("public_metadata", {}),
             )
 
         except jwt.ExpiredSignatureError:
@@ -335,3 +345,37 @@ async def get_current_user_id(
             raise HTTPException(status_code=403, detail="User not found")
 
         return user_result[0]
+
+
+async def require_platform_admin(
+    auth_ctx: AuthContext = Depends(get_auth_context),
+) -> AuthContext:
+    """Require platform admin role from Clerk public_metadata.
+    
+    Checks that the user has platform_role="admin" in their JWT public_metadata.
+    This is set in Clerk Dashboard → Users → [User] → Metadata → Public.
+    
+    Args:
+        auth_ctx: Authentication context from get_auth_context
+        
+    Returns:
+        AuthContext if user is admin
+        
+    Raises:
+        HTTPException: 403 if user is not an admin or not using JWT auth
+    """
+    # Only JWT auth can have admin role (via Clerk metadata)
+    if auth_ctx.auth_method != "jwt":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access requires authentication via Clerk"
+        )
+    
+    # Check for admin role in public_metadata
+    if not auth_ctx.is_platform_admin():
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required. Contact support to request admin privileges."
+        )
+    
+    return auth_ctx

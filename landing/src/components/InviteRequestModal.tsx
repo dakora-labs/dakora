@@ -35,6 +35,10 @@ export default function InviteRequestModal({ isOpen, onClose }: InviteRequestMod
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle rate limiting with a friendly message
+        if (response.status === 429) {
+          throw new Error('Whoa there! You\'ve made too many requests. Please wait a few minutes and try again. 🕐');
+        }
         throw new Error(data.message || 'Failed to send request');
       }
 
@@ -88,9 +92,9 @@ export default function InviteRequestModal({ isOpen, onClose }: InviteRequestMod
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900">Check Your Email!</h3>
+                <h3 className="text-2xl font-bold text-gray-900">Request Received!</h3>
                 <p className="text-gray-600">
-                  Your exclusive invitation is on its way. Check your inbox (and spam folder) for the access link.
+                  We'll review your request and send your invitation within 24 hours. Check your inbox (and spam folder)!
                 </p>
               </div>
             ) : (
@@ -185,7 +189,7 @@ export default function InviteRequestModal({ isOpen, onClose }: InviteRequestMod
                   </button>
 
                   <p className="text-xs text-gray-500 text-center">
-                    You'll receive an email with your invitation link instantly.
+                    We'll review your request and send your invitation within 24 hours.
                   </p>
                 </form>
               </>
